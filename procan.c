@@ -1,5 +1,5 @@
 /* $Id: procan.c,v 1.17 2006/12/28 07:25:01 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* the subroutine procan makes a "PROCess ANalysis". It gathers information

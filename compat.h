@@ -1,5 +1,5 @@
 /* $Id: compat.h,v 1.32 2006/06/19 20:28:52 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __compat_h_included
@@ -586,6 +586,8 @@
 #error "HAVE_TYPEOF_RLIM_MAX is out of range:" HAVE_TYPEOF_RLIM_MAX
 #  endif
 #endif
+
+#define F_thread "%lu"
 
 /* Cygwin 1.3.22 has the prototypes, but not the type... */
 #ifndef HAVE_TYPE_STAT64

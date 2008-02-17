@@ -88,6 +88,12 @@ bool xioopts_ignoregroups;
 #  define IF_SOCKS4(a,b) 
 #endif
 
+#if WITH_SOCKS5
+#  define IF_SOCKS5(a,b) {a,b},
+#else
+#  define IF_SOCKS5(a,b) 
+#endif
+
 #if WITH_PROXY
 #  define IF_PROXY(a,b) {a,b},
 #else
@@ -1190,6 +1196,7 @@ const struct optname optionnames[] = {
 #endif
 	IF_ANY    ("setuid",	&opt_setuid)
 	IF_ANY    ("setuid-early",	&opt_setuid_early)
+	IF_ANY    ("shut-none",	&opt_shut_none)
 #if WITH_EXEC || WITH_SYSTEM
 	IF_ANY    ("sid",	&opt_setsid)
 #endif
@@ -1302,6 +1309,8 @@ const struct optname optionnames[] = {
 #ifdef SO_USELOOPBACK /* AIX433, Solaris */
 	IF_SOCKET ("so-useloopback",	&opt_so_useloopback)
 #endif /* SO_USELOOPBACK */
+	IF_SOCKS5 ("socks5-password",	&opt_socks5_password)
+	IF_SOCKS5 ("socks5-username",	&opt_socks5_username)
  	IF_SOCKS4 ("socksport",	&opt_socksport)
 	IF_SOCKS4 ("socksuser",	&opt_socksuser)
 	IF_IPAPP  ("sourceport",	&opt_sourceport)
@@ -1560,9 +1569,9 @@ const struct optname optionnames[] = {
    to the array opts. Uses the option table 'optionnames'.
    returns 0 on success, -1 on error, 1 on unknown/wrong option  
 */
-int parseopts(const char **a, unsigned int groups, struct opt **opts) {
+int parseopts(const char **a, struct opt **opts) {
 
-   return parseopts_table(a, groups, opts, optionnames, 
+   return parseopts_table(a, opts, optionnames, 
 			  sizeof(optionnames)/sizeof(struct optname)-1);
 }
 
@@ -1571,7 +1580,7 @@ int parseopts(const char **a, unsigned int groups, struct opt **opts) {
    to the array opts. Uses the specified option table.
    returns 0 on success, -1 on error, 1 on unknown/wrong option  
 */
-int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
+int parseopts_table(const char **a, struct opt **opts,
 	      const struct optname optionnames[], size_t optionnum) {
    int i=0;
    struct opt *opt;
@@ -1603,15 +1612,15 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
    } ;
 
    i = 0;
-   /*endkey[i++] = xioopts.chainsep;*/	/* default: "|" */
-   endkey[i++] = xioopts.pipesep;		/* default: "!!" */
+   endkey[i++] = xioopts.chainsep;	/* default: "|" */
+   endkey[i++] = xioopts.pipesep;		/* default: "%" */
    endkey[i++] = ","/*xioopts.comma*/;		/* default: "," */
    endkey[i++] = "=";
    endkey[i++] = NULL;
 
    i = 0;
-   /*endval[i++] = xioopts.chainsep;*/	/* default: "|" */
-   endval[i++] = xioopts.pipesep;		/* default: "!!" */
+   endval[i++] = xioopts.chainsep;	/* default: "|" */
+   endval[i++] = xioopts.pipesep;		/* default: "%" */
    endval[i++] = ","/*xioopts.comma*/;		/* default: "," */
    endval[i++] = NULL;
 
@@ -1637,7 +1646,7 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
       len = sizeof(token);  tokp = token;
       parsres =
 	 nestlex(a, &tokp, &len, endkey, hquotes, squotes, nests,
-		 true, true, false);
+		 true, true, true, false);
       if (parsres != 0) {
 	 return -1;
       }
@@ -1654,6 +1663,7 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
 	 continue;
       }
 
+#if 0
       if (!(ent->desc->group & groups) && !(ent->desc->group & GROUP_ANY) &&
 	  !xioopts_ignoregroups) {
 	 Error1("parseopts(): option \"%s\" not supported with this address type",
@@ -1664,6 +1674,7 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
 	 continue;
 #endif
       }
+#endif
       (*opts)[i].desc = ent->desc;
       
       if (!strncmp(*a, assign_str, strlen(assign_str))) {
@@ -1672,7 +1683,7 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
 	 len = sizeof(token);  tokp = token;
 	 parsres =
 	    nestlex(a, &tokp, &len, endval, hquotes, squotes, nests,
-		    true, true, false);
+		    true, true, true, false);
 	 if (parsres != 0) {
 	    return -1;
 	 }
@@ -1981,7 +1992,7 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
 	    /*! result= */
 	    nestlex((const char **)&tokp, &buffp, &bufspc,
 		    ends, NULL, NULL, nests,
-		    true, false, false);
+		    true, true, false, false);
 	    if (*tokp != ':') {
 	       Error1("syntax in option %s: missing ':'", token);
 	    }
@@ -1994,7 +2005,7 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
 	    /*! result= */
 	    nestlex((const char **)&tokp, &buffp, &bufspc,
 		    ends, NULL, NULL, nests,
-		    true, false, false);
+		    true, true, false, false);
 	    *buffp++ = '\0';
 	    (*opts)[i].value.u_ip_mreq.param2 = strdup(buff); /*!!! NULL */
 
@@ -2034,7 +2045,7 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
 	    tokp = token;
 	    nestlex((const char **)&tokp, &buffp, &bufspc,
 		    ends, NULL, NULL, nests,
-		    true, false, false);
+		    true, true, false, false);
 	    if (*tokp != '\0') {
 	       Error1("trailing data in option \"%s\"", token);
 	    }
@@ -2068,6 +2079,32 @@ int parseopts_table(const char **a, unsigned int groups, struct opt **opts,
    (*opts)[i].desc = ODESC_END;
    return 0;
 }
+
+
+/* checks if the options conform to the group set.
+   returns 0 if all options conform to the group set,
+   or -1 otherwise. */
+int xiocheckopts(struct opt *opts, unsigned int groups) {
+   const struct opt *opt = opts;
+
+   if (opts == NULL) {
+      return 0;
+   }
+   while (opt->desc != ODESC_END) {
+
+      if (!(opt->desc->group & groups) &&
+	  !(opt->desc->group & GROUP_ANY) &&
+	  !xioopts_ignoregroups) {
+	 Error1("option \"%s\" not supported with this address type",
+		opt->desc->defname);
+	 Info2("parseopts()  groups=%08x, opt->group=%08x",
+	       groups, opt->desc->group);
+	 return -1;
+      }
+   }
+   return 0;
+}
+
 
 /* copy the already parsed options for repeated application, but only those
    matching groups ANY and <groups> */
@@ -2479,7 +2516,7 @@ int retropt_bind(struct opt *opts,
    portallowed = (feats>=2);
    bindp = bindname;
    nestlex((const char **)&bindp, &hostp, &hostlen, ends, NULL, NULL, nests,
-	   true, false, false);
+	   true, true, false, false);
    *hostp++ = '\0';
    if (!strncmp(bindp, portsep, strlen(portsep))) {
       if (!portallowed) {
@@ -2591,7 +2628,8 @@ int applyopts(int fd, struct opt *opts, unsigned int phase) {
 	 long mask  = opt->desc->arg3;
 
 	 if (Ioctl(fd, getreq, (void *)&val) < 0) {
-	    Error4("ioctl(%d, 0x%x, %p): %s",
+	    Error5("option \"%s\": ioctl(%d, 0x%x, %p): %s",
+		   opt->desc->defname,
 		   fd, opt->desc->major, (void *)&val, strerror(errno));
 	    opt->desc = ODESC_ERROR; ++opt; continue;
 	 }
@@ -3339,6 +3377,8 @@ static int applyopt_offset(struct single *xfd, struct opt *opt) {
    switch (opt->desc->type) {
    case TYPE_BOOL:
       *(bool *)ptr = opt->value.u_bool;  break;
+   case TYPE_UINT:
+      *(unsigned int *)ptr = opt->value.u_uint;  break;
    case TYPE_DOUBLE:
       *(double *)ptr = opt->value.u_double;  break;
    case TYPE_TIMEVAL:
@@ -3358,6 +3398,8 @@ static int applyopt_offset(struct single *xfd, struct opt *opt) {
    case TYPE_CONST:
       *(int *)ptr = opt->desc->minor;
       break;
+   case TYPE_TIMESPEC:
+      *(struct timespec *)ptr = opt->value.u_timespec; break;
    default:
       Error1("applyopt_offset(): type %d not implemented",
 	     opt->desc->type);
@@ -3574,10 +3616,10 @@ mc:addr
 #endif
 
 #if HAVE_STRUCT_IP_MREQN
-	       if (Setsockopt(xfd->fd, opt->desc->major, opt->desc->minor,
+	       if (Setsockopt(xfd->fd1, opt->desc->major, opt->desc->minor,
 			      &ip4_mreqn.mreqn, sizeof(ip4_mreqn.mreqn)) < 0) {
 		  Error8("setsockopt(%d, %d, %d, {0x%08x,0x%08x,%d}, "F_Zu"): %s",
-			 xfd->fd, opt->desc->major, opt->desc->minor,
+			 xfd->fd1, opt->desc->major, opt->desc->minor,
 			 ip4_mreqn.mreqn.imr_multiaddr.s_addr,
 			 ip4_mreqn.mreqn.imr_address.s_addr,
 			 ip4_mreqn.mreqn.imr_ifindex,
@@ -3586,10 +3628,10 @@ mc:addr
 		  opt->desc = ODESC_ERROR; continue;
 	       }
 #else
-	       if (Setsockopt(xfd->fd, opt->desc->major, opt->desc->minor,
+	       if (Setsockopt(xfd->fd1, opt->desc->major, opt->desc->minor,
 			      &ip4_mreqn.mreq, sizeof(ip4_mreqn.mreq)) < 0) {
 		  Error7("setsockopt(%d, %d, %d, {0x%08x,0x%08x}, "F_Zu"): %s",
-			 xfd->fd, opt->desc->major, opt->desc->minor,
+			 xfd->fd1, opt->desc->major, opt->desc->minor,
 			 ip4_mreqn.mreq.imr_multiaddr,
 			 ip4_mreqn.mreq.imr_interface,
 			 sizeof(ip4_mreqn.mreq),
@@ -3626,10 +3668,10 @@ mc:addr
 		  ip6_mreq.ipv6mr_interface = htonl(0);
 	       }
 
-	       if (Setsockopt(xfd->fd, opt->desc->major, opt->desc->minor,
+	       if (Setsockopt(xfd->fd1, opt->desc->major, opt->desc->minor,
 			      &ip6_mreq, sizeof(ip6_mreq)) < 0) {
 		  Error6("setsockopt(%d, %d, %d, {...,0x%08x}, "F_Zu"): %s",
-			 xfd->fd, opt->desc->major, opt->desc->minor,
+			 xfd->fd1, opt->desc->major, opt->desc->minor,
 			 ip6_mreq.ipv6mr_interface,
 			 sizeof(ip6_mreq),
 			 strerror(errno));
@@ -3668,7 +3710,7 @@ int applyopts_signal(struct single *xfd, struct opt *opts) {
 	 ++opt; continue;
       }
 
-      if (xio_opt_signal(xfd->para.exec.pid, opt->desc->major) < 0) {
+      if (xio_opt_signal(xfd->child.pid, opt->desc->major) < 0) {
 	 opt->desc = ODESC_ERROR; continue;
       }
       opt->desc = ODESC_DONE;
@@ -3685,15 +3727,23 @@ int _xio_openlate(struct single *fd, struct opt *opts) {
 
    _xioopen_setdelayeduser();
 
-   if ((result = applyopts(fd->fd, opts, PH_LATE)) < 0) {
+   if ((result = applyopts(fd->fd1, opts, PH_LATE)) < 0) {
       return result;
    }
+#if 0	/*! need to copy opts before previous statement! */
+   if (fd->fdtype == FDTYPE_DOUBLE) {
+      if ((result = applyopts(fd->fd2, opts, PH_LATE)) < 0) {
+	 return result;
+      }
+   }
+#endif
    if ((result = applyopts_single(fd, opts, PH_LATE)) < 0) {
       return result;
    }
-   if ((result = applyopts(fd->fd, opts, PH_LATE2)) < 0) {
+   if ((result = applyopts(fd->fd1, opts, PH_LATE2)) < 0) {
       return result;
    }
+   /*! need to apply to fd2 too! */
 
    if ((numleft = leftopts(opts)) > 0) {
       showleft(opts);

@@ -1,4 +1,32 @@
 
+####################### V 2.0.0-b1:
+
+new features:
+	address chains consisting of inter and endpoint addresses, linked with
+	'|' (pipe character)
+
+	reverting inter addresses
+
+	dual type inter addresses
+
+	changed form of dual addresses from in!!out to out%in
+
+	address overloading per parameter number, inter/endpoint type, and
+	supported transfer directions
+
+	derived new inter addresses OPENSSL-CLIENT, OPENSSL-SERVER,
+	PROXY-CLIENT, SOCKS4-CLIENT, SOCKS4A-CLIENT from related old addresses
+
+	new inter address SOCKS5-CLIENT
+
+	new inter address NOP
+
+	new inter address TEST, TESTUNI, TESTREV
+
+	new form of PTY address with symlink paramater
+
+	new form of FD address with output/input fd numbers
+
 ####################### V 1.6.0.0:
 
 new features:

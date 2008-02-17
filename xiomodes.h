@@ -29,6 +29,7 @@
 #include "xio-tcp.h"
 #include "xio-udp.h"
 #include "xio-socks.h"
+#include "xio-socks5.h"
 #include "xio-proxy.h"
 #endif /* WITH_SOCKET */
 #include "xio-progcall.h"
@@ -41,5 +42,7 @@
 #include "xio-tcpwrap.h"
 #include "xio-ext2.h"
 #include "xio-tun.h"
+#include "xio-nop.h"
+#include "xio-test.h"
 
 #endif /* !defined(__xiomodes_h_included) */

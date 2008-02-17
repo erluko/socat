@@ -75,6 +75,8 @@ int Chmod(const char *path, mode_t mode);
 int Poll(struct pollfd *ufds, unsigned int nfds, int timeout);
 int Select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	   struct timeval *timeout);
+int Pselect(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+	    struct timespec *timeout, const sigset_t *sigmask);
 pid_t Fork(void);
 pid_t Waitpid(pid_t pid, int *status, int options);
 #ifndef HAVE_TYPE_SIGHANDLER
@@ -133,9 +135,13 @@ int Grantpt(int fd);
 int Unlockpt(int fd);
 int Gethostname(char *name, size_t len);
 int Uname(struct utsname *buf);
+int Sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 int Atexit(void (*func)(void));
 void Exit(int status);
 void Abort(void);
+int Pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+		   void *(*start_routine)(void *), void *arg);
+int Pthread_join(pthread_t thread, void **value_ptr);
 int Mkstemp(char *template);
 
 char *Readline(const char *prompt);
@@ -145,6 +151,12 @@ int Write_history(const char *filename);
 int Append_history(int nelements, const char *filename);
 int Read_history(const char *filename);
 void Add_history(const char *string);
+#if WITH_GZIP
+gzFile Gzdopen(int fd, const char *mode) {
+int Gzread(gzFile file, voidp buf, unsigned len) {
+int Gzwrite(gzFile file, const voidp buf, unsigned len) {
+int Gzclose(gzFile file) {
+#endif /* WITH_GZIP */
 
 #else /* !WITH_SYCLS */
 
@@ -205,6 +217,7 @@ void Add_history(const char *string);
 #define Chmod(p,m) chmod(p,m)
 #define Poll(u, n, t) poll(u, n, t)
 #define Select(n,r,w,e,t) select(n,r,w,e,t)
+#define Pselect(n,r,w,e,t,s) select(n,r,w,e,t,s)
 #define Fork() fork()
 #define Waitpid(p,s,o) waitpid(p,s,o)
 #define Signal(s,h) signal(s,h)
@@ -252,9 +265,12 @@ void Add_history(const char *string);
 #define Getpgid(p) getpgid(p)
 #define Gethostname(n,l) gethostname(n,l)
 #define Uname(b) uname(b)
+#define Sigprocmask(h,s,o) sigprocmask(h,s,o)
 #define Atexit(f) atexit(f)
 #define Exit(s) exit(s)
 #define Abort() abort()
+#define Pthread_create(t,attr,s,arg) pthread_create(t,attr,s,arg)
+#define Pthread_join(t,ptr) pthread_join(t,ptr)
 #define Mkstemp(t) mkstemp(t)
 
 #define Readline(p) readline(p)
@@ -264,6 +280,11 @@ void Add_history(const char *string);
 #define Append_history(n,f) append_history(n,f)
 #define Read_history(f) read_history(f)
 #define Add_history(s) add_history(s)
+
+#define Gzdopen(f,m) gzdopen(f,m)
+#define Gzread(f,b,l) gzread(f,b,l)
+#define Gzwrite(f,b,l) gzwrite(f,b,l)
+#define Gzclose(f) gzclose(f)
 
 #endif /* !WITH_SYCLS */
 

@@ -1,5 +1,5 @@
 /* $Id: xio-fd.h,v 1.12 2006/12/28 07:35:50 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_fd_h_included
@@ -37,5 +37,6 @@ extern const struct optdesc opt_f_setlk_wr;
 extern const struct optdesc opt_f_setlkw_wr;
 extern const struct optdesc opt_cool_write;
 extern const struct optdesc opt_end_close;
+extern const struct optdesc opt_shut_none;
 
 #endif /* !defined(__xio_fd_h_included) */

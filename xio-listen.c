@@ -115,46 +115,24 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
 
-#if 1
-   if (dofork) {
-#if HAVE_SIGACTION
-      struct sigaction act;
-      memset(&act, 0, sizeof(struct sigaction));
-      act.sa_flags   = SA_NOCLDSTOP|SA_RESTART
-#ifdef SA_NOMASK
-	 |SA_NOMASK
-#endif
-	 ;
-      act.sa_handler = childdied;
-      if (Sigaction(SIGCHLD, &act, NULL) < 0) {
-	 /*! man does not say that errno is defined */
-	 Warn2("sigaction(SIGCHLD, %p, NULL): %s", childdied, strerror(errno));
-      }
-#else /* HAVE_SIGACTION */
-      if (Signal(SIGCHLD, childdied) == SIG_ERR) {
-	 Warn2("signal(SIGCHLD, %p): %s", childdied, strerror(errno));
-      }
-#endif /* !HAVE_SIGACTION */
-   }
-#endif /* 1 */
-
-   if ((xfd->fd = Socket(pf, socktype, proto)) < 0) {
+   if ((xfd->fd1 = Socket(pf, socktype, proto)) < 0) {
       Msg4(level,
 	   "socket(%d, %d, %d): %s", pf, socktype, proto, strerror(errno));
       return STAT_RETRYLATER;
    }
+   xfd->fdtype = FDTYPE_SINGLE;
 
-   applyopts(xfd->fd, opts, PH_PASTSOCKET);
+   applyopts(xfd->fd1, opts, PH_PASTSOCKET);
 
-   applyopts_cloexec(xfd->fd, opts);
+   applyopts_cloexec(xfd->fd1, opts);
 
-   applyopts(xfd->fd, opts, PH_PREBIND);
-   applyopts(xfd->fd, opts, PH_BIND);
-   if (Bind(xfd->fd, (struct sockaddr *)us, uslen) < 0) {
-      Msg4(level, "bind(%d, {%s}, "F_Zd"): %s", xfd->fd,
+   applyopts(xfd->fd1, opts, PH_PREBIND);
+   applyopts(xfd->fd1, opts, PH_BIND);
+   if (Bind(xfd->fd1, (struct sockaddr *)us, uslen) < 0) {
+      Msg4(level, "bind(%d, {%s}, "F_Zd"): %s", xfd->fd1,
 	   sockaddr_info(us, uslen, infobuff, sizeof(infobuff)), uslen,
 	   strerror(errno));
-      Close(xfd->fd);
+      Close(xfd->fd1);
       return STAT_RETRYLATER;
    }
 
@@ -166,12 +144,12 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
    /* under some circumstances (e.g., TCP listen on port 0) bind() fills empty
       fields that we want to know. */
    salen = sizeof(sa);
-   if (Getsockname(xfd->fd, us, &uslen) < 0) {
+   if (Getsockname(xfd->fd1, us, &uslen) < 0) {
       Warn4("getsockname(%d, %p, {%d}): %s",
-	    xfd->fd, &us, uslen, strerror(errno));
+	    xfd->fd1, &us, uslen, strerror(errno));
    }
 
-   applyopts(xfd->fd, opts, PH_PASTBIND);
+   applyopts(xfd->fd1, opts, PH_PASTBIND);
 #if WITH_UNIX
    if (us->sa_family == AF_UNIX) {
       /*applyopts_early(((struct sockaddr_un *)us)->sun_path, opts);*/
@@ -181,8 +159,8 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 #endif /* WITH_UNIX */
 
    retropt_int(opts, OPT_BACKLOG, &backlog);
-   if (Listen(xfd->fd, backlog) < 0) {
-      Error3("listen(%d, %d): %s", xfd->fd, backlog, strerror(errno));
+   if (Listen(xfd->fd1, backlog) < 0) {
+      Error3("listen(%d, %d): %s", xfd->fd1, backlog, strerror(errno));
       return STAT_RETRYLATER;
    }
 
@@ -229,9 +207,9 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
       do {
 	 /*? int level = E_ERROR;*/
 	 Notice1("listening on %s", sockaddr_info(us, uslen, lisname, sizeof(lisname)));
-	 ps = Accept(xfd->fd, (struct sockaddr *)&sa, &salen);
+	 ps = Accept(xfd->fd1, (struct sockaddr *)&sa, &salen);
 	 if (ps >= 0) {
-	    /*0 Info4("accept(%d, %p, {"F_Zu"}) -> %d", xfd->fd, &sa, salen, ps);*/
+	    /*0 Info4("accept(%d, %p, {"F_Zu"}) -> %d", xfd->fd1, &sa, salen, ps);*/
 	    break;	/* success, break out of loop */
 	 }
 	 if (errno == EINTR) {
@@ -239,12 +217,12 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 	 }
 	 if (errno == ECONNABORTED) {
 	    Notice4("accept(%d, %p, {"F_Zu"}): %s",
-		    xfd->fd, &sa, salen, strerror(errno));
+		    xfd->fd1, &sa, salen, strerror(errno));
 	    continue;
 	 }
 	 Msg4(level, "accept(%d, %p, {"F_Zu"}): %s",
-	      xfd->fd, &sa, salen, strerror(errno));
-	 Close(xfd->fd);
+	      xfd->fd1, &sa, salen, strerror(errno));
+	 Close(xfd->fd1);
 	 return STAT_RETRYLATER;
       } while (true);
       applyopts_cloexec(ps, opts);
@@ -271,21 +249,21 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 	    sockaddr_info((struct sockaddr *)pa, pas,
 			  infobuff, sizeof(infobuff)));
 
-      applyopts(xfd->fd, opts, PH_FD);
+      applyopts(xfd->fd1, opts, PH_FD);
 
-      applyopts(xfd->fd, opts, PH_CONNECTED);
+      applyopts(xfd->fd1, opts, PH_CONNECTED);
 
       if (dofork) {
 	 if ((pid = Fork()) < 0) {
 	    Msg1(level, "fork(): %s", strerror(errno));
-	    Close(xfd->fd);
+	    Close(xfd->fd1);
 	    return STAT_RETRYLATER;
 	 }
 	 if (pid == 0) {	/* child */
-	    if (Close(xfd->fd) < 0) {
-	       Info2("close(%d): %s", xfd->fd, strerror(errno));
+	    if (Close(xfd->fd1) < 0) {
+	       Info2("close(%d): %s", xfd->fd1, strerror(errno));
 	    }
-	    xfd->fd = ps;
+	    xfd->fd1 = ps;
 
 #if WITH_RETRY
 	    /* !? */
@@ -317,10 +295,10 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 	 Notice1("forked off child process "F_pid, pid);
 	 Info("still listening");
       } else {
-	 if (Close(xfd->fd) < 0) {
-	    Info2("close(%d): %s", xfd->fd, strerror(errno));
+	 if (Close(xfd->fd1) < 0) {
+	    Info2("close(%d): %s", xfd->fd1, strerror(errno));
 	 }
-	 xfd->fd = ps;
+	 xfd->fd1 = ps;
 	break;
       }
    }

@@ -57,14 +57,6 @@ But the following OS differences result in errors on non Linux systems:
    $PATH, and "openssl s_server ..." needs enough entropy to generate a key.
 
 
-Q: When I specify a dual address (two partial addresses linked with "!!") on
-the command line, I get some message "event not found", and my shell history
-has the line truncated. Not even protecting the '!'s with '\' helps.
-
-A: '!' is appearently used by your shell as history expansion character. Say
-"set +H" and add this line to your (bash) profile.
-
-
 Q: On Solaris, socat was built successfully, but when started, it gets killed
 with something like "ld.so.1: ./socat: fatal: libreadline.so.4: open failed: no
 such file or directory"

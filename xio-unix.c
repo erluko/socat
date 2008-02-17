@@ -25,7 +25,6 @@ int xioopen_unix_recv(int argc, const char *argv[], struct opt *opts,
 		      int pf, int socktype, int ipproto);
 static
 int xioopen_unix_client(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups, int dummy1, int dummy2, int dummy3);
-
 #if WITH_ABSTRACT_UNIXSOCKET
 static int xioopen_abstract_connect(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
 static int xioopen_abstract_listen(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
@@ -39,23 +38,36 @@ static
 int xioopen_abstract_client(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups, int dummy1, int dummy2, int dummy3);
 #endif /* WITH_ABSTRACT_UNIXSOCKET */
 
-const struct addrdesc addr_unix_connect = { "unix-connect",   3, xioopen_unix_connect, GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY, 0, SOCK_STREAM, 0 HELP(":<filename>") };
+static const struct xioaddr_endpoint_desc xioendpoint_unix_connect1 = { XIOADDR_SYS, "unix-connect", 1, XIOBIT_ALL,                GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_unix_connect, 0, SOCK_STREAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_unix_connect[] = { (union xioaddr_desc *)&xioendpoint_unix_connect1, NULL };
 #if WITH_LISTEN
-const struct addrdesc addr_unix_listen  = { "unix-listen", 3, xioopen_unix_listen, GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_LISTEN|GROUP_CHILD|GROUP_RETRY, 0, SOCK_STREAM, 0 HELP(":<filename>") };
+static const struct xioaddr_endpoint_desc xioendpoint_unix_listen1  = { XIOADDR_SYS, "unix-listen",  1, XIOBIT_ALL,                GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_LISTEN|GROUP_CHILD|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_unix_listen, 0, SOCK_STREAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_unix_listen[]  = { (union xioaddr_desc *)&xioendpoint_unix_listen1, NULL };
 #endif /* WITH_LISTEN */
-const struct addrdesc addr_unix_sendto  = { "unix-sendto",  3, xioopen_unix_sendto, GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY, 0, SOCK_DGRAM, 0 HELP(":<filename>") };
-const struct addrdesc addr_unix_recvfrom= { "unix-recvfrom", 3, xioopen_unix_recvfrom, GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY|GROUP_CHILD, PF_UNIX, SOCK_DGRAM, 0 HELP(":<filename>") };
-const struct addrdesc addr_unix_recv    = { "unix-recv",     1, xioopen_unix_recv,     GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY,             PF_UNIX, SOCK_DGRAM, 0 HELP(":<filename>") };
-const struct addrdesc addr_unix_client  = { "unix-client",   3, xioopen_unix_client,   GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY,             PF_UNIX, 0,          0 HELP(":<filename>") };
+static const struct xioaddr_endpoint_desc xioendpoint_unix_sendto1  = { XIOADDR_SYS, "unix-sendto",  1, XIOBIT_WRONLY|XIOBIT_RDWR, GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_unix_sendto, 0, SOCK_DGRAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_unix_sendto[]  = { (union xioaddr_desc *)&xioendpoint_unix_sendto1, NULL };
+static const struct xioaddr_endpoint_desc xioendpoint_unix_recvfrom1= { XIOADDR_SYS, "unix-recvfrom",1, XIOBIT_RDONLY|XIOBIT_RDWR, GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY|GROUP_CHILD, XIOSHUT_DOWN, XIOCLOSE_NONE, xioopen_unix_recvfrom, PF_UNIX, SOCK_DGRAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_unix_recvfrom[]= { (union xioaddr_desc *)&xioendpoint_unix_recvfrom1, NULL };
+static const struct xioaddr_endpoint_desc xioendpoint_unix_recv1    = { XIOADDR_SYS, "unix-recv",    1, XIOBIT_RDONLY,             GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY,             XIOSHUT_DOWN, XIOCLOSE_NONE, xioopen_unix_recv,     PF_UNIX, SOCK_DGRAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_unix_recv[]    = { (union xioaddr_desc *)&xioendpoint_unix_recv1, NULL };
+static const struct xioaddr_endpoint_desc xioendpoint_unix_client1  = { XIOADDR_SYS, "unix-client",  1, XIOBIT_ALL,                GROUP_FD|GROUP_NAMED|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY,             XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_unix_client,   PF_UNIX, 0,          0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_unix_client[]  = { (union xioaddr_desc *)&xioendpoint_unix_client1, NULL };
+
 #if WITH_ABSTRACT_UNIXSOCKET
-const struct addrdesc xioaddr_abstract_connect = { "abstract-connect",  3, xioopen_abstract_connect,  GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY, 0, SOCK_STREAM, 0 HELP(":<filename>") };
+static const struct xioaddr_endpoint_desc xioendpoint_abstract_connect1 = { XIOADDR_SYS, "abstract-connect",  1, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_abstract_connect,  0, SOCK_STREAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_abstract_connect[] = { (union xioaddr_desc *)&xioendpoint_abstract_connect1, NULL };
 #if WITH_LISTEN
-const struct addrdesc xioaddr_abstract_listen  = { "abstract-listen",   3, xioopen_abstract_listen,   GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_LISTEN|GROUP_CHILD|GROUP_RETRY, 0, SOCK_STREAM, 0 HELP(":<filename>") };
+static const struct xioaddr_endpoint_desc xioendpoint_abstract_listen1  = { XIOADDR_SYS, "abstract-listen",   1, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_LISTEN|GROUP_CHILD|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_abstract_listen,   0, SOCK_STREAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_abstract_listen[] =  { (union xioaddr_desc *)&xioendpoint_abstract_listen1, NULL };
 #endif /* WITH_LISTEN */
-const struct addrdesc xioaddr_abstract_sendto  = { "abstract-sendto",   3, xioopen_abstract_sendto,   GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY, 0, SOCK_DGRAM, 0 HELP(":<filename>") };
-const struct addrdesc xioaddr_abstract_recvfrom= { "abstract-recvfrom", 3, xioopen_abstract_recvfrom, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY|GROUP_CHILD, PF_UNIX, SOCK_DGRAM, 0 HELP(":<filename>") };
-const struct addrdesc xioaddr_abstract_recv    = { "abstract-recv",     1, xioopen_abstract_recv,     GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY,             PF_UNIX, SOCK_DGRAM, 0 HELP(":<filename>") };
-const struct addrdesc xioaddr_abstract_client  = { "abstract-client",   3, xioopen_abstract_client,   GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY,             PF_UNIX, 0,          0 HELP(":<filename>") };
+static const struct xioaddr_endpoint_desc xioendpoint_abstract_sendto1  = { XIOADDR_SYS, "abstract-sendto",   1, XIOBIT_WRONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_abstract_sendto,   0, SOCK_DGRAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_abstract_sendto[] =  { (union xioaddr_desc *)&xioendpoint_abstract_sendto1, NULL };
+static const struct xioaddr_endpoint_desc xioendpoint_abstract_recvfrom1= { XIOADDR_SYS, "abstract-recvfrom", 1, XIOBIT_RDONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY|GROUP_CHILD, XIOSHUT_DOWN, XIOCLOSE_NONE, xioopen_abstract_recvfrom, PF_UNIX, SOCK_DGRAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_abstract_recvfrom[] = { (union xioaddr_desc *)&xioendpoint_abstract_recvfrom1, NULL };
+static const struct xioaddr_endpoint_desc xioendpoint_abstract_recv1    = { XIOADDR_SYS, "abstract-recv",     1, XIOBIT_RDONLY,             GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY,           XIOSHUT_DOWN, XIOCLOSE_NONE, xioopen_abstract_recv,     PF_UNIX, SOCK_DGRAM, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_abstract_recv[]     = { (union xioaddr_desc *)&xioendpoint_abstract_recv1, NULL };
+static const struct xioaddr_endpoint_desc xioendpoint_abstract_client1  = { XIOADDR_SYS, "abstract-client",   1, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_RETRY,             XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_abstract_client,   PF_UNIX, 0,          0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_abstract_client[]   = { (union xioaddr_desc *)&xioendpoint_abstract_client1, NULL };
 #endif /* WITH_ABSTRACT_UNIXSOCKET */
 
 const struct optdesc opt_unix_tightsocklen = { "unix-tightsocklen",    "tightsocklen",  OPT_UNIX_TIGHTSOCKLEN,  GROUP_SOCK_UNIX, PH_INIT, TYPE_BOOL, OFUNC_SPEC, 0, 0 };
@@ -132,8 +144,6 @@ static int xioopen_unix_listen(int argc, const char *argv[], struct opt *opts, i
       }
       xfd->opt_unlink_close = true;
    }
-
-   xfd->howtoend = END_SHUTDOWN;
 
    applyopts(-1, opts, PH_INIT);
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
@@ -242,8 +252,6 @@ static int xioopen_unix_sendto(int argc, const char *argv[], struct opt *opts, i
    uslen = socket_init(pf, &us);
    xfd->salen = socket_init(pf, &xfd->peersa);
 
-   xfd->howtoend = END_SHUTDOWN;
-
    retropt_int(opts, OPT_SO_TYPE, &socktype);
 
    retropt_bool(opts, OPT_UNIX_TIGHTSOCKLEN, &tight);
@@ -299,7 +307,6 @@ int xioopen_unix_recvfrom(int argc, const char *argv[], struct opt *opts,
    name = argv[1];
    uslen = xiosetunix(&us, name, false, tight);
 
-   xfd->stream.howtoend = END_NONE;
    retropt_int(opts, OPT_SO_TYPE, &socktype);
    retropt_bind(opts, pf, socktype, 0, (struct sockaddr *)&us, &uslen, 1, 0, 0);
    retropt_bool(opts, OPT_UNLINK_EARLY, &opt_unlink_early);
@@ -406,7 +413,6 @@ static int xioopen_unix_client(int argc, const char *argv[], struct opt *opts, i
       Error2("%s: wrong number of parameters (%d instead of 1)", argv[0], argc-1);
    }
 
-   xfd->howtoend = END_SHUTDOWN;
    retropt_int(opts, OPT_SO_TYPE, &socktype);
 
    uslen = socket_init(pf, &us);
@@ -486,8 +492,6 @@ static int xioopen_abstract_listen(int argc, const char *argv[], struct opt *opt
    retropt_bool(opts, OPT_UNIX_TIGHTSOCKLEN, &tight);
    name = argv[1];
    uslen = xiosetunix(&us, name, true, tight);
-
-   xfd->howtoend = END_SHUTDOWN;
 
    applyopts(-1, opts, PH_INIT);
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
@@ -574,8 +578,6 @@ static int xioopen_abstract_sendto(int argc, const char *argv[], struct opt *opt
    uslen = socket_init(pf, &us);
    xfd->salen = socket_init(pf, &xfd->peersa);
 
-   xfd->howtoend = END_SHUTDOWN;
-
    retropt_int(opts, OPT_SO_TYPE, &socktype);
 
    retropt_bool(opts, OPT_UNIX_TIGHTSOCKLEN, &tight);
@@ -620,7 +622,6 @@ int xioopen_abstract_recvfrom(int argc, const char *argv[], struct opt *opts,
    name = argv[1];
    uslen = xiosetunix(&us, name, true, tight);
 
-   xfd->stream.howtoend = END_NONE;
    retropt_int(opts, OPT_SO_TYPE, &socktype);
    retropt_bind(opts, pf, socktype, 0, (struct sockaddr *)&us, &uslen, 1, 0, 0);
 
@@ -685,7 +686,6 @@ static int xioopen_abstract_client(int argc, const char *argv[], struct opt *opt
       Error2("%s: wrong number of parameters (%d instead of 1)", argv[0], argc-1);
    }
 
-   xfd->howtoend = END_SHUTDOWN;
    retropt_int(opts, OPT_SO_TYPE, &socktype);
 
    uslen = socket_init(pf, &us);

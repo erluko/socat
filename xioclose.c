@@ -21,62 +21,81 @@ int xioclose1(struct single *pipe) {
       return -1;
    }
 
+   switch (pipe->howtoclose) {
+
 #if WITH_READLINE
-   if ((pipe->dtype & XIODATA_MASK) == XIODATA_READLINE) {
+   case XIOCLOSE_READLINE:
       Write_history(pipe->para.readline.history_file);
       /*xiotermios_setflag(pipe->fd, 3, ECHO|ICANON);*/	/* error when pty closed */
-   }
+      break;
 #endif /* WITH_READLINE */
+
 #if WITH_OPENSSL
-   if ((pipe->dtype & XIODATA_MASK) == XIODATA_OPENSSL) {
+   case XIOCLOSE_OPENSSL:
       if (pipe->para.openssl.ssl) {
 	 /* e.g. on TCP connection refused, we do not yet have this set */
 	 sycSSL_shutdown(pipe->para.openssl.ssl);
 	 sycSSL_free(pipe->para.openssl.ssl);
 	 pipe->para.openssl.ssl = NULL;
       }
-      Close(pipe->fd);  pipe->fd = -1;
+      Close(pipe->fd1);  pipe->fd1 = -1;
+      Close(pipe->fd2);  pipe->fd2 = -1;
       if (pipe->para.openssl.ctx) {
 	 sycSSL_CTX_free(pipe->para.openssl.ctx);
 	 pipe->para.openssl.ctx = NULL;
       }
-   } else
+      break;
 #endif /* WITH_OPENSSL */
+
 #if WITH_TERMIOS
    if (pipe->ttyvalid) {
-      if (Tcsetattr(pipe->fd, 0, &pipe->savetty) < 0) {
+      if (Tcsetattr(pipe->fd1, 0, &pipe->savetty) < 0) {
 	 Warn2("cannot restore terminal settings on fd %d: %s",
-	       pipe->fd, strerror(errno));
+	       pipe->fd1, strerror(errno));
       }
    }
 #endif /* WITH_TERMIOS */
-   if (pipe->fd >= 0) {
-      switch (pipe->howtoend) {
-      case END_KILL: case END_SHUTDOWN_KILL: case END_CLOSE_KILL:
-	 if (pipe->para.exec.pid > 0) {
-	    if (Kill(pipe->para.exec.pid, SIGTERM) < 0) {
-	       Msg2(errno==ESRCH?E_INFO:E_WARN, "kill(%d, SIGTERM): %s",
-		    pipe->para.exec.pid, strerror(errno));
-	    }
+
+   case XIOCLOSE_SIGTERM:
+      if (pipe->child.pid > 0) {
+	 if (Kill(pipe->child.pid, SIGTERM) < 0) {
+	    Msg2(errno==ESRCH?E_INFO:E_WARN, "kill(%d, SIGTERM): %s",
+		 pipe->child.pid, strerror(errno));
 	 }
-      default:
-	 break;
       }
-      switch (pipe->howtoend) {
-      case END_CLOSE: case END_CLOSE_KILL:
-	 if (Close(pipe->fd) < 0) {
-	 Info2("close(%d): %s", pipe->fd, strerror(errno)); } break;
-#if WITH_SOCKET
-      case END_SHUTDOWN: case END_SHUTDOWN_KILL:
-	 if (Shutdown(pipe->fd, 2) < 0) {
-	     Info3("shutdown(%d, %d): %s", pipe->fd, 2, strerror(errno)); }
-         break;
-#endif /* WITH_SOCKET */
-      case END_UNLINK: if (Unlink((const char *)pipe->name) < 0) {
-	    Warn2("unlink(\"%s\"): %s", pipe->name, strerror(errno)); }
-         break;
-      case END_NONE: default: break;
+      break;
+   case XIOCLOSE_CLOSE_SIGTERM:
+      if (pipe->child.pid > 0) {
+	    if (Kill(pipe->child.pid, SIGTERM) < 0) {
+	       Msg2(errno==ESRCH?E_INFO:E_WARN, "kill(%d, SIGTERM): %s",
+		    pipe->child.pid, strerror(errno));
+	    }
       }
+      /*PASSTHROUGH*/
+   case XIOCLOSE_CLOSE:
+      if (pipe->fd1 >= 0) {
+	 if (Close(pipe->fd1) < 0) {
+	    Info2("close(%d): %s", pipe->fd1, strerror(errno));
+	 }
+      }
+      break;
+
+   case XIOCLOSE_SLEEP_SIGTERM:
+      Sleep(1);
+      if (pipe->child.pid > 0) {
+	    if (Kill(pipe->child.pid, SIGTERM) < 0) {
+	       Msg2(errno==ESRCH?E_INFO:E_WARN, "kill(%d, SIGTERM): %s",
+		    pipe->child.pid, strerror(errno));
+	    }
+      }
+      break;
+
+   case XIOCLOSE_NONE:
+      break;
+
+   default:
+      Error2("xioclose(): bad end action 0x%x on 0x%x", pipe->howtoclose, pipe);
+      break;
    }
 
    /* unlock */
@@ -98,6 +117,7 @@ int xioclose1(struct single *pipe) {
 
 /* close the xio fd */
 int xioclose(xiofile_t *file) {
+   xiofile_t *xfd = file;
    int result;
 
    if (file->tag == XIO_TAG_INVALID) {
@@ -112,6 +132,9 @@ int xioclose(xiofile_t *file) {
       file->tag = XIO_TAG_INVALID;
    } else {
       result = xioclose1(&file->stream);
+   }
+   if (xfd->stream.subthread != 0) {
+      Pthread_join(xfd->stream.subthread, NULL);
    }
    return result;
 }

@@ -1,5 +1,5 @@
-/* $Id: xio-system.c,v 1.13 2006/03/21 20:53:38 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* $Id: xio-system.c,v 1.13.2.1 2006/07/24 19:18:36 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of system type */
@@ -20,8 +20,12 @@ static int xioopen_system(int arg, const char *argv[], struct opt *opts,
 		int dummy1, int dummy2, int dummy3
 		);
 
-const struct addrdesc addr_system = { "system", 3, xioopen_system, GROUP_FD|GROUP_FORK|GROUP_EXEC|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_TERMIOS|GROUP_FIFO|GROUP_PTY|GROUP_PARENT, 1, 0, 0 HELP(":<shell-command>") };
+static const struct xioaddr_endpoint_desc xioendpoint_system1 = { XIOADDR_SYS, "system", 1, XIOBIT_ALL, GROUP_FD|GROUP_FORK|GROUP_EXEC|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_TERMIOS|GROUP_FIFO|GROUP_PTY|GROUP_PARENT, XIOSHUT_UNSPEC, XIOCLOSE_UNSPEC, xioopen_system, 1, 0, 0 HELP(":<shell-command>") };
 
+const union xioaddr_desc *xioaddrs_system[] = {
+   (union xioaddr_desc *)&xioendpoint_system1,
+   NULL
+};
 
 static int xioopen_system(int argc, const char *argv[], struct opt *opts,
 		int xioflags,	/* XIO_RDONLY etc. */
@@ -34,7 +38,7 @@ static int xioopen_system(int argc, const char *argv[], struct opt *opts,
    int result;
    const char *string = argv[1];
 
-   status = _xioopen_foxec(xioflags, &fd->stream, groups, &opts);
+   status = _xioopen_foxec_end(xioflags, &fd->stream, groups, &opts);
    if (status < 0)  return status;
    if (status == 0) {	/* child */
       int numleft;

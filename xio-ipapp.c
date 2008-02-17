@@ -6,7 +6,7 @@
 
 #include "xiosysincludes.h"
 
-#if WITH_TCP || WITH_UDP
+#if _WITH_TCP || _WITH_UDP
 
 #include "xioopen.h"
 #include "xio-socket.h"
@@ -19,7 +19,7 @@ const struct optdesc opt_sourceport = { "sourceport", "sp",       OPT_SOURCEPORT
 /*const struct optdesc opt_port = { "port",  NULL,    OPT_PORT,        GROUP_IPAPP, PH_BIND,    TYPE_USHORT,	OFUNC_SPEC };*/
 const struct optdesc opt_lowport = { "lowport", NULL, OPT_LOWPORT, GROUP_IPAPP, PH_LATE, TYPE_BOOL, OFUNC_SPEC };
 
-#if WITH_IP4
+#if _WITH_IP4
 /* we expect the form "host:port" */
 int xioopen_ipapp_connect(int argc, const char *argv[], struct opt *opts,
 			   int xioflags, xiofile_t *xxfd,
@@ -41,8 +41,6 @@ int xioopen_ipapp_connect(int argc, const char *argv[], struct opt *opts,
    if (argc != 3) {
       Error2("%s: wrong number of parameters (%d instead of 2)", argv[0], argc-1);
    }
-
-   xfd->howtoend = END_SHUTDOWN;
 
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
    applyopts(-1, opts, PH_INIT);
@@ -124,7 +122,7 @@ int xioopen_ipapp_connect(int argc, const char *argv[], struct opt *opts,
 	 }
 	 /* parent process */
 	 Notice1("forked off child process "F_pid, pid);
-	 Close(xfd->fd);
+	 Close(xfd->fd1);
 	 /* with and without retry */
 	 Nanosleep(&xfd->intervall, NULL);
 	 dropopts(opts, PH_ALL); opts = copyopts(opts0, GROUP_ALL);
@@ -214,10 +212,10 @@ int
 	   sockaddr_info((struct sockaddr *)them, *themlen, infobuff, sizeof(infobuff)));
    return STAT_OK;
 }
-#endif /* WITH_IP4 */
+#endif /* _WITH_IP4 */
 
 
-#if WITH_TCP && WITH_LISTEN
+#if _WITH_TCP && WITH_LISTEN
 int _xioopen_ipapp_listen_prepare(struct opt *opts, struct opt **opts0,
 				   const char *portname, int *pf, int ipproto,
 				  unsigned long res_opts0,
@@ -271,7 +269,8 @@ int xioopen_ipapp_listen(int argc, const char *argv[], struct opt *opts,
 #endif
    }
 
-   fd->stream.howtoend = END_SHUTDOWN;
+   fd->stream.howtoshut  = XIOSHUT_DOWN;
+   fd->stream.howtoclose = XIOCLOSE_CLOSE;
 
    if (applyopts_single(&fd->stream, opts, PH_INIT) < 0)  return -1;
    applyopts(-1, opts, PH_INIT);
@@ -293,6 +292,6 @@ int xioopen_ipapp_listen(int argc, const char *argv[], struct opt *opts,
       return result;
    return 0;
 }
-#endif /* WITH_IP4 && WITH_TCP && WITH_LISTEN */
+#endif /* _WITH_IP4 && _WITH_TCP && WITH_LISTEN */
 
-#endif /* WITH_TCP || WITH_UDP */
+#endif /* _WITH_TCP || _WITH_UDP */

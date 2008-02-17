@@ -197,6 +197,22 @@ int sycSSL_set_fd(SSL *ssl, int fd) {
    return result;
 }
 
+int sycSSL_set_rfd(SSL *ssl, int fd) {
+   int result;
+   Debug2("SSL_set_rfd(%p, %d)", ssl, fd);
+   result = SSL_set_rfd(ssl, fd);
+   Debug1("SSL_set_rfd() -> %d", result);
+   return result;
+}
+
+int sycSSL_set_wfd(SSL *ssl, int fd) {
+   int result;
+   Debug2("SSL_set_wfd(%p, %d)", ssl, fd);
+   result = SSL_set_wfd(ssl, fd);
+   Debug1("SSL_set_wfd() -> %d", result);
+   return result;
+}
+
 int sycSSL_connect(SSL *ssl) {
    int result;
    Debug1("SSL_connect(%p)", ssl);

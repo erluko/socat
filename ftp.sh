@@ -80,7 +80,7 @@ TMPDIR=$(if [ -x /bin/mktemp ]; then
 	    (umask 077; d=/tmp/$USER/FTPSH.$$; mkdir $d; echo $d)
 	 fi)
 TO="$TMPDIR/to"; FROM="$TMPDIR/from"
-socat $SO1 fifo:$TO,nonblock,ignoreeof!!fifo:$FROM $method:$server:21,$addropts &
+socat $SO1 fifo:$FROM $method:$server:21,$addropts%fifo:$TO,nonblock,ignoreeof &
 S1=$!
 while ! [ -p "$TO" -a -p "$FROM" ]; do sleep 1; done
 exec 4>$TMPDIR/to 3<$TMPDIR/from

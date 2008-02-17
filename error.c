@@ -176,8 +176,8 @@ void msg(int level, const char *format, ...) {
    result = gettimeofday(&now, NULL);
    if (result < 0) {
       /* invoking msg() might create endless recursion; by hand instead */
-      sprintf(buff, "cannot read time:   %s["F_pid"] E %s",
-	      diagopts.progname, getpid(), strerror(errno));
+      sprintf(buff, "cannot read time:   %s["F_pid".%lu] E %s",
+	      diagopts.progname, getpid(), (unsigned long)pthread_self(), strerror(errno));
       _msg(LOG_ERR, buff, strstr(buff, " E "+1));
       strcpy(buff, "unknown time        ");  bytes = 20;
    } else {
@@ -215,7 +215,8 @@ void msg(int level, const char *format, ...) {
    if (diagopts.withhostname) {
       bytes = sprintf(bufp, "%s ", diagopts.hostname), bufp+=bytes;
    }
-   bytes = sprintf(bufp, "%s["F_pid"] ", diagopts.progname, getpid());
+   bytes = sprintf(bufp, "%s["F_pid".%lu] ",
+		   diagopts.progname, getpid(), (unsigned long)pthread_self());
    bufp += bytes;
    syslp = bufp;
    *bufp++ = "DINWEF"[level];

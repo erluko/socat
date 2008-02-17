@@ -402,7 +402,7 @@ const char *hstrerror(int err) {
 #endif /* !HAVE_HSTRERROR */
    
 
-#if WITH_TCP || WITH_UDP
+#if _WITH_TCP || _WITH_UDP
 /* returns port in network byte order */
 int parseport(const char *portname, int ipproto) {
    struct servent *se;
@@ -425,7 +425,7 @@ int parseport(const char *portname, int ipproto) {
 
    return se->s_port;
 }
-#endif /* WITH_TCP || WITH_UDP */
+#endif /* _WITH_TCP || _WITH_UDP */
 
 #if WITH_IP4 || WITH_IP6
 /* check the systems interfaces for ifname and return its index

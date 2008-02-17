@@ -1,5 +1,5 @@
 /* $Id: xio-proxy.c,v 1.28 2006/12/28 14:02:54 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2002-2006 */
+/* Copyright Gerhard Rieger 2002-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of HTTP proxy CONNECT
@@ -19,18 +19,29 @@
 
 #define PROXYPORT "8080"
 
-static int xioopen_proxy_connect(int argc, const char *argv[], struct opt *opts,
-				 int xioflags, xiofile_t *fd,
+static int xioopen_proxy_connect2(int argc, const char *argv[], struct opt *opts,
+				 int xioflags, xiofile_t *xxfd,
 				 unsigned groups, int dummy1, int dummy2,
-				 int dummy3);
+				  int dummy3);
+static int xioopen_proxy_connect3(int argc, const char *argv[], struct opt *opts,
+				 int xioflags, xiofile_t *xxfd,
+				 unsigned groups, int dummy1, int dummy2,
+				  int dummy3);
 
 const struct optdesc opt_proxyport = { "proxyport", NULL, OPT_PROXYPORT, GROUP_HTTP, PH_LATE, TYPE_STRING, OFUNC_SPEC };
 const struct optdesc opt_ignorecr  = { "ignorecr",  NULL, OPT_IGNORECR,  GROUP_HTTP, PH_LATE, TYPE_BOOL,  OFUNC_SPEC };
 const struct optdesc opt_proxy_resolve   = { "proxy-resolve",   "resolve", OPT_PROXY_RESOLVE,   GROUP_HTTP, PH_LATE, TYPE_BOOL,  OFUNC_SPEC };
 const struct optdesc opt_proxy_authorization  = { "proxy-authorization",  "proxyauth", OPT_PROXY_AUTHORIZATION,  GROUP_HTTP, PH_LATE, TYPE_STRING,  OFUNC_SPEC };
 
-const struct addrdesc addr_proxy_connect = { "proxy", 3, xioopen_proxy_connect, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_HTTP|GROUP_CHILD|GROUP_RETRY, 0, 0, 0 HELP(":<proxy-server>:<host>:<port>") };
+static const struct xioaddr_inter_desc    xioaddr_proxy_connect2 = { XIOADDR_INTER,    "proxy", 2, XIOBIT_ALL, GROUP_HTTP|GROUP_CHILD|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_proxy_connect2, 0, 0, 0, XIOBIT_RDWR HELP(":<host>:<port>") };
 
+static const struct xioaddr_endpoint_desc xioaddr_proxy_connect3 = { XIOADDR_ENDPOINT, "proxy", 3, XIOBIT_ALL, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_HTTP|GROUP_CHILD|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_proxy_connect3, 0, 0, 0 HELP(":<proxy-server>:<host>:<port>") };
+
+const union xioaddr_desc *xioaddrs_proxy_connect[] = {
+   (union xioaddr_desc *)&xioaddr_proxy_connect2,
+   (union xioaddr_desc *)&xioaddr_proxy_connect3,
+   NULL
+};
 
 /*0#define CONNLEN 40*/	/* "CONNECT 123.156.189.123:65432 HTTP/1.0\r\n\0" */
 #define CONNLEN 281	/* "CONNECT <255bytes>:65432 HTTP/1.0\r\n\0" */
@@ -57,12 +68,12 @@ static ssize_t
    xioproxy_recvbytes(struct single *xfd, char *buff, size_t buflen, int level) {
    ssize_t result;
    do {
-      /* we need at least buflen bytes... */
-      result = Read(xfd->fd, buff, buflen);
+      /* we need at least 16 bytes... */
+      result = Read(xfd->fd1, buff, buflen);
    } while (result < 0 && errno == EINTR);	/*! EAGAIN? */
    if (result < 0) {
       Msg4(level, "read(%d, %p, "F_Zu"): %s",
-	   xfd->fd, buff, buflen, strerror(errno));
+	   xfd->fd1, buff, buflen, strerror(errno));
       return result;
    }
    if (result == 0) {
@@ -75,46 +86,105 @@ static ssize_t
 #define BUFLEN 2048
 
 
-static int xioopen_proxy_connect(int argc, const char *argv[], struct opt *opts,
+static int xioopen_proxy_connect2(int argc, const char *argv[], struct opt *opts,
 				 int xioflags, xiofile_t *xxfd,
 				 unsigned groups, int dummy1, int dummy2,
 				 int dummy3) {
-      /* we expect the form: host:host:port */
    struct single *xfd = &xxfd->stream;
-   struct opt *opts0 = NULL;
    struct proxyvars struct_proxyvars = { 0 }, *proxyvars = &struct_proxyvars;
+   const char *targetname, *targetport;
    /* variables to be filled with address option values */
    bool dofork = false;
+   int result;
+
+      if (xfd->fd1 < 0) {
+	 Error("xioopen_proxy_connect(): proxyname missing");
+	 return STAT_NORETRY;
+      }
+      targetname = argv[1];
+      targetport = argv[2];
+
+   if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
+   applyopts(-1, opts, PH_INIT);
+
+   retropt_bool(opts, OPT_FORK, &dofork);
+   if (dofork && !(xioflags & XIO_MAYFORK)) {
+      Error("fork option not allowed by application");
+   }
+
+   result = _xioopen_proxy_prepare(proxyvars, opts, targetname, targetport);
+   if (result != STAT_OK)  return result;
+
+   Notice2("opening connection to %s:%u using proxy CONNECT",
+	   proxyvars->targetaddr, proxyvars->targetport);
+
+	 xfd->dtype = XIODATA_STREAM;
+	 xfd->fdtype = FDTYPE_DOUBLE;
+
+      applyopts(xfd->fd1, opts, PH_ALL);
+      /*!*/
+
+      if ((result = _xio_openlate(xfd, opts)) < 0)
+	 return result;
+
+      result = _xioopen_proxy_connect(xfd, proxyvars, E_ERROR);
+      switch (result) {
+      case STAT_OK: break;
+      default:
+	 return result;
+      }
+
+   Notice2("successfully connected to %s:%u via proxy",
+	   proxyvars->targetaddr, proxyvars->targetport);
+   return STAT_OK;
+}
+
+static int xioopen_proxy_connect3(int argc, const char *argv[], struct opt *opts,
+				 int xioflags, xiofile_t *xxfd,
+				 unsigned groups, int dummy1, int dummy2,
+				 int dummy3) {
+   /* we expect the form: host:host:port */
+   struct single *xfd = &xxfd->stream;
+   struct proxyvars struct_proxyvars = { 0 }, *proxyvars = &struct_proxyvars;
+   const char *proxyname;
+   char *proxyport = NULL;
+   const char *targetname, *targetport;
+   /* variables to be filled with address option values */
+   bool dofork = false;
+   int socktype = SOCK_STREAM;
+   struct opt *opts0 = NULL;
    /* */
    int pf = PF_UNSPEC;
    union sockaddr_union us_sa,   *us = &us_sa;
    union sockaddr_union them_sa, *them = &them_sa;
    socklen_t uslen = sizeof(us_sa);
    socklen_t themlen = sizeof(them_sa);
-   const char *proxyname; char *proxyport = NULL;
-   const char *targetname, *targetport;
    int ipproto = IPPROTO_TCP;
    bool needbind = false;
    bool lowport = false;
-   int socktype = SOCK_STREAM;
    int level;
    int result;
 
-   if (argc != 4) {
-      Error1("%s: 3 parameters required", argv[0]);
+   if (xfd->fd1 >= 0) {
+      Error("xioopen_proxy_connect(): proxyname not allowed here");
       return STAT_NORETRY;
    }
    proxyname = argv[1];
    targetname = argv[2];
    targetport = argv[3];
 
-   xfd->howtoend = END_SHUTDOWN;
+   xfd->howtoshut  = XIOSHUT_DOWN;
+   xfd->howtoclose = XIOCLOSE_CLOSE;
+
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
    applyopts(-1, opts, PH_INIT);
 
    retropt_int(opts, OPT_SO_TYPE, &socktype);
 
    retropt_bool(opts, OPT_FORK, &dofork);
+   if (dofork && !(xioflags & XIO_MAYFORK)) {
+      Error("fork option not allowed by application");
+   }
 
    if (retropt_string(opts, OPT_PROXYPORT, &proxyport) < 0) {
       if ((proxyport = strdup(PROXYPORT)) == NULL) {
@@ -133,7 +203,6 @@ static int xioopen_proxy_connect(int argc, const char *argv[], struct opt *opts,
 			     them, &themlen, us, &uslen,
 			     &needbind, &lowport, &socktype);
    if (result != STAT_OK)  return result;
-
    Notice4("opening connection to %s:%u via proxy %s:%s",
 	   proxyvars->targetaddr, proxyvars->targetport, proxyname, proxyport);
 
@@ -146,11 +215,11 @@ static int xioopen_proxy_connect(int argc, const char *argv[], struct opt *opts,
 #endif /* WITH_RETRY */
          level = E_ERROR;
 
-   result =
-      _xioopen_connect(xfd,
-		       needbind?(struct sockaddr *)us:NULL, sizeof(*us),
-		       (struct sockaddr *)them, themlen,
-		       opts, pf, socktype, IPPROTO_TCP, lowport, level);
+	result =
+	   _xioopen_connect(xfd,
+			    needbind?(struct sockaddr *)us:NULL, sizeof(*us),
+			    (struct sockaddr *)them, themlen,
+			    opts, pf, socktype, IPPROTO_TCP, lowport, level);
       switch (result) {
       case STAT_OK: break;
 #if WITH_RETRY
@@ -164,8 +233,9 @@ static int xioopen_proxy_connect(int argc, const char *argv[], struct opt *opts,
       default:
 	 return result;
       }
-
-      applyopts(xfd->fd, opts, PH_ALL);
+      xfd->fdtype = FDTYPE_SINGLE;
+      applyopts(xfd->fd1, opts, PH_ALL);
+      /*!*/
 
       if ((result = _xio_openlate(xfd, opts)) < 0)
 	 return result;
@@ -212,7 +282,8 @@ static int xioopen_proxy_connect(int argc, const char *argv[], struct opt *opts,
 	 }
 	 /* parent process */
 	 Notice1("forked off child process "F_pid, pid);
-	 Close(xfd->fd);
+	 Close(xfd->fd1);
+	 Close(xfd->fd2);
 	 Nanosleep(&xfd->intervall, NULL);
 	 dropopts(opts, PH_ALL);  opts = copyopts(opts0, GROUP_ALL);
 	 continue;
@@ -224,9 +295,8 @@ static int xioopen_proxy_connect(int argc, const char *argv[], struct opt *opts,
   
    } while (true);	/* end of complete open loop - drop out on success */
 
-   Notice4("successfully connected to %s:%u via proxy %s:%s",
-	   proxyvars->targetaddr, proxyvars->targetport,
-	   proxyname, proxyport);
+   Notice2("successfully connected to %s:%u via proxy",
+	   proxyvars->targetaddr, proxyvars->targetport);
 
    return 0;
 }
@@ -275,6 +345,7 @@ int _xioopen_proxy_prepare(struct proxyvars *proxyvars, struct opt *opts,
 int _xioopen_proxy_connect(struct single *xfd,
 			   struct proxyvars *proxyvars,
 			   int level) {
+   int wfd;
    size_t offset;
    char request[CONNLEN];
    char buff[BUFLEN+1];
@@ -286,6 +357,8 @@ int _xioopen_proxy_connect(struct single *xfd,
    int state;
    ssize_t sresult;
 
+   wfd = (xfd->fdtype == FDTYPE_SINGLE ? xfd->fd1 : xfd->fd2);
+
    /* generate proxy request header - points to final target */
    sprintf(request, "CONNECT %s:%u HTTP/1.0\r\n",
 	   proxyvars->targetaddr, proxyvars->targetport);
@@ -295,13 +368,13 @@ int _xioopen_proxy_connect(struct single *xfd,
    Info1("sending \"%s\"", textbuff);
    /* write errors are assumed to always be hard errors, no retry */
    do {
-      sresult = Write(xfd->fd, request, strlen(request));
+      sresult = Write(wfd, request, strlen(request));
    } while (sresult < 0 && errno == EINTR);
    if (sresult < 0) {
       Msg4(level, "write(%d, %p, "F_Zu"): %s",
-	   xfd->fd, request, strlen(request), strerror(errno));
-      if (Close(xfd->fd) < 0) {
-	 Info2("close(%d): %s", xfd->fd, strerror(errno));
+	   wfd, request, strlen(request), strerror(errno));
+      if (Close(wfd) < 0) {
+	 Info2("close(%d): %s", xfd->fd2, strerror(errno));
       }
       return STAT_RETRYLATER;
    }
@@ -328,13 +401,13 @@ int _xioopen_proxy_connect(struct single *xfd,
       Info1("sending \"%s\\r\\n\"", header);
       *next++ = '\r';  *next++ = '\n'; *next++ = '\0';
       do {
-	 sresult = Write(xfd->fd, header, strlen(header));
+	 sresult = Write(wfd, header, strlen(header));
       } while (sresult < 0 && errno == EINTR);
       if (sresult < 0) {
 	 Msg4(level, "write(%d, %p, "F_Zu"): %s",
-	      xfd->fd, header, strlen(header), strerror(errno));
-	 if (Close(xfd->fd) < 0) {
-	    Info2("close(%d): %s", xfd->fd, strerror(errno));
+	      xfd->fd2, header, strlen(header), strerror(errno));
+	 if (Close(wfd/*!*/) < 0) {
+	    Info2("close(%d): %s", xfd->fd2, strerror(errno));
 	 }
 	 return STAT_RETRYLATER;
       }
@@ -344,7 +417,7 @@ int _xioopen_proxy_connect(struct single *xfd,
 
    Info("sending \"\\r\\n\"");
    do {
-      sresult = Write(xfd->fd, "\r\n", 2);
+      sresult = Write(wfd, "\r\n", 2);
    } while (sresult < 0 && errno == EINTR);
    /*! */
 

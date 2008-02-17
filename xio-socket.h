@@ -1,5 +1,5 @@
 /* $Id: xio-socket.h,v 1.16 2006/12/30 23:04:21 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_socket_h_included

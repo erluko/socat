@@ -1,5 +1,5 @@
 /* $Id: xiolayer.c,v 1.7 2005/08/18 19:56:05 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2005 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for common options */
@@ -18,8 +18,8 @@ const struct optdesc opt_lockfile  = { "lockfile",  NULL, OPT_LOCKFILE,  GROUP_A
 const struct optdesc opt_waitlock  = { "waitlock",  NULL, OPT_WAITLOCK,  GROUP_APPL, PH_INIT,  TYPE_FILENAME, OFUNC_EXT, 0, 0 };
 /****** APPL addresses ******/
 #if WITH_RETRY
-const struct optdesc opt_forever   = { "forever",   NULL, OPT_FOREVER,   GROUP_RETRY, PH_INIT, TYPE_BOOL, OFUNC_EXT, (int)(&((struct single *)0)->forever),   sizeof(((struct single *)0)->forever) };
-const struct optdesc opt_intervall = { "intervall", NULL, OPT_INTERVALL, GROUP_RETRY, PH_INIT, TYPE_TIMESPEC, OFUNC_EXT, (int)(&((struct single *)0)->intervall), sizeof(((struct single *)0)->intervall) };
-const struct optdesc opt_retry     = { "retry",     NULL, OPT_RETRY,     GROUP_RETRY, PH_INIT, TYPE_UINT, OFUNC_EXT, (int)(&((struct single *)0)->retry),     sizeof(((struct single *)0)->retry) };
+const struct optdesc opt_forever   = { "forever",   NULL, OPT_FOREVER,   GROUP_RETRY, PH_INIT, TYPE_BOOL, OFUNC_OFFSET, (int)(&((struct single *)0)->forever),   sizeof(((struct single *)0)->forever) };
+const struct optdesc opt_intervall = { "intervall", NULL, OPT_INTERVALL, GROUP_RETRY, PH_INIT, TYPE_TIMESPEC, OFUNC_OFFSET, (int)(&((struct single *)0)->intervall), sizeof(((struct single *)0)->intervall) };
+const struct optdesc opt_retry     = { "retry",     NULL, OPT_RETRY,     GROUP_RETRY, PH_INIT, TYPE_UINT, OFUNC_OFFSET, (int)(&((struct single *)0)->retry),     sizeof(((struct single *)0)->retry) };
 #endif
 

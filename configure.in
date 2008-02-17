@@ -90,6 +90,22 @@ AC_ARG_ENABLE(help, [  --disable-help          disable help],
 	       esac],
 	       [AC_DEFINE(WITH_HELP) AC_MSG_RESULT(yes)])
 
+AC_MSG_CHECKING(whether to include nop address support)
+AC_ARG_ENABLE(nop, [  --disable-nop           disable nop support],
+	      [case "$enableval" in
+	       no) AC_MSG_RESULT(no);;
+	       *) AC_DEFINE(WITH_NOP) AC_MSG_RESULT(yes);;
+	       esac],
+	       [AC_DEFINE(WITH_NOP) AC_MSG_RESULT(yes)])
+
+AC_MSG_CHECKING(whether to include test address support)
+AC_ARG_ENABLE(test, [  --disable-test           disable test support],
+	      [case "$enableval" in
+	       no) AC_MSG_RESULT(no);;
+	       *) AC_DEFINE(WITH_TEST) AC_MSG_RESULT(yes);;
+	       esac],
+	       [AC_DEFINE(WITH_TEST) AC_MSG_RESULT(yes)])
+
 AC_MSG_CHECKING(whether to include STDIO support)
 AC_ARG_ENABLE(stdio, [  --disable-stdio         disable STDIO support],
 	      [case "$enableval" in

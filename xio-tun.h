@@ -28,6 +28,6 @@ extern const struct optdesc opt_iff_portsel;
 extern const struct optdesc opt_iff_automedia;
 /*extern const struct optdesc opt_iff_dynamic;*/
 
-extern const struct addrdesc xioaddr_tun;
+extern const union xioaddr_desc *xioaddrs_tun[];
 
 #endif /* !defined(__xio_tun_h_included) */

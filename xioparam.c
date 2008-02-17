@@ -1,5 +1,5 @@
 /* $Id: xioparam.c,v 1.10 2006/06/19 20:30:24 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for xio options handling */
@@ -12,16 +12,28 @@
 /* options that can be applied to this module */
 xioopts_t xioopts = {
    false,	/* strictopts */
-   "!!",	/* pipesep */
+   "%",	/* pipesep */
    ":",		/* paramsep */
    ",",		/* optionsep */
    ':',		/* ip4portsep */
    ':',		/* ip6portsep */
-   '\0',	/* logopt */
    NULL,	/* syslogfac */
    '4',		/* default_ip */
-   '4'		/* preferred_ip */
+   '4',		/* preferred_ip */
+   "^",		/* reversechar */
+   "|",		/* chainsep */
+   8192,	/* bufsiz */
+   false,	/* verbose */
+   false,	/* verbhex */
+   0,		/* debug */
+   's',		/* logopt */
+   {0,0},	/* total_timeout */
+   {1,0},	/* pollintv */
+   {0,500000},	/* closwait */
+   false,	/* lefttoright */
+   false,	/* righttoleft */
 } ;
+xioopts_t *xioparams = &xioopts;
 
 
 /* allow application to set xioopen options */

@@ -37,18 +37,19 @@ INSTALL = @INSTALL@
 
 #0 CFLAGS = @CFLAGS@ $(CCOPTS) $(DEFS) $(INCLS)
 CFLAGS = @CFLAGS@ $(CCOPTS) $(DEFS) $(CPPFLAGS)
-CLIBS = $(LIBS)
+CLIBS = $(LIBS) -lpthread
 #CLIBS = $(LIBS) -lm -lefence
 XIOSRCS = xioinitialize.c xiohelp.c xioparam.c xiodiag.c xioopen.c xioopts.c \
-	xiosignal.c xiosigchld.c xioread.c xiowrite.c \
-	xiolayer.c xioshutdown.c xioclose.c xioexit.c \
+	xiosignal.c xiosigchld.c xioread.c xiowrite.c xiotransfer.c xioengine.c \
+	xiolayer.c xioshutdown.c xioclose.c xioexit.c xiosocketpair.c \
 	xio-process.c xio-fd.c xio-fdnum.c xio-stdio.c xio-pipe.c \
 	xio-gopen.c xio-creat.c xio-file.c xio-named.c \
-	xio-socket.c xio-listen.c xio-unix.c xio-ip.c xio-ip4.c xio-ip6.c xio-ipapp.c xio-tcp.c xio-socks.c xio-proxy.c xio-udp.c \
+	xio-socket.c xio-listen.c xio-unix.c xio-ip.c xio-ip4.c xio-ip6.c xio-ipapp.c xio-tcp.c xio-socks.c xio-socks5.c xio-proxy.c xio-udp.c \
 	xio-rawip.c \
 	xio-progcall.c xio-exec.c xio-system.c xio-termios.c xio-readline.c \
 	xio-pty.c xio-openssl.c \
-	xio-ascii.c xiolockfile.c xio-tcpwrap.c xio-ext2.c xio-tun.c
+	xio-ascii.c xiolockfile.c xio-tcpwrap.c xio-ext2.c xio-tun.c \
+	xio-nop.c xio-test.c
 XIOOBJS = $(XIOSRCS:.c=.o)
 UTLSRCS = error.c dalan.c procan.c hostan.c fdname.c sysutils.c utils.c nestlex.c @FILAN@ @SYCLS@ @SSLCLS@
 UTLOBJS = $(UTLSRCS:.c=.o)
@@ -61,24 +62,24 @@ HFILES = sycls.h sslcls.h error.h dalan.h procan.h filan.h hostan.h sysincludes.
 	xiomodes.h xiolayer.h xio-process.h xio-fd.h xio-fdnum.h xio-stdio.h \
 	xio-named.h xio-file.h xio-creat.h xio-gopen.h xio-pipe.h xio-socket.h \
 	xio-listen.h xio-unix.h xio-rawip.h xio-ip.h xio-ip4.h xio-ip6.h \
-	xio-ipapp.h xio-tcp.h xio-udp.h xio-socks.h xio-proxy.h xio-progcall.h xio-exec.h \
+	xio-ipapp.h xio-tcp.h xio-udp.h xio-socks.h xio-socks5.h xio-proxy.h xio-progcall.h xio-exec.h \
 	xio-system.h xio-termios.h xio-readline.h \
 	xio-pty.h xio-openssl.h \
-	xio-ascii.h xiolockfile.h xio-tcpwrap.h xio-ext2.h xio-tun.h
+	xio-ascii.h xiolockfile.h xio-tcpwrap.h xio-ext2.h xio-tun.h \
+	xiosigchld.h xiostatic.h xio-nop.h xio-test.h
 
-
-DOCFILES = README README.FIPS CHANGES FILES EXAMPLES PORTING SECURITY DEVELOPMENT doc/socat.1 doc/socat.html doc/xio.help FAQ BUGREPORTS COPYING COPYING.OpenSSL doc/dest-unreach.css doc/socat-openssltunnel.html doc/socat-multicast.html doc/socat-tun.html
+DOCFILES = README README.FIPS CHANGES FILES EXAMPLES PORTING SECURITY DEVELOPMENT doc/socat.1 doc/socat.html FAQ BUGREPORTS COPYING COPYING.OpenSSL doc/dest-unreach.css doc/socat-openssltunnel.html doc/socat-multicast.html doc/socat-tun.html
 SHFILES = daemon.sh mail.sh ftp.sh readline.sh
 TESTFILES = test.sh socks4echo.sh proxyecho.sh gatherinfo.sh readline-test.sh \
 	proxy.sh socks4a-echo.sh testcert.conf
-OSFILES = Config/Makefile.Linux-2-6-16 Config/config.Linux-2-6-16.h \
-	Config/Makefile.AIX-5-1 Config/config.AIX-5-1.h \
-	Config/Makefile.SunOS-5-8 Config/config.SunOS-5-8.h \
-	Config/Makefile.HP-UX-B-11-11 Config/config.HP-UX-B-11-11.h \
-	Config/Makefile.FreeBSD-6-1 Config/config.FreeBSD-6-1.h \
-	Config/Makefile.NetBSD-2-0-2 Config/config.NetBSD-2-0-2.h \
-	Config/Makefile.OpenBSD-3-8 Config/config.OpenBSD-3-8.h \
-	Config/Makefile.Tru64-5-1B Config/config.Tru64-5-1B.h 
+#OSFILES = Config/Makefile.Linux-2-6-16 Config/config.Linux-2-6-16.h \
+#	Config/Makefile.AIX-5-1 Config/config.AIX-5-1.h \
+#	Config/Makefile.SunOS-5-8 Config/config.SunOS-5-8.h \
+#	Config/Makefile.HP-UX-B-11-11 Config/config.HP-UX-B-11-11.h \
+#	Config/Makefile.FreeBSD-6-1 Config/config.FreeBSD-6-1.h \
+#	Config/Makefile.NetBSD-2-0-2 Config/config.NetBSD-2-0-2.h \
+#	Config/Makefile.OpenBSD-3-8 Config/config.OpenBSD-3-8.h \
+#	Config/Makefile.Tru64-5-1B Config/config.Tru64-5-1B.h 
 
 
 all: progs
@@ -133,7 +134,7 @@ socat.tar.bz2: socat.tar
 
 VERSION = `sed 's/"//g' VERSION`
 TARDIR = socat-$(VERSION)
-socat.tar: configure.in configure Makefile.in config.h.in install-sh VERSION $(CFILES) $(HFILES) $(DOCFILES) $(SHFILES) $(OSFILES) $(TESTFILES) socat.spec
+socat.tar: configure.in configure Makefile.in config.h.in install-sh VERSION $(CFILES) $(HFILES) $(DOCFILES) $(SHFILES) $(OSFILES) $(TESTFILES)
 	if [ ! -d $(TARDIR) ]; then mkdir $(TARDIR); fi
 	tar cf - $+ |(cd $(TARDIR); tar xf -)
 	tar cvf socat.tar $(TARDIR)

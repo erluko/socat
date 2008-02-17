@@ -32,6 +32,8 @@ int sycSSL_CTX_set_cipher_list(SSL_CTX *ctx, const char *str);
 int sycSSL_set_cipher_list(SSL *ssl, const char *str);
 long sycSSL_get_verify_result(SSL *ssl);
 int sycSSL_set_fd(SSL *ssl, int fd);
+int sycSSL_set_rfd(SSL *ssl, int fd);
+int sycSSL_set_wfd(SSL *ssl, int fd);
 int sycSSL_connect(SSL *ssl);
 int sycSSL_accept(SSL *ssl);
 int sycSSL_read(SSL *ssl, void *buf, int num);
@@ -77,6 +79,8 @@ int sycFIPS_mode_set(int onoff);
 #define sycSSL_set_cipher_list(s,t) SSL_set_cipher_list(s,t)
 #define sycSSL_get_verify_result(s) SSL_get_verify_result(s)
 #define sycSSL_set_fd(s,f) SSL_set_fd(s,f)
+#define sycSSL_set_rfd(s,f) SSL_set_rfd(s,f)
+#define sycSSL_set_wfd(s,f) SSL_set_wfd(s,f)
 #define sycSSL_connect(s) SSL_connect(s)
 #define sycSSL_accept(s) SSL_accept(s)
 #define sycSSL_read(s,b,n) SSL_read(s,b,n)

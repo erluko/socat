@@ -25,7 +25,7 @@ export SOCAT_OPTS="$opts"
 #debug="1"
 debug=
 TESTS="$@"
-INTERFACE=eth0;	# not used for function tests
+INTERFACE=eth1;	# not used for function tests
 MCINTERFACE=lo	# !!! Linux only
 #LOCALHOST=192.168.58.1
 #LOCALHOST=localhost
@@ -45,6 +45,16 @@ if ! type usleep >/dev/null 2>&1; then
 	sleep $(((n+999999)/1000000))
     }
 fi
+
+# a "real value" sleep
+rsleep () {
+    local n="$1"
+    local s="${n%.*}"
+    local u="${n#*.}"
+    sleep "$s"
+    usleep "$((u*10**(6-${#u})))"
+}
+
 #USLEEP=usleep
 F_n="%3d"	# format string for test numbers
 LANG=C
@@ -89,7 +99,7 @@ esac
 # for some tests we need a second local IPv4 address
 case "$UNAME" in
 Linux)
-    BROADCASTIF=eth0
+    BROADCASTIF=eth1
     SECONDADDR=127.0.0.2
     BCADDR=127.255.255.255
     BCIFADDR=$($IFCONFIG $BROADCASTIF |grep 'inet ' |awk '{print($2);}' |cut -d: -f2) ;;
@@ -124,7 +134,7 @@ case "$UNAME" in
 esac
 if [ -z "$SECONDIP6ADDR" ]; then
     case "$TESTS" in
-	*%root2%*) $IFCONFIG eth0 ::2/128
+	*%root2%*) $IFCONFIG eth1 ::2/128
     esac
 fi
 
@@ -468,7 +478,7 @@ N=1
 #for o in $(filloptionvalues $OPTS|tr ',' ' '); do
 #    echo testing if $METHOD accepts option $o
 #    touch $TF
-#    $SOCAT $opts -!!$method:$TF,$o /dev/null,ignoreof </dev/null
+#    $SOCAT $opts $method:$TF,$o%- /dev/null,ignoreof </dev/null
 #    rm -f $TF
 #done
 
@@ -971,7 +981,7 @@ for addr in create; do
     for o in $(filloptionvalues $OPTS|tr ',' ' '); do
 	echo testing if $ADDR accepts option $o
 	rm -f $TF
-	$SOCAT $opts -!!$addr:$TF,$o /dev/null,ignoreof </dev/null
+	$SOCAT $opts $addr:$TF,$o%- /dev/null,ignoreof </dev/null
 	rm -f $TF
     done
 done
@@ -1099,7 +1109,7 @@ for addr in open; do
     for o in $(filloptionvalues $OPTS|tr ',' ' '); do
 	echo testing if $ADDR on file accepts option $o
 	touch $TF
-	$SOCAT $opts -!!$addr:$TF,$o /dev/null,ignoreof </dev/null
+	$SOCAT $opts $addr:$TF,$o%- /dev/null,ignoreof </dev/null
 	rm -f $TF
     done
 done
@@ -1129,7 +1139,7 @@ for addr in gopen; do
     for o in $(filloptionvalues $OPTS|tr ',' ' '); do
 	echo testing if $ADDR on new file accepts option $o
 	rm -f $TF
-	$SOCAT $opts -!!$addr:$TF,$o /dev/null,ignoreof </dev/null
+	$SOCAT $opts $addr:$TF,$o%- /dev/null,ignoreof </dev/null
 	rm -f $TF
     done
 
@@ -1147,7 +1157,7 @@ for addr in gopen; do
     for o in $(filloptionvalues $OPTS|tr ',' ' '); do
 	echo testing if $ADDR on existing file accepts option $o
 	rm -f $TF; touch $TF
-	$SOCAT $opts -!!$addr:$TF,$o /dev/null,ignoreof </dev/null
+	$SOCAT $opts $addr:$TF,$o%- /dev/null,ignoreof </dev/null
 	rm -f $TF
     done
 
@@ -1183,7 +1193,7 @@ for addr in gopen; do
     for o in $(filloptionvalues $OPTS|tr ',' ' '); do
 	echo testing if $ADDR on socket accepts option $o
 	rm -f $TF; $SOCAT - UNIX-L:$TF & pid=$!
-	$SOCAT $opts -!!$addr:$TF,$o /dev/null,ignoreof </dev/null
+	$SOCAT $opts $addr:$TF,$o%- /dev/null,ignoreof </dev/null
 	kill $pid 2>/dev/null
 	rm -f $TF
     done
@@ -1203,7 +1213,7 @@ for addr in gopen; do
     for o in $(filloptionvalues $OPTS|tr ',' ' '); do
 	echo testing if $ADDR on existing device accepts option $o
 	rm -f $TF; mknod $TF c 1 3
-	$SOCAT $opts -!!$addr:$TF,$o /dev/null,ignoreof </dev/null
+	$SOCAT $opts $addr:$TF,$o%- /dev/null,ignoreof </dev/null
     done
   else
     TEST="$ADDR on existing device accepts all its options"
@@ -1219,7 +1229,7 @@ for addr in gopen; do
     #echo $OPTS
     for o in $(filloptionvalues $OPTS|tr ',' ' '); do
 	echo testing if $ADDR on existing device accepts option $o
-	$SOCAT $opts -!!$addr:$TF,$o /dev/null,ignoreof </dev/null
+	$SOCAT $opts $addr:$TF,$o%- /dev/null,ignoreof </dev/null
     done
   fi
 
@@ -1425,7 +1435,7 @@ testecho () {
     local arg1="$3";	[ -z "$arg1" ] && arg1="-"
     local arg2="$4";	[ -z "$arg2" ] && arg2="echo"
     local opts="$5"
-    local T="$6";	[ -z "$T" ] && T=0
+    local T="$6";	[ -z "$T" ] && T=0; export T
     local tf="$td/test$N.stdout"
     local te="$td/test$N.stderr"
     local tdiff="$td/test$N.diff"
@@ -1435,7 +1445,7 @@ testecho () {
     $PRINTF "test $F_n %s... " $num "$title"
     #echo "$da" |$cmd >"$tf" 2>"$te"
 #set -vx
-    (echo "$da"; sleep $T) |$SOCAT $opts "$arg1" "$arg2" >"$tf" 2>"$te" &
+    (echo "$da"; rsleep $T) |$SOCAT $opts "$arg1" "$arg2" >"$tf" 2>"$te" &
     export rc1=$!
     #sleep 5 && kill $rc1 2>/dev/null &
 #    rc2=$!
@@ -1461,6 +1471,44 @@ testecho () {
     fi
 }
 
+
+# special function for use with the test address of socat V2 chains
+testchain () {
+    local num="$1"
+    local title="$2"
+    local arg1="$3";	[ -z "$arg1" ] && arg1="-"
+    local arg2="$4";	[ -z "$arg2" ] && arg2="echo"
+    local opts="$5"
+    local suffix="$6"	# what is to be appended by tests
+    local T="$7";	[ -z "$T" ] && T=0; export T
+    local tf="$td/test$N.stdout"
+    local te="$td/test$N.stderr"
+    local tdiff="$td/test$N.diff"
+    local da="$(date)"
+    $PRINTF "test $F_n %s... " $num "$title"
+    (echo "$da"; rsleep $T) |$SOCAT $opts "$arg1" "$arg2" >"$tf" 2>"$te" &
+    export rc1=$!
+    wait $rc1
+    if [ "$?" != 0 ]; then
+	$PRINTF "$FAILED: $SOCAT:\n"
+	echo "$SOCAT $opts $arg1 $arg2"
+	cat "$te"
+	numFAIL=$((numFAIL+1))
+    elif echo -e "$da\n$suffix\c" |diff - "$tf" >"$tdiff" 2>&1; then
+	$PRINTF "$OK\n"
+	if [ -n "$debug" ]; then cat $te; fi
+	numOK=$((numOK+1))
+    else
+	$PRINTF "$FAILED:\n"
+	echo "$SOCAT $opts $arg1 $arg2"
+	cat "$te"
+	echo diff:
+	cat "$tdiff"
+	numFAIL=$((numFAIL+1))
+    fi
+}
+
+
 # test if call to od and throughput of data works - with graceful shutdown and
 # flush of od buffers
 testod () {
@@ -1469,14 +1517,14 @@ testod () {
     local arg1="$3";	[ -z "$arg1" ] && arg1="-"
     local arg2="$4";	[ -z "$arg2" ] && arg2="echo"
     local opts="$5"
-    local T="$6";	[ -z "$T" ] && T=0
+    local T="$6";	[ -z "$T" ] && T=0;  export T
     local tf="$td/test$N.stdout"
     local te="$td/test$N.stderr"
     local tdiff="$td/test$N.diff"
     local dain="$(date)"
     local daout="$(echo "$dain" |od -c)"
     $PRINTF "test $F_n %s... " $num "$title"
-    (echo "$dain"; sleep $T) |$SOCAT $opts "$arg1" "$arg2" >"$tf" 2>"$te"
+    (echo "$dain"; rsleep $T) |$SOCAT $opts "$arg1" "$arg2" >"$tf" 2>"$te"
     if [ "$?" != 0 ]; then
 	$PRINTF "$FAILED: $SOCAT:\n"
 	echo "$SOCAT $opts $arg1 $arg2"
@@ -1771,7 +1819,7 @@ waitudp6port () {
 	Linux)   l=$(netstat -an |grep '^udp[6 ] .* .*[0-9*:]:'$port' [ ]*:::\*') ;;
 	FreeBSD) l=$(netstat -an |egrep '^udp(6|46) .*[0-9*]\.'$port' .* \*\.\*') ;;
 	NetBSD)  l=$(netstat -an |grep '^udp6 .* \*\.'$port' [ ]* \*\.\*') ;;
-    	OpenBSD) l=$(netstat -an |grep '^udp6 .*[0-9*]\.'$port' [ ]* \*\.\*') ;;
+	OpenBSD) l=$(netstat -an |grep '^udp6 .*[0-9*]\.'$port' [ ]* \*\.\*') ;;
 	#Darwin)  l=$(netstat -an |grep '^udp6.* .*[0-9*]\.'$port' .* \*\.\* ') ;;
 	AIX)	 l=$(netstat -an |grep '^udp[6 ]       0      0 .*[*0-9]\.'$port' .* \*\.\*[ ]*$') ;;
 	SunOS)   l=$(netstat -an -f inet6 -P udp |grep '.*[1-9*]\.'$port' [ ]*Idle') ;;
@@ -1816,17 +1864,20 @@ gentestcert () {
     local name="$1"
     if [ -f $name.key -a -f $name.crt -a -f $name.pem ]; then return; fi
     openssl genrsa $OPENSSL_RAND -out $name.key 768 >/dev/null 2>&1
-    openssl req -new -config testcert.conf -key $name.key -x509 -out $name.crt >/dev/null 2>&1
+    openssl req -new -config testcert.conf -key $name.key -x509 -days 3653 -out $name.crt >/dev/null 2>&1
     cat $name.key $name.crt >$name.pem
 }
 
 # generate a test DSA key and certificate
 gentestdsacert () {
+#set -vx
     local name="$1"
-    if [ -f $name.key -a -f $name.crt -a -f $name.pem ]; then return; fi
+    if [ -f $name.key -a -f $name.crt -a -f $name.pem ]; then
+	return;
+    fi
     openssl dsaparam -out $name-dsa.pem 512 >/dev/null 2>&1
     openssl dhparam -dsaparam -out $name-dh.pem 512 >/dev/null 2>&1
-    openssl req -newkey dsa:$name-dsa.pem -keyout $name.key -nodes -x509 -config testcert.conf -out $name.crt >/dev/null 2>&1
+    openssl req -newkey dsa:$name-dsa.pem -keyout $name.key -nodes -x509 -days 3653 -config testcert.conf -out $name.crt >/dev/null 2>&1
     cat $name-dsa.pem $name-dh.pem $name.key $name.crt >$name.pem
 }
 
@@ -1861,8 +1912,8 @@ N=$((N+1))
 NAME=DUALSTDIO
 case "$TESTS" in
 *%functions%*|*%stdio%*|*%$NAME%*)
-TEST="$NAME: splitted form of stdio ('stdin!!stdout') with simple echo via internal pipe"
-testecho "$N" "$TEST" "stdin!!stdout" "pipe" "$opts"
+TEST="$NAME: splitted form of stdio ('stdout%stdin') with simple echo via internal pipe"
+testecho "$N" "$TEST" "stdout%stdin" "pipe" "$opts"
 esac
 N=$((N+1))
 
@@ -1870,8 +1921,8 @@ N=$((N+1))
 NAME=DUALSHORTSTDIO
 case "$TESTS" in
 *%functions%*|*%stdio%*|*%$NAME%*)
-TEST="$NAME: short splitted form of stdio ('-!!-') with simple echo via internal pipe"
-testecho "$N" "$TEST" "-!!-" "pipe" "$opts"
+TEST="$NAME: short splitted form of stdio ('-%-') with simple echo via internal pipe"
+testecho "$N" "$TEST" "-%-" "pipe" "$opts"
 esac
 N=$((N+1))
 
@@ -1880,7 +1931,7 @@ NAME=DUALFDS
 case "$TESTS" in
 *%functions%*|*%fd%*|*%$NAME%*)
 TEST="$NAME: file descriptors with simple echo via internal pipe"
-testecho "$N" "$TEST" "0!!1" "pipe" "$opts"
+testecho "$N" "$TEST" "1%0" "pipe" "$opts"
 esac
 N=$((N+1))
 
@@ -1897,14 +1948,15 @@ esac
 N=$((N+1))
 
 
-NAME=DUALPIPE
-case "$TESTS" in
-*%functions%*|*%pipe%*|*%$NAME%*)
-TEST="$NAME: simple echo via named pipe, specified twice"
-tp="$td/pipe$N"
-testecho "$N" "$TEST" "" "pipe:$tp,nonblock!!pipe:$tp" "$opts"
-esac
-N=$((N+1))
+# does not work with <write>%<read>
+#NAME=DUALPIPE
+#case "$TESTS" in
+#*%functions%*|*%pipe%*|*%$NAME%*)
+#TEST="$NAME: simple echo via named pipe, specified twice"
+#tp="$td/pipe$N"
+#testecho "$N" "$TEST" "" "pipe:$tp%pipe:$tp,nonblock" "$opts"
+#esac
+#N=$((N+1))
 
 
 NAME=FILE
@@ -1912,7 +1964,7 @@ case "$TESTS" in
 *%functions%*|*%file%*|*%ignoreeof%*|*%$NAME%*)
 TEST="$NAME: simple echo via file"
 tf="$td/file$N"
-testecho "$N" "$TEST" "" "$tf,ignoreeof!!$tf" "$opts"
+testecho "$N" "$TEST" "" "$tf%$tf,ignoreeof" "$opts"
 esac
 N=$((N+1))
 
@@ -1994,7 +2046,8 @@ NAME=DUALSYSTEMFDS
 case "$TESTS" in
 *%functions%*|*%system%*|*%$NAME%*)
 TEST="$NAME: echo via dual system() of cat"
-testecho "$N" "$TEST" "system:$CAT>&6,fdout=6!!system:$CAT<&7,fdin=7" "" "$opts"
+#testecho "$N" "$TEST" "system:'strace -tt -o /tmp/cat.out cat'>&6,fdout=6!!system:$CAT<&7,fdin=7" "" "$opts" "$T"
+testecho "$N" "$TEST" "system:$CAT<&7,fdin=7%system:'cat'>&6,fdout=6" "" "$opts" "0.1"
 esac
 N=$((N+1))
 
@@ -2003,7 +2056,7 @@ NAME=EXECSOCKETFLUSH
 case "$TESTS" in
 *%functions%*|*%exec%*|*%$NAME%*)
 TEST="$NAME: call to od via exec with socketpair"
-testod "$N" "$TEST" "" "exec:$OD_C" "$opts"
+testod "$N" "$TEST" "" "exec:$OD_C" "$opts" "0.1"
 esac
 N=$((N+1))
 
@@ -2012,7 +2065,7 @@ NAME=SYSTEMSOCKETFLUSH
 case "$TESTS" in
 *%functions%*|*%system%*|*%$NAME%*)
 TEST="$NAME: call to od via system() with socketpair"
-testod "$N" "$TEST" "" "system:$OD_C" "$opts"
+testod "$N" "$TEST" "" "system:$OD_C" "$opts" "0.1"
 esac
 N=$((N+1))
 
@@ -2081,7 +2134,7 @@ N=$((N+1))
 #case "$TESTS" in
 #*%functions%*|*%system%*|*%$NAME%*)
 #TEST="$NAME: call to od via dual system()"
-#testecho "$N" "$TEST" "system:$OD_C>&6,fdout=6!!system:$CAT<&7,fdin=7" "" "$opts"
+#testecho "$N" "$TEST" "system:$CAT<&7,fdin=7%system:$OD_C>&6,fdout=6" "" "$opts"
 #esac
 #N=$((N+1))
 
@@ -2227,7 +2280,7 @@ TEST="$NAME: echo via two unidirectional UDP IPv4 sockets"
 tf="$td/file$N"
 p1=$PORT
 p2=$((PORT+1))
-testecho "$N" "$TEST" "" "udp:127.0.0.1:$p2,sp=$p1!!udp:127.0.0.1:$p1,sp=$p2" "$opts"
+testecho "$N" "$TEST" "" "udp:127.0.0.1:$p1,sp=$p2%udp:127.0.0.1:$p2,sp=$p1" "$opts"
 esac
 PORT=$((PORT+2))
 N=$((N+1))
@@ -2248,7 +2301,7 @@ ts="$td/test$N.socket"
 tdiff="$td/test$N.diff"
 da=$(date)
 CMD1="$SOCAT $opts UNIX-LISTEN:$ts PIPE"
-CMD2="$SOCAT $opts -!!- UNIX:$ts"
+CMD2="$SOCAT $opts -%- UNIX:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 </dev/null >$tf 2>"${te}1" &
 bg=$!	# background process id
@@ -2285,7 +2338,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP4-LISTEN:$tsl,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP4:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 waittcp4port $tsl 1
@@ -2325,7 +2378,7 @@ tsl=$PORT
 ts="[::1]:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP6-listen:$tsl,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP6:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP6:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2371,7 +2424,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP-listen:$tsl,pf=ip4,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2417,7 +2470,7 @@ tsl=$PORT
 ts="[::1]:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP-listen:$tsl,pf=ip6,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2465,7 +2518,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP6-listen:$tsl,ipv6-v6only=0,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP4:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2513,7 +2566,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP6-listen:$tsl,ipv6-v6only=1,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP4:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2558,7 +2611,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP-listen:$tsl,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP4:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
 printf "test $F_n $TEST... " $N
 SOCAT_DEFAULT_LISTEN_IP=4 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2603,7 +2656,7 @@ tsl=$PORT
 ts="[::1]:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP-listen:$tsl,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP6:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP6:$ts"
 printf "test $F_n $TEST... " $N
 SOCAT_DEFAULT_LISTEN_IP=6 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2651,7 +2704,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts -4 TCP-listen:$tsl,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP4:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
 printf "test $F_n $TEST... " $N
 SOCAT_DEFAULT_LISTEN_IP=6 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2696,7 +2749,7 @@ tsl=$PORT
 ts="[::1]:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts -6 TCP-listen:$tsl,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP6:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP6:$ts"
 printf "test $F_n $TEST... " $N
 SOCAT_DEFAULT_LISTEN_IP=4 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2745,7 +2798,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts -6 TCP-listen:$tsl,pf=ip4,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP4:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
 printf "test $F_n $TEST... " $N
 SOCAT_DEFAULT_LISTEN_IP=6 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2790,7 +2843,7 @@ tsl=$PORT
 ts="[::1]:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts -4 TCP-listen:$tsl,pf=ip6,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP6:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP6:$ts"
 printf "test $F_n $TEST... " $N
 SOCAT_DEFAULT_LISTEN_IP=4 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -2915,7 +2968,7 @@ te="$td/test$N.stderr"
 tdiff="$td/test$N.diff"
 da=$(date)
 echo "$da" >$tf1
-CMD="$SOCAT $opts $tf1!!/dev/null /dev/null,ignoreeof!!-"
+CMD="$SOCAT $opts /dev/null%$tf1 -%/dev/null,ignoreeof"
 printf "test $F_n $TEST... " $N
 $CMD >"$tf2" 2>"$te"
 if [ $? -ne 0 ]; then
@@ -2945,7 +2998,7 @@ tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
 tdiff="$td/test$N.diff"
 da=$(date)
-CMD="$SOCAT $opts $tp!!/dev/null /dev/null,ignoreeof!!$tf"
+CMD="$SOCAT $opts /dev/null%$tp $tf%/dev/null,ignoreeof"
 printf "test $F_n $TEST... " $N
 #mknod $tp p	# no mknod p on FreeBSD
 mkfifo $tp
@@ -3121,9 +3174,9 @@ case "$TESTS" in
 TEST="$NAME: exec against address with ignoreeof"
 tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
-CMD="$SOCAT $opts -lf /dev/null EXEC:$TRUE /dev/null,ignoreeof"
+CMD="$SOCAT $opts -lf "$te" EXEC:$TRUE /dev/null,ignoreeof"
 printf "test $F_n $TEST... " $N
-$CMD >"$tf" 2>"$te"
+$CMD >"$tf"
 if [ -s "$te" ]; then
     $PRINTF "$FAILED: $SOCAT:\n"
     echo "$CMD"
@@ -3337,6 +3390,119 @@ esac
 N=$((N+1))
 
 
+NAME=CHAIN
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: stdio to test+pipe"
+testchain "$N" "$TEST" "stdio" "test|pipe" "$opts" "><"
+esac
+N=$((N+1))
+
+NAME=REVCHAIN
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: stdio to rev.test+pipe"
+testchain "$N" "$TEST" "stdio" "^test|pipe" "$opts" "<>"
+esac
+N=$((N+1))
+
+NAME=TWOCHAINS
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: test+stdio vs. test+pipe"
+testchain "$N" "$TEST" "test|stdio" "test|pipe" "$opts" "<><>"
+esac
+N=$((N+1))
+
+NAME=TWOREVCHAINS
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: rev.test+stdio vs. rev.test+pipe"
+testchain "$N" "$TEST" "^test|stdio" "^test|pipe" "$opts" "><><"
+esac
+N=$((N+1))
+
+NAME=LONGCHAIN
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: stdio vs. four-tests+pipe"
+testchain "$N" "$TEST" "stdio" "test|^test|test|^test|pipe" "$opts" "><><><><"
+esac
+N=$((N+1))
+
+NAME=TOWLONGCHAINS
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: four-tests+stdio vs. four-tests+pipe"
+testchain "$N" "$TEST" "^test|test|^test|test|stdio" "test|^test|test|^test|pipe" "$opts" "<><>><><><><<><>"
+esac
+N=$((N+1))
+
+NAME=CHAINSPACES
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: lot of test with spaces"
+testchain "$N" "$TEST" " ^ test | test | ^ test | test | stdio " "  test  |  ^  test  |  test  |  ^  test  |  pipe  " "$opts" "<><>><><><><<><>"
+esac
+N=$((N+1))
+
+NAME=CHAINUNIDIR
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: two unidirectional chains"
+testchain "$N" "$TEST" "test|stdin" "test|stdout" "-u $opts" "<>"
+esac
+N=$((N+1))
+
+NAME=CHAINREVDIR
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$NAME%*)
+TEST="$NAME: two unidirectional chains, right to left"
+testchain "$N" "$TEST" "^test|stdout" "^test|stdin" "-U $opts" "><"
+esac
+N=$((N+1))
+
+NAME=CHAINDUAL
+case "$TESTS" in
+*%functions%*|*%chain%*|*%dual%*|*%$NAME%*)
+TEST="$NAME: bidirectional dual chain (uni/rev)"
+testchain "$N" "$TEST" "stdio" "testuni%testrev|pipe" "$opts" "><"
+esac
+N=$((N+1))
+
+NAME=CHAINDUAL2
+case "$TESTS" in
+*%functions%*|*%chain%*|*%dual%*|*%$NAME%*)
+TEST="$NAME: bidirectional dual chain (bi/rev)"
+testchain "$N" "$TEST" "stdio" "test%testrev|pipe" "$opts" "><"
+esac
+N=$((N+1))
+
+NAME=CHAINDUAL3
+case "$TESTS" in
+*%functions%*|*%chain%*|*%dual%*|*%$NAME%*)
+TEST="$NAME: bidirectional dual chain (uni/bi)"
+testchain "$N" "$TEST" "stdio" "testuni%^test|pipe" "$opts" "><"
+esac
+N=$((N+1))
+
+NAME=CHAINDUAL4
+case "$TESTS" in
+*%functions%*|*%chain%*|*%dual%*|*%$NAME%*)
+TEST="$NAME: bidirectional dual chain (bi/bi)"
+testchain "$N" "$TEST" "stdio" "test%^test|pipe" "$opts" "><"
+esac
+N=$((N+1))
+
+NAME=CHAINDUAL5
+case "$TESTS" in
+*%functions%*|*%chain%*|*%dual%*|*%$NAME%*)
+TEST="$NAME: bidirectional mixed normal and dual chains"
+testchain "$N" "$TEST" "test|test%^test|^test|stdio" "^test|testuni%testrev|test|pipe" "$opts" "><<<>><<>>><"
+esac
+N=$((N+1))
+
+
 NAME=OPENSSL_TCP4
 case "$TESTS" in
 *%functions%*|*%openssl%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
@@ -3358,12 +3524,15 @@ tdiff="$td/test$N.diff"
 da=$(date)
 CMD2="$SOCAT $opts exec:'openssl s_server -accept "$PORT" -quiet -cert testsrv.pem' pipe"
 #! CMD="$SOCAT $opts - openssl:$LOCALHOST:$PORT"
-CMD="$SOCAT $opts - openssl:$LOCALHOST:$PORT,pf=ip4,verify=0,$SOCAT_EGD"
+#CMD="$SOCAT $opts - openssl:$LOCALHOST:$PORT,pf=ip4,verify=0,$SOCAT_EGD"
+CMD="$SOCAT $opts - openssl,verify=0,$SOCAT_EGD|tcp4:$LOCALHOST:$PORT"
 printf "test $F_n $TEST... " $N
 eval "$CMD2 2>\"${te}1\" &"
 pid=$!	# background process id
 waittcp4port $PORT
-echo "$da" |$CMD >$tf 2>"${te}2"
+# the openssl s_server program appears to not support half closed connections,
+# so we must delay EOF
+(echo "$da"; sleep 1) |$CMD >$tf 2>"${te}2"
 if ! echo "$da" |diff - "$tf" >"$tdiff"; then
     $PRINTF "$FAILED: $SOCAT:\n"
     echo "$CMD2 &"
@@ -3401,8 +3570,10 @@ tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
 tdiff="$td/test$N.diff"
 da=$(date)
-CMD2="$SOCAT $opts OPENSSL-LISTEN:$PORT,pf=ip4,reuseaddr,$SOCAT_EGD,cert=testsrv.crt,key=testsrv.key,verify=0 pipe"
-CMD="$SOCAT $opts - openssl:$LOCALHOST:$PORT,pf=ip4,verify=0,$SOCAT_EGD"
+#CMD2="$SOCAT $opts OPENSSL-LISTEN:$PORT,pf=ip4,reuseaddr,$SOCAT_EGD,cert=testsrv.crt,key=testsrv.key,verify=0 pipe"
+CMD2="$SOCAT $opts TCP4-LISTEN:$PORT,reuseaddr ^OPENSSL-LISTEN,$SOCAT_EGD',cert=testsrv.crt,key=testsrv.key,verify=0|pipe'"
+#CMD="$SOCAT $opts - openssl:$LOCALHOST:$PORT,pf=ip4,,verify=0,$SOCAT_EGD"
+CMD="$SOCAT $opts - openssl,verify=0,$SOCAT_EGD|tcp4:$LOCALHOST:$PORT"
 printf "test $F_n $TEST... " $N
 eval "$CMD2 2>\"${te}1\" &"
 pid=$!	# background process id
@@ -3625,7 +3796,8 @@ tdiff="$td/test$N.diff"
 da="$(date)" da="$da$($ECHO '\r')"
 # we have a normal tcp echo listening - so the socks header must appear in answer
 CMD2="$SOCAT tcp4-l:$PORT,reuseaddr exec:\"./socks4echo.sh\""
-CMD="$SOCAT $opts - socks4:$LOCALHOST:32.98.76.54:32109,pf=ip4,socksport=$PORT",socksuser="nobody"
+#CMD="$SOCAT $opts - socks4:$LOCALHOST:32.98.76.54:32109,pf=ip4,socksport=$PORT",socksuser="nobody"
+CMD="$SOCAT $opts - socks4:32.98.76.54:32109,socksuser=nobody|tcp4:$LOCALHOST:$PORT"
 printf "test $F_n $TEST... " $N
 eval "$CMD2 2>\"${te}1\" &"
 pid=$!	# background process id
@@ -3712,7 +3884,8 @@ tdiff="$td/test$N.diff"
 da="$(date)" da="$da$($ECHO '\r')"
 # we have a normal tcp echo listening - so the socks header must appear in answer
 CMD2="$SOCAT tcp4-l:$PORT,reuseaddr exec:\"./socks4a-echo.sh\""
-CMD="$SOCAT $opts - socks4a:$LOCALHOST:localhost:32109,pf=ip4,socksport=$PORT",socksuser="nobody"
+#CMD="$SOCAT $opts - socks4a:$LOCALHOST:localhost:32109,pf=ip4,socksport=$PORT",socksuser="nobody"
+CMD="$SOCAT $opts - socks4a:localhost:32109,socksuser=nobody|tcp4:$LOCALHOST:$PORT"
 printf "test $F_n $TEST... " $N
 eval "$CMD2 2>\"${te}1\" &"
 pid=$!	# background process id
@@ -3800,7 +3973,8 @@ tdiff="$td/test$N.diff"
 da="$(date)" da="$da$($ECHO '\r')"
 #CMD2="$SOCAT tcp4-l:$PORT,crlf system:\"read; read; $ECHO \\\"HTTP/1.0 200 OK\n\\\"; cat\""
 CMD2="$SOCAT tcp4-l:$PORT,reuseaddr,crlf exec:\"/bin/bash proxyecho.sh\""
-CMD="$SOCAT $opts - proxy:$LOCALHOST:127.0.0.1:1000,pf=ip4,proxyport=$PORT"
+#CMD="$SOCAT $opts - proxy:$LOCALHOST:127.0.0.1:1000,pf=ip4,proxyport=$PORT"
+CMD="$SOCAT $opts - proxy:127.0.0.1:1000|tcp4:$LOCALHOST:$PORT"
 printf "test $F_n $TEST... " $N
 eval "$CMD2 2>\"${te}2\" &"
 pid=$!	# background process id
@@ -3882,7 +4056,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP4-LISTEN:$tsl,reuseaddr exec:$CAT,nofork"
-CMD2="$SOCAT $opts stdin!!stdout TCP4:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
 printf "test $F_n $TEST... " $N
 #$CMD1 >"$tf" 2>"${te}1" &
 $CMD1 >/dev/null 2>"${te}1" &
@@ -3944,7 +4118,7 @@ N=$((N+1))
 #da=$(date)
 #$SOCAT UDP-listen:$tsl PIPE &
 #sleep 2
-#echo "$da" |$SOCAT stdin!!stdout UDP:$ts >"$tf"
+#echo "$da" |$SOCAT stdout%stdin UDP:$ts >"$tf"
 #if [ $? -eq 0 ] && echo "$da" |diff "$tf" -; then
 #   $ECHO "... test $N succeeded"
 #   numOK=$((numOK+1))
@@ -4068,7 +4242,8 @@ tdiff="$td/test$N.diff"
 da="$(date)" da="$da$($ECHO '\r')"
 #CMD2="$SOCAT tcp-l:$PORT,crlf system:\"read; read; $ECHO \\\"HTTP/1.0 200 OK\n\\\"; cat\""
 CMD2="$SOCAT tcp4-l:$PORT,reuseaddr,crlf exec:\"/bin/bash proxyecho.sh -w 2\""
-CMD="$SOCAT $opts - proxy:$LOCALHOST:127.0.0.1:1000,pf=ip4,proxyport=$PORT"
+#CMD="$SOCAT $opts - proxy:$LOCALHOST:127.0.0.1:1000,pf=ip4,proxyport=$PORT"
+CMD="$SOCAT $opts - proxy:127.0.0.1:1000|tcp4:$LOCALHOST:$PORT"
 printf "test $F_n $TEST... " $N
 eval "$CMD2 2>\"${te}1\" &"
 pid=$!	# background process id
@@ -4129,7 +4304,7 @@ NAME=SINGLEEXECOUTSOCKETPAIR
 case "$TESTS" in
 *%functions%*|*%$NAME%*)
 TEST="$NAME: inheritance of stdout to single exec with socketpair"
-testecho "$N" "$TEST" "-!!exec:cat" "" "$opts" 1
+testecho "$N" "$TEST" "exec:cat%-" "" "$opts" 1
 esac
 N=$((N+1))
 
@@ -4137,7 +4312,7 @@ NAME=SINGLEEXECOUTPIPE
 case "$TESTS" in
 *%functions%*|*%$NAME%*)
 TEST="$NAME: inheritance of stdout to single exec with pipe"
-testecho "$N" "$TEST" "-!!exec:cat,pipes" "" "$opts" 1
+testecho "$N" "$TEST" "exec:cat,pipes%-" "" "$opts" 1
 esac
 N=$((N+1))
 
@@ -4149,7 +4324,7 @@ if ! testaddrs pty >/dev/null; then
     $PRINTF "test $F_n $TEST... ${YELLOW}PTY not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
-testecho "$N" "$TEST" "-!!exec:cat,pty,raw" "" "$opts" 1
+testecho "$N" "$TEST" "exec:cat,pty,raw%-" "" "$opts" 1
 fi
 esac
 N=$((N+1))
@@ -4158,7 +4333,7 @@ NAME=SINGLEEXECINSOCKETPAIR
 case "$TESTS" in
 *%functions%*|*%$NAME%*)
 TEST="$NAME: inheritance of stdin to single exec with socketpair"
-testecho "$N" "$TEST" "exec:cat!!-" "" "$opts"
+testecho "$N" "$TEST" "-%exec:cat" "" "$opts"
 esac
 N=$((N+1))
 
@@ -4166,7 +4341,7 @@ NAME=SINGLEEXECINPIPE
 case "$TESTS" in
 *%functions%*|*%$NAME%*)
 TEST="$NAME: inheritance of stdin to single exec with pipe"
-testecho "$N" "$TEST" "exec:cat,pipes!!-" "" "$opts"
+testecho "$N" "$TEST" "-%exec:cat,pipes" "" "$opts"
 esac
 N=$((N+1))
 
@@ -4178,7 +4353,7 @@ if ! testaddrs pty >/dev/null; then
     $PRINTF "test $F_n $TEST... ${YELLOW}PTY not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
-testecho "$N" "$TEST" "exec:cat,pty,raw!!-" "" "$opts" $MISCDELAY
+testecho "$N" "$TEST" "-%exec:cat,pty,raw" "" "$opts" $MISCDELAY
 fi
 esac
 N=$((N+1))
@@ -4191,7 +4366,7 @@ if ! testaddrs pty >/dev/null; then
     $PRINTF "test $F_n $TEST... ${YELLOW}PTY not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
-testecho "$N" "$TEST" "exec:cat,pty,raw!!-" "" "$opts"
+testecho "$N" "$TEST" "-%exec:cat,pty,raw" "" "$opts"
 fi
 esac
 N=$((N+1))
@@ -4217,7 +4392,7 @@ tr="$td/test$N.ref"
 tdiff="$td/test$N.diff"
 da="$(date)" da="$da$($ECHO '\r')"
 # the feature that we really want to test is in the readline.sh script:
-CMD="$SOCAT $opts open:$tpi,nonblock!!open:$tpo exec:\"./readline.sh -nh ./readline-test.sh\",pty,ctty,setsid,raw,echo=0,isig"
+CMD="$SOCAT $opts open:$tpo%open:$tpi,nonblock exec:\"./readline.sh -nh ./readline-test.sh\",pty,ctty,setsid,raw,echo=0,isig"
 #echo "$CMD" >"$ts"
 #chmod a+x "$ts"
 printf "test $F_n $TEST... " $N
@@ -4366,10 +4541,12 @@ CMD1="$SOCAT $opts -lpserver tcp4-l:$PORT,reuseaddr,bind=$LOCALHOST echo"
 # this is the proxy in the protected network that provides a way out
 CMD2="$SOCAT $opts -lpproxy tcp4-l:$((PORT+1)),reuseaddr,bind=$LOCALHOST,fork exec:./proxy.sh"
 # this is our proxy connect wrapper in the protected network
-CMD3="$SOCAT $opts -lpwrapper tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST,fork proxy:$LOCALHOST:$LOCALHOST:$((PORT+3)),pf=ip4,proxyport=$((PORT+1)),resolve"
+#CMD3="$SOCAT $opts -lpwrapper tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST,fork proxy:$LOCALHOST:$LOCALHOST:$((PORT+3)),pf=ip4,proxyport=$((PORT+1)),resolve"
+CMD3="$SOCAT $opts -lpwrapper tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST,fork proxy:$LOCALHOST:$((PORT+3)),resolve\\|tcp4:$LOCALHOST:$((PORT+1))"
 # this is our double client in the protected network using SSL
 #CMD4="$SOCAT $opts -lp2client ssl:$LOCALHOST:$((PORT+2)),pf=ip4,retry=10,intervall=1,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD tcp4:$LOCALHOST:$PORT"
-CMD4="$SOCAT $opts -lp2client ssl:$LOCALHOST:$((PORT+2)),pf=ip4,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD tcp4:$LOCALHOST:$PORT"
+#CMD4="$SOCAT $opts -lp2client ssl:$LOCALHOST:$((PORT+2)),pf=ip4,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD tcp4:$LOCALHOST:$PORT"
+CMD4="$SOCAT $opts -lp2client ssl,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD\|tcp4:$LOCALHOST:$((PORT+2)) tcp4:$LOCALHOST:$PORT"
 # this is the double server in the outside network
 CMD5="$SOCAT $opts -lp2server -t1 tcp4-l:$((PORT+4)),reuseaddr,bind=$LOCALHOST ssl-l:$((PORT+3)),pf=ip4,reuseaddr,bind=$LOCALHOST,$SOCAT_EGD,cert=testsrv.pem,cafile=testcli.crt"
 # this is the outside client that wants to use the protected server
@@ -4446,11 +4623,16 @@ CMD1="$SOCAT $opts -lpserver -t1 tcp4-l:$PORT,reuseaddr,bind=$LOCALHOST,fork ech
 # this is the proxy in the protected network that provides a way out
 CMD2="$SOCAT $opts -lpproxy -t1 tcp4-l:$((PORT+1)),reuseaddr,bind=$LOCALHOST,fork exec:./proxy.sh"
 # this is our proxy connect wrapper in the protected network
-CMD3="$SOCAT $opts -lpwrapper -t3 tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST,fork proxy:$LOCALHOST:$LOCALHOST:$((PORT+3)),pf=ip4,proxyport=$((PORT+1)),resolve"
+#CMD3="$SOCAT $opts -lpwrapper -t3 tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST,fork proxy:$LOCALHOST:$LOCALHOST:$((PORT+3)),pf=ip4,proxyport=$((PORT+1)),resolve"
+CMD3="$SOCAT $opts -lu -lpwrapper -t3 tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST,fork proxy:$LOCALHOST:$((PORT+3)),resolve\\|tcp4:$LOCALHOST:$((PORT+1))"
 # this is our double client in the protected network using SSL
-CMD4="$SOCAT $opts -lp2client -t3 ssl:$LOCALHOST:$((PORT+2)),retry=10,intervall=1,cert=testcli.pem,cafile=testsrv.crt,verify,fork,$SOCAT_EGD tcp4:$LOCALHOST:$PORT"
+#CMD4="$SOCAT $opts -lp2client -t3 ssl:$LOCALHOST:$((PORT+2)),retry=10,intervall=1,cert=testcli.pem,cafile=testsrv.crt,verify,fork,$SOCAT_EGD tcp4:$LOCALHOST:$PORT"
+#CMD4="$SOCAT $opts -lu -lp2client -t3 ssl,cert=testcli.pem,cafile=testsrv.crt,fork,$SOCAT_EGD,retry=10,intervall=1\\|tcp4:$LOCALHOST:$((PORT+2)) tcp4:$LOCALHOST:$PORT"
+CMD4="$SOCAT $opts -lu -lp2client -t3 tcp4:$LOCALHOST:$((PORT+2)),fork ^ssl,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD,retry=10,intervall=1\\|tcp4:$LOCALHOST:$PORT"
 # this is the double server in the outside network
-CMD5="$SOCAT $opts -lp2server -t4 tcp4-l:$((PORT+4)),reuseaddr,bind=$LOCALHOST,fork ssl-l:$((PORT+3)),pf=ip4,reuseaddr,bind=$LOCALHOST,$SOCAT_EGD,cert=testsrv.pem,cafile=testcli.crt,retry=10"
+#CMD5="$SOCAT $opts -lp2server -t4 tcp4-l:$((PORT+4)),reuseaddr,bind=$LOCALHOST,fork ssl-l:$((PORT+3)),pf=ip4,reuseaddr,bind=$LOCALHOST,$SOCAT_EGD,cert=testsrv.pem,cafile=testcli.crt,retry=10"
+#CMD5="$SOCAT $opts -lp2server -t4 tcp4-l:$((PORT+4)),reuseaddr,bind=$LOCALHOST,fork tcp4-l:$((PORT+3)),reuseaddr,bind=$LOCALHOST,retry=10\\|ssl-l,$SOCAT_EGD,cert=testsrv.pem,cafile=testcli.crt"
+CMD5="$SOCAT $opts -lp2server -t4 tcp4-l:$((PORT+4)),reuseaddr,bind=$LOCALHOST,fork ssl-l,$SOCAT_EGD,cert=testsrv.pem,cafile=testcli.crt\\|tcp4-l:$((PORT+3)),reuseaddr,bind=$LOCALHOST,retry=10"
 # this is the outside client that wants to use the protected server
 CMD6="$SOCAT $opts -lpclient -t5 - tcp4:$LOCALHOST:$((PORT+4)),retry=3"
 printf "test $F_n $TEST... " $N
@@ -4594,7 +4776,9 @@ testserversec () {
 #set -vx
     # assemble address w/ security option; on dual, take read part:
     case "$arg1" in
-    *!!*) arg="${arg1%!!*},$secopt1!!${arg1#*!!}" ;;
+    #*!!*) arg="${arg1%!!*},$secopt1!!${arg1#*!!}" ;;
+    #*%*) arg="${arg1%\%*}%${arg1#*%},$secopt1" ;;
+    *%*) arg="$arg1,$secopt1" ;;
     *)    arg="$arg1,$secopt1" ;;
     esac
     # start server
@@ -5323,8 +5507,10 @@ tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
 tdiff="$td/test$N.diff"
 da=$(date)
-CMD2="$SOCAT $opts OPENSSL-LISTEN:$PORT,pf=ip4,reuseaddr,$SOCAT_EGD,cert=$SRVCERT.pem,key=$SRVCERT.key,verify=0 pipe"
-CMD="$SOCAT $opts - openssl:$LOCALHOST:$PORT,pf=ip4,verify=0,$SOCAT_EGD"
+#CMD2="$SOCAT $opts OPENSSL-LISTEN:$PORT,pf=ip4,reuseaddr,$SOCAT_EGD,cert=$SRVCERT.pem,key=$SRVCERT.key,verify=0 pipe"
+CMD2="$SOCAT $opts TCP4-LISTEN:$PORT,reuseaddr ^OPENSSL-LISTEN,$SOCAT_EGD,cert=$SRVCERT.pem,key=$SRVCERT.key,verify=0\|pipe"
+#CMD="$SOCAT $opts - openssl:$LOCALHOST:$PORT,pf=ip4,verify=0,$SOCAT_EGD"
+CMD="$SOCAT $opts - openssl,verify=0,$SOCAT_EGD|tcp4:$LOCALHOST:$PORT"
 $PRINTF "test $F_n $TEST... " $N
 eval "$CMD2 2>\"${te}1\" &"
 pid=$!	# background process id
@@ -5690,7 +5876,7 @@ tsl=$PORT
 ts="127.0.0.1:$tsl"
 da=$(date)
 CMD1="$SOCAT $opts TCP6-listen:$tsl,reuseaddr PIPE"
-CMD2="$SOCAT $opts stdin!!stdout TCP6:$ts"
+CMD2="$SOCAT $opts stdout%stdin TCP6:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
@@ -6250,7 +6436,7 @@ PORT2=$PORT; PORT=$((PORT+1))
 PORT3=$PORT
 # we use the forward channel (PORT1) for testing, and have a backward channel
 # (PORT2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "udp4-recv:$PORT1,reuseaddr!!udp4-sendto:127.0.0.1:$PORT2" "" "sp=$PORT3" "udp4-recv:$PORT2!!udp4-sendto:127.0.0.1:$PORT1" 4 udp $PORT1 0
+testserversec "$N" "$TEST" "$opts -s" "udp4-sendto:127.0.0.1:$PORT2%udp4-recv:$PORT1,reuseaddr" "" "sp=$PORT3" "udp4-sendto:127.0.0.1:$PORT1%udp4-recv:$PORT2" 4 udp $PORT1 0
 fi
 esac
 PORT=$((PORT+1))
@@ -6268,7 +6454,7 @@ PORT1=$PORT; PORT=$((PORT+1))
 PORT2=$PORT
 # we use the forward channel (PORT1) for testing, and have a backward channel
 # (PORT2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "udp4-recv:$PORT1,reuseaddr!!udp4-sendto:127.0.0.1:$PORT2" "" "lowport" "udp4-recv:$PORT2!!udp4-sendto:127.0.0.1:$PORT1" 4 udp $PORT1 0
+testserversec "$N" "$TEST" "$opts -s" "udp4-sendto:127.0.0.1:$PORT2%udp4-recv:$PORT1,reuseaddr" "" "lowport" "udp4-sendto:127.0.0.1:$PORT1%udp4-recv:$PORT2" 4 udp $PORT1 0
 fi
 esac
 PORT=$((PORT+1))
@@ -6286,7 +6472,7 @@ PORT1=$PORT; PORT=$((PORT+1))
 PORT2=$PORT
 # we use the forward channel (PORT1) for testing, and have a backward channel
 # (PORT2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "udp4-recv:$PORT1,reuseaddr!!udp4-sendto:127.0.0.1:$PORT2" "" "range=$SECONDADDR/32" "udp4-recv:$PORT2!!udp4-sendto:127.0.0.1:$PORT1" 4 udp $PORT1 0
+testserversec "$N" "$TEST" "$opts -s" "udp4-sendto:127.0.0.1:$PORT2%udp4-recv:$PORT1,reuseaddr" "" "range=$SECONDADDR/32" "udp4-sendto:127.0.0.1:$PORT1%udp4-recv:$PORT2" 4 udp $PORT1 0
 fi
 esac
 PORT=$((PORT+1))
@@ -6308,7 +6494,7 @@ $ECHO "socat: $SECONDADDR" >"$ha"
 $ECHO "ALL: ALL" >"$hd"
 # we use the forward channel (PORT1) for testing, and have a backward channel
 # (PORT2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "udp4-recv:$PORT1,reuseaddr!!udp4-sendto:127.0.0.1:$PORT2" "" "tcpwrap-etc=$td" "udp4-recv:$PORT2!!udp4-sendto:127.0.0.1:$PORT1" 4 udp $PORT1 0
+testserversec "$N" "$TEST" "$opts -s" "udp4-sendto:127.0.0.1:$PORT2%udp4-recv:$PORT1,reuseaddr" "" "tcpwrap-etc=$td" "udp4-sendto:127.0.0.1:$PORT1%udp4-recv:$PORT2" 4 udp $PORT1 0
 fi ;; # feat
 esac
 PORT=$((PORT+1))
@@ -6390,7 +6576,7 @@ PORT2=$PORT; PORT=$((PORT+1))
 PORT3=$PORT
 # we use the forward channel (PORT1) for testing, and have a backward channel
 # (PORT2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "udp6-recv:$PORT1,reuseaddr!!udp6-sendto:[::1]:$PORT2" "" "sp=$PORT3" "udp6-recv:$PORT2!!udp6-sendto:[::1]:$PORT1" 6 udp $PORT1 0
+testserversec "$N" "$TEST" "$opts -s" "udp6-sendto:[::1]:$PORT2%udp6-recv:$PORT1,reuseaddr" "" "sp=$PORT3" "udp6-sendto:[::1]:$PORT1%udp6-recv:$PORT2" 6 udp $PORT1 0
 fi
 esac
 PORT=$((PORT+1))
@@ -6408,7 +6594,7 @@ PORT1=$PORT; PORT=$((PORT+1))
 PORT2=$PORT
 # we use the forward channel (PORT1) for testing, and have a backward channel
 # (PORT2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "udp6-recv:$PORT1,reuseaddr!!udp6-sendto:[::1]:$PORT2" "" "lowport" "udp6-recv:$PORT2!!udp6-sendto:[::1]:$PORT1" 6 udp $PORT1 0
+testserversec "$N" "$TEST" "$opts -s" "udp6-sendto:[::1]:$PORT2%udp6-recv:$PORT1,reuseaddr" "" "lowport" "udp6-sendto:[::1]:$PORT1%udp6-recv:$PORT2" 6 udp $PORT1 0
 fi
 esac
 PORT=$((PORT+1))
@@ -6426,7 +6612,7 @@ PORT1=$PORT; PORT=$((PORT+1))
 PORT2=$PORT
 # we use the forward channel (PORT1) for testing, and have a backward channel
 # (PORT2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "udp6-recv:$PORT1,reuseaddr!!udp6-sendto:[::1]:$PORT2" "" "range=[::2/128]" "udp6-recv:$PORT2!!udp6-sendto:[::1]:$PORT1" 6 udp $PORT1 0
+testserversec "$N" "$TEST" "$opts -s" "udp6-sendto:[::1]:$PORT2%udp6-recv:$PORT1,reuseaddr" "" "range=[::2/128]" "udp6-sendto:[::1]:$PORT1%udp6-recv:$PORT2" 6 udp $PORT1 0
 fi
 esac
 PORT=$((PORT+1))
@@ -6448,7 +6634,7 @@ PORT1=$PORT; PORT=$((PORT+1))
 PORT2=$PORT
 # we use the forward channel (PORT1) for testing, and have a backward channel
 # (PORT2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "udp6-recv:$PORT1,reuseaddr!!udp6-sendto:[::1]:$PORT2" "" "tcpwrap-etc=$td" "udp6-recv:$PORT2!!udp6-sendto:[::1]:$PORT1" 6 udp $PORT1 0
+testserversec "$N" "$TEST" "$opts -s" "udp6-sendto:[::1]:$PORT2%udp6-recv:$PORT1,reuseaddr" "" "tcpwrap-etc=$td" "udp6-sendto:[::1]:$PORT1%udp6-recv:$PORT2" 6 udp $PORT1 0
 fi ;; # feat
 esac
 PORT=$((PORT+1))
@@ -6467,7 +6653,7 @@ elif [ $(id -u) -ne 0 -a "$withroot" -eq 0 ]; then
     numCANT=$((numCANT+1))
 else
 #testserversec "$N" "$TEST" "$opts -s" "ip4-recvfrom:$PROTO,reuseaddr,fork" "" "range=$SECONDADDR/32" "ip4-sendto:127.0.0.1:$PROTO" 4 ip $PROTO 0
-testserversec "$N" "$TEST" "$opts -s" "ip4-recvfrom:$PROTO,reuseaddr!!udp4-sendto:127.0.0.1:$PORT" "" "range=$SECONDADDR/32" "udp4-recv:$PORT!!ip4-sendto:127.0.0.1:$PROTO" 4 ip $PROTO 0
+testserversec "$N" "$TEST" "$opts -s" "udp4-sendto:127.0.0.1:$PORT%ip4-recvfrom:$PROTO,reuseaddr" "" "range=$SECONDADDR/32" "ip4-sendto:127.0.0.1:$PROTO%udp4-recv:$PORT" 4 ip $PROTO 0
 fi # not feats, not root
 esac
 PROTO=$((PROTO+1))
@@ -6490,7 +6676,7 @@ hd="$td/hosts.deny"
 $ECHO "socat: $SECONDADDR" >"$ha"
 $ECHO "ALL: ALL" >"$hd"
 #testserversec "$N" "$TEST" "$opts -s" "ip4-recvfrom:$PROTO,reuseaddr,fork" "" "tcpwrap-etc=$td" "ip4-sendto:127.0.0.1:$PROTO" 4 ip $PROTO 0
-testserversec "$N" "$TEST" "$opts -s" "ip4-recvfrom:$PROTO,reuseaddr!!udp4-sendto:127.0.0.1:$PORT" "" "tcpwrap-etc=$td" "udp4-recv:$PORT!!ip4-sendto:127.0.0.1:$PROTO" 4 ip $PROTO 0
+testserversec "$N" "$TEST" "$opts -s" "udp4-sendto:127.0.0.1:$PORT%ip4-recvfrom:$PROTO,reuseaddr" "" "tcpwrap-etc=$td" "ip4-sendto:127.0.0.1:$PROTO%udp4-recv:$PORT" 4 ip $PROTO 0
 fi # not feats, not root
 esac
 PROTO=$((PROTO+1))
@@ -6513,7 +6699,7 @@ PROTO1=$PROTO; PROTO=$((PROTO+1))
 PROTO2=$PROTO
 # we use the forward channel (PROTO1) for testing, and have a backward channel
 # (PROTO2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "ip4-recv:$PROTO1,reuseaddr!!ip4-sendto:127.0.0.1:$PROTO2" "" "range=$SECONDADDR/32" "ip4-recv:$PROTO2!!ip4-sendto:127.0.0.1:$PROTO1" 4 ip $PROTO1 0
+testserversec "$N" "$TEST" "$opts -s" "ip4-sendto:127.0.0.1:$PROTO2%ip4-recv:$PROTO1,reuseaddr" "" "range=$SECONDADDR/32" "ip4-sendto:127.0.0.1:$PROTO1%ip4-recv:$PROTO2" 4 ip $PROTO1 0
 fi # not feats, not root
 esac
 PROTO=$((PROTO+1))
@@ -6540,7 +6726,7 @@ $ECHO "socat: $SECONDADDR" >"$ha"
 $ECHO "ALL: ALL" >"$hd"
 # we use the forward channel (PROTO1) for testing, and have a backward channel
 # (PROTO2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "ip4-recv:$PROTO1,reuseaddr!!ip4-sendto:127.0.0.1:$PROTO2" "" "tcpwrap-etc=$td" "ip4-recv:$PROTO2!!ip4-sendto:127.0.0.1:$PROTO1" 4 ip $PROTO1 0
+testserversec "$N" "$TEST" "$opts -s" "ip4-sendto:127.0.0.1:$PROTO2%ip4-recv:$PROTO1,reuseaddr" "" "tcpwrap-etc=$td" "ip4-sendto:127.0.0.1:$PROTO1%ip4-recv:$PROTO2" 4 ip $PROTO1 0
 fi # not feats, not root
 esac
 PROTO=$((PROTO+1))
@@ -6559,7 +6745,7 @@ elif [ $(id -u) -ne 0 -a "$withroot" -eq 0 ]; then
     numCANT=$((numCANT+1))
 else
 #testserversec "$N" "$TEST" "$opts -s" "ip6-recvfrom:$PROTO,reuseaddr,fork" "" "range=[::2/128]" "ip6-sendto:[::1]:$PROTO" 6 ip $PROTO 0
-testserversec "$N" "$TEST" "$opts -s" "ip6-recvfrom:$PROTO,reuseaddr!!udp6-sendto:[::1]:$PORT" "" "range=[::2/128]" "udp6-recv:$PORT!!ip6-sendto:[::1]:$PROTO" 6 ip $PROTO 0
+testserversec "$N" "$TEST" "$opts -s" "udp6-sendto:[::1]:$PORT%ip6-recvfrom:$PROTO,reuseaddr" "" "range=[::2/128]" "ip6-sendto:[::1]:$PROTO%udp6-recv:$PORT" 6 ip $PROTO 0
 fi # not feats, not root
 esac
 PROTO=$((PROTO+1))
@@ -6582,7 +6768,7 @@ hd="$td/hosts.deny"
 $ECHO "socat: [::2]" >"$ha"
 $ECHO "ALL: ALL" >"$hd"
 #testserversec "$N" "$TEST" "$opts -s" "ip6-recvfrom:$PROTO,reuseaddr,fork" "" "tcpwrap-etc=$td" "ip6-sendto:[::1]:$PROTO" 6 ip $PROTO 0
-testserversec "$N" "$TEST" "$opts -s" "ip6-recvfrom:$PROTO,reuseaddr!!udp6-sendto:[::1]:$PORT" "" "tcpwrap-etc=$td" "udp6-recv:$PORT!!ip6-sendto:[::1]:$PROTO" 6 ip $PROTO 0
+testserversec "$N" "$TEST" "$opts -s" "udp6-sendto:[::1]:$PORT%ip6-recvfrom:$PROTO,reuseaddr" "" "tcpwrap-etc=$td" "ip6-sendto:[::1]:$PROTO%udp6-recv:$PORT" 6 ip $PROTO 0
 fi # not feats, not root
 esac
 PROTO=$((PROTO+1))
@@ -6605,7 +6791,7 @@ PROTO1=$PROTO; PROTO=$((PROTO+1))
 PROTO2=$PROTO
 # we use the forward channel (PROTO1) for testing, and have a backward channel
 # (PROTO2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "ip6-recv:$PROTO1,reuseaddr!!ip6-sendto:[::1]:$PROTO2" "" "range=[::2/128]" "ip6-recv:$PROTO2!!ip6-sendto:[::1]:$PROTO1" 6 ip $PROTO1 0
+testserversec "$N" "$TEST" "$opts -s" "ip6-sendto:[::1]:$PROTO2%ip6-recv:$PROTO1,reuseaddr" "" "range=[::2/128]" "ip6-sendto:[::1]:$PROTO1%ip6-recv:$PROTO2" 6 ip $PROTO1 0
 fi # not feats, not root
 esac
 PROTO=$((PROTO+1))
@@ -6630,7 +6816,7 @@ $ECHO "socat: [::2]" >"$ha"
 $ECHO "ALL: ALL" >"$hd"
 # we use the forward channel (PROTO1) for testing, and have a backward channel
 # (PROTO2) to get the data back, so we get the classical echo behaviour
-testserversec "$N" "$TEST" "$opts -s" "ip6-recv:$PROTO1,reuseaddr!!ip6-sendto:[::1]:$PROTO2" "" "tcpwrap-etc=$td" "ip6-recv:$PROTO2!!ip6-sendto:[::1]:$PROTO1" 6 ip $PROTO1 0
+testserversec "$N" "$TEST" "$opts -s" "ip6-sendto:[::1]:$PROTO2%ip6-recv:$PROTO1,reuseaddr" "" "tcpwrap-etc=$td" "ip6-sendto:[::1]:$PROTO1%ip6-recv:$PROTO2" 6 ip $PROTO1 0
 fi # not feats, not root
 esac
 PROTO=$((PROTO+1))
@@ -6836,10 +7022,27 @@ esac
 N=$((N+1))
 
 
+# purpose of the shut-none option is to keep a shared socket
+# open. with shared we mean that two or more processes use it. usually, when a
+# process closes a socket, it performs a shutdown procedure with half close.
+# on a shared socket, this would shutdown the socket as a whole, disabling it
+# for all processes. the shut-none option does not shutdown but close the
+# socket; this just removes the processes reference to the socket but keeps it
+# open for the other processes.
 NAME=TCP4ENDCLOSE
 case "$TESTS" in
 *%functions%*|*%ip4%*|*%ipapp%*|*%tcp%*|*%$NAME%*)
-TEST="$NAME: end-close keeps TCP V4 socket open"
+TEST="$NAME: shut-none keeps TCP V4 socket open"
+# this is how we test the shut-none option:
+# we have some tcp service (CMD3) that accepts one connection and only receives
+# date.
+# a multiplexer process (CMD) opens a connection to that service; it accepts
+# multiple connections from client processes and merges and forwards their
+# data; each client is handled in a sub process with a clone of the forwarder
+# socket.
+# two client processes connect and send data. normally, the "common" connection
+# would terminate when the first client disconnects; with the shut-none option,
+# the data of the second process also has to arrive at the target service.
 tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
 tdiff="$td/test$N.diff"
@@ -6848,7 +7051,7 @@ p2=$PORT
 da1a="$(date) $RANDOM"
 da1b="$(date) $RANDOM"
 CMD1="$SOCAT $opts -u - TCP4-CONNECT:$LOCALHOST:$p1"
-CMD="$SOCAT $opts -U TCP4:$LOCALHOST:$p2,end-close TCP4-LISTEN:$p1,bind=$LOCALHOST,reuseaddr,fork"
+CMD="$SOCAT $opts -U TCP4:$LOCALHOST:$p2,shut-none TCP4-LISTEN:$p1,bind=$LOCALHOST,reuseaddr,fork"
 CMD3="$SOCAT $opts -u TCP4-LISTEN:$p2,reuseaddr,bind=$LOCALHOST -"
 printf "test $F_n $TEST... " $N
 $CMD3 >"$tf" 2>"${te}3" &
@@ -6882,11 +7085,21 @@ esac
 PORT=$((PORT+1))
 N=$((N+1))
 
-
+# purpose: see above; here we do not test against a TCP socket but an exec'd
+# sub process (socketpair)
 NAME=EXECENDCLOSE
 case "$TESTS" in
 *%functions%*|*%exec%*|*%$NAME%*)
-TEST="$NAME: end-close keeps EXEC child running"
+TEST="$NAME: shut-none keeps EXEC child running"
+# this is how we test the shut-none option:
+# we have a server process (CMD) that runs a program (cat); the process accepts
+# multiple connections from client processes and merges and forwards their
+# data; each client is handled in a sub process with a clone of the forwarder
+# socket.
+# two client processes connect and send data. normally, the "common" connection
+# the the cat sub process would terminate when the first client disconnects;
+# with the shut-none option, the data of the second process also has to arrive
+# at the target service.
 tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
 ts="$td/test$N.sock"
@@ -6894,7 +7107,7 @@ tdiff="$td/test$N.diff"
 da1a="$(date) $RANDOM"
 da1b="$(date) $RANDOM"
 CMD1="$SOCAT $opts - UNIX-CONNECT:$ts"
-CMD="$SOCAT -t0.1 $opts EXEC:"$CAT",end-close UNIX-LISTEN:$ts,fork"
+CMD="$SOCAT -t0.1 $opts EXEC:"$CAT",shut-none,end-close UNIX-LISTEN:$ts,fork"
 printf "test $F_n $TEST... " $N
 $CMD 2>"${te}2" &
 pid2=$!
@@ -6906,16 +7119,18 @@ usleep 100000
 kill "$pid2" 2>/dev/null
 wait
 if [ $? -ne 0 ]; then
-   $PRINTF "$FAILED: $SOCAT:\n"
+   $PRINTF "$FAILED\n"
    echo "$CMD1 &"
-   echo "$CMD2"
+   echo "$CMD"
    cat "${te}1a" "${te}1b" "${te}2"
-    $PRINTF "$FAILED: $SOCAT:\n"
+    numFAIL=$((numFAIL+1))
 elif ! echo -e "$da1a\n$da1b" |diff - "$tf" >"$tdiff"; then
    $PRINTF "$FAILED\n"
+   echo "$CMD1 &"
+   echo "$CMD"
    cat "$tdiff"
    cat "${te}1a" "${te}1b" "${te}2"
-    $PRINTF "$FAILED: $SOCAT:\n"
+    numFAIL=$((numFAIL+1))
 else
    $PRINTF "$OK\n"
    if [ -n "$debug" ]; then cat "${te}1a" "${te}1b" "${te}2"; fi
@@ -7721,7 +7936,7 @@ to="$td/test$N.out"
 te="$td/test$N.err"
 tdiff="$td/test$N.diff"
 da="$(date)" da="$da$($ECHO '\r')"
-CMD="$SOCAT $opts system:\"echo A; sleep 2\",readbytes=2!!- -!!/dev/null"
+CMD="$SOCAT $opts -%system:\"echo A; sleep 2\",readbytes=2 /dev/null%-"
 printf "test $F_n $TEST... " $N
 (sleep 1; echo) |eval "$CMD" >"$to" 2>"$te"
 if test -s "$to"; then

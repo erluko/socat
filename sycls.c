@@ -720,6 +720,41 @@ int Select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
    return result;
 }
 
+/* we only show the first word of the fd_set's; hope this is enough for most
+   cases. */
+int Pselect(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+	    struct timespec *timeout, const sigset_t *sigmask) {
+   int result, _errno;
+#if HAVE_FDS_BITS
+   Debug8("pselect(%d, &0x%lx, &0x%lx, &0x%lx, %s%lu.%06u, {0x%lx})",
+	  n, readfds->fds_bits[0], writefds->fds_bits[0],
+	  exceptfds->fds_bits[0],
+	  timeout?"&":"NULL/", timeout?timeout->tv_sec:0,
+	  timeout?timeout->tv_nsec:0, /*sigmask->__val[0]*/
+	  *(unsigned long *)sigmask);
+#else
+   Debug8("pselect(%d, &0x%lx, &0x%lx, &0x%lx, %s%lu.%06u, {0x%lx})",
+	  n, readfds->__fds_bits[0], writefds->__fds_bits[0],
+	  exceptfds->__fds_bits[0],
+	  timeout?"&":"NULL/", timeout?timeout->tv_sec:0,
+	  timeout?timeout->tv_nsec:0, *(unsigned long *)sigmask);
+#endif
+   result = pselect(n, readfds, writefds, exceptfds, timeout, sigmask);
+   _errno = errno;
+#if HAVE_FDS_BITS
+   Debug4("pselect -> (, 0x%lx, 0x%lx, 0x%lx, , ), %d",
+	  readfds->fds_bits[0], writefds->fds_bits[0], exceptfds->fds_bits[0],
+	  result);
+#else
+   Debug4("pselect -> (, 0x%lx, 0x%lx, 0x%lx, , ), %d",
+	  readfds->__fds_bits[0], writefds->__fds_bits[0],
+	  exceptfds->__fds_bits[0],
+	  result);
+#endif
+   errno = _errno;
+   return result;
+}
+
 pid_t Fork(void) {
    pid_t pid;
    int _errno;
@@ -764,12 +799,15 @@ int Sigaction(int signum, const struct sigaction *act,
 }
 #endif /* HAVE_SIGACTION */
 
-int Sigprocmask(int how, const sigset_t *set, sigset_t *oset) {
-   int retval;
-   Debug3("sigprocmask(%d, %p, %p)", how, set, oset);
-   retval = sigprocmask(how, set, oset);
-   Debug1("sigprocmask() -> %d", retval);
-   return retval;
+int Sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
+   int _errno, result;
+   Debug3("sigprocmask(%d, {0x%lx}, %p)", how, *(unsigned long *)set, oldset);
+   result = sigprocmask(how, set, oldset);
+   _errno = errno;
+   Debug4("sigprocmask(,,%s%lu%s) -> %d",
+	  oldset?" {0x":"", oldset?*(unsigned long *)oldset:0, oldset?"}":"", result);
+   errno = _errno;
+   return result;
 }
 
 unsigned int Alarm(unsigned int seconds) {
@@ -1138,7 +1176,7 @@ int Pause(void) {
    return retval;
 }
 
-#if WITH_IP4 || WITH_IP6
+#if _WITH_IP4 || _WITH_IP6
 struct hostent *Gethostbyname(const char *name) {
    struct hostent *hent;
    Debug1("gethostbyname(\"%s\")", name);
@@ -1154,7 +1192,7 @@ struct hostent *Gethostbyname(const char *name) {
    }
    return hent;
 }
-#endif /* WITH_IP4 || WITH_IP6 */
+#endif /* _WITH_IP4 || _WITH_IP6 */
 
 #if (_WITH_IP4 || _WITH_IP6) && HAVE_GETADDRINFO
 int Getaddrinfo(const char *node, const char *service,
@@ -1397,6 +1435,27 @@ void Abort(void) {
    abort();
 }
 
+int Pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+		   void *(*start_routine)(void *), void *arg) {
+   int result, _errno;
+   Debug4("pthread_create(%p, %p, %p, %p)", thread, attr, start_routine, arg);
+   result = pthread_create(thread, attr, start_routine, arg);
+   _errno = errno;
+   Debug1("pthread_create() -> %d", errno);
+   errno = _errno;
+   return result;
+}
+
+int Pthread_join(pthread_t thread, void **value_ptr) {
+   int result, _errno;
+   Debug2("pthread_join(%p, %p)", thread, value_ptr);
+   result = pthread_join(thread, value_ptr);
+   _errno = errno;
+   Debug1("pthread_join() -> %d", errno);
+   errno = _errno;
+   return result;
+}
+
 int Mkstemp(char *template) {
    int result, _errno;
    Debug1("mkstemp(\"%s\")", template);
@@ -1499,5 +1558,41 @@ void Add_history(const char *string) {
 }
 
 #endif /* WITH_READLINE */
+
+#if WITH_GZIP
+
+gzFile Gzdopen(int fd, const char *mode) {
+   gzFile result;
+   Debug2("gzdopen(%d, \"%s\")", fd, mode);
+   result = gzdopen(fd, mode);
+   Debug1("gzdopen() -> %p", result);
+   return result;   
+}
+
+int Gzread(gzFile file, voidp buf, unsigned len) {
+   int result;
+   Debug3("gzread(%p, %p, %u)", file, buf, len);
+   result = gzread(file, buf, len);
+   Debug1("gzread() -> %d", result);
+   return result;
+}
+
+int Gzwrite(gzFile file, const voidp buf, unsigned len) {
+   int result;
+   Debug3("gzwrite(%p, %p, %u)", file, buf, len);
+   result = gzwrite(file, buf, len);
+   Debug1("gzwrite() -> %d", result);
+   return result;
+}
+
+int Gzclose(gzFile file) {
+   int result;
+   Debug1("gzclose(%p)", file);
+   result = gzclose(file);
+   Debug1("gzclose() -> %d", result);
+   return result;
+}
+
+#endif /* WITH_GZIP */
 
 #endif /* WITH_SYCLS */

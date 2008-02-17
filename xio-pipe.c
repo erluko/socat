@@ -12,16 +12,20 @@
 
 #if WITH_PIPE
 
-static int xioopen_fifo(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
-static int xioopen_fifo_unnamed(xiofile_t *sock, struct opt *opts);
+static int xioopen_fifo0(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
+static int xioopen_fifo1(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
 
+static const struct xioaddr_endpoint_desc xioaddr_pipe0   = { XIOADDR_SYS, "pipe",  0, XIOBIT_RDWR, GROUP_FD|GROUP_NAMED|GROUP_OPEN|GROUP_FIFO, XIOSHUT_CLOSE, XIOCLOSE_CLOSE, xioopen_fifo0, 0, 0, 0 HELP("") };
+static const struct xioaddr_endpoint_desc xioaddr_pipe1   = { XIOADDR_SYS, "pipe",  1, XIOBIT_ALL,  GROUP_FD|GROUP_NAMED|GROUP_OPEN|GROUP_FIFO, XIOSHUT_CLOSE, XIOCLOSE_CLOSE, xioopen_fifo1, 0, 0, 0 HELP(":<filename>") };
 
-const struct addrdesc addr_pipe   = { "pipe",   3, xioopen_fifo,  GROUP_FD|GROUP_NAMED|GROUP_OPEN|GROUP_FIFO, 0, 0, 0 HELP(":<filename>") };
-
+const union xioaddr_desc *xioaddrs_pipe[] = {
+   (union xioaddr_desc *)&xioaddr_pipe0,
+   (union xioaddr_desc *)&xioaddr_pipe1,
+   NULL };
 
 /* process an unnamed bidirectional "pipe" or "fifo" or "echo" argument with
    options */
-static int xioopen_fifo_unnamed(xiofile_t *sock, struct opt *opts) {
+static int xioopen_fifo0(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *sock, unsigned groups, int dummy1, int dummy2, int dummy3) {
    struct opt *opts2;
    int filedes[2];
    int numleft;
@@ -36,12 +40,13 @@ static int xioopen_fifo_unnamed(xiofile_t *sock, struct opt *opts) {
    }
    /*0 Info2("pipe({%d,%d})", filedes[0], filedes[1]);*/
 
-   sock->common.tag               = XIO_TAG_RDWR;
-   sock->stream.dtype             = XIODATA_PIPE;
-   sock->stream.fd                = filedes[0];
-   sock->stream.para.bipipe.fdout = filedes[1];
-   applyopts_cloexec(sock->stream.fd,                opts);
-   applyopts_cloexec(sock->stream.para.bipipe.fdout, opts);
+   sock->common.tag    = XIO_TAG_RDWR;
+   sock->stream.dtype  = XIODATA_2PIPE;
+   sock->stream.fd1    = filedes[0];
+   sock->stream.fd2    = filedes[1];
+   sock->stream.fdtype = FDTYPE_DOUBLE;
+   applyopts_cloexec(sock->stream.fd1, opts);
+   applyopts_cloexec(sock->stream.fd2, opts);
 
    /* one-time and input-direction options, no second application */
    retropt_bool(opts, OPT_IGNOREEOF, &sock->stream.ignoreeof);
@@ -52,7 +57,7 @@ static int xioopen_fifo_unnamed(xiofile_t *sock, struct opt *opts) {
    }
 
    /* apply options to first FD */
-   if ((result = applyopts(sock->stream.fd, opts, PH_ALL)) < 0) {
+   if ((result = applyopts(sock->stream.fd1, opts, PH_ALL)) < 0) {
       return result;
    }
    if ((result = applyopts_single(&sock->stream, opts, PH_ALL)) < 0) {
@@ -60,7 +65,7 @@ static int xioopen_fifo_unnamed(xiofile_t *sock, struct opt *opts) {
    }
 
    /* apply options to second FD */
-   if ((result = applyopts(sock->stream.para.bipipe.fdout, opts2, PH_ALL)) < 0)
+   if ((result = applyopts(sock->stream.fd2, opts2, PH_ALL)) < 0)
    {
       return result;
    }
@@ -75,7 +80,7 @@ static int xioopen_fifo_unnamed(xiofile_t *sock, struct opt *opts) {
 
 
 /* open a named pipe/fifo */
-static int xioopen_fifo(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3) {
+static int xioopen_fifo1(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3) {
    const char *pipename = argv[1];
    int rw = (xioflags & XIO_ACCMODE);
 #if HAVE_STAT64
@@ -87,14 +92,6 @@ static int xioopen_fifo(int argc, const char *argv[], struct opt *opts, int xiof
    bool opt_unlink_close = true;
    mode_t mode = 0666;
    int result;
-
-   if (argc == 1) {
-      return xioopen_fifo_unnamed(fd, fd->stream.opts);
-   }
-
-   if (argc != 2) {
-      Error2("%s: wrong number of parameters (%d instead of 1)", argv[0], argc-1);
-   }
 
    if (applyopts_single(&fd->stream, opts, PH_INIT) < 0)  return -1;
    applyopts(-1, opts, PH_INIT);
@@ -166,11 +163,14 @@ static int xioopen_fifo(int argc, const char *argv[], struct opt *opts, int xiof
    if ((result = _xioopen_open(pipename, rw, opts)) < 0) {
       return result;
    }
-   fd->stream.fd = result;
+   fd->stream.fd1 = result;
+   fd->stream.fdtype = FDTYPE_SINGLE;
+   fd->stream.howtoshut  = XIOSHUTWR_NONE|XIOSHUTRD_CLOSE;
+   fd->stream.howtoclose = XIOCLOSE_CLOSE;
 
    applyopts_named(pipename, opts, PH_FD);
-   applyopts(fd->stream.fd, opts, PH_FD);
-   applyopts_cloexec(fd->stream.fd, opts);
+   applyopts(fd->stream.fd1, opts, PH_FD);
+   applyopts_cloexec(fd->stream.fd1, opts);
    return _xio_openlate(&fd->stream, opts);
 }
 

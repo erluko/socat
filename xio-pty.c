@@ -18,9 +18,18 @@
 
 #define MAXPTYNAMELEN 64
 
-static int xioopen_pty(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
+static int xioopen_pty(const char *linkname, struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups);
+static int xioopen_pty0(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
+static int xioopen_pty1(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
 
-const struct addrdesc addr_pty = { "pty",   3, xioopen_pty, GROUP_NAMED|GROUP_FD|GROUP_TERMIOS|GROUP_PTY, 0, 0, 0 HELP("") };
+static const struct xioaddr_endpoint_desc xioendpoint_pty0 = { XIOADDR_SYS, "pty", 0, XIOBIT_ALL, GROUP_NAMED|GROUP_FD|GROUP_TERMIOS|GROUP_PTY, XIOSHUT_NONE, XIOCLOSE_CLOSE, xioopen_pty0, 0, 0, 0 HELP("") };
+static const struct xioaddr_endpoint_desc xioendpoint_pty1 = { XIOADDR_SYS, "pty", 1, XIOBIT_ALL, GROUP_NAMED|GROUP_FD|GROUP_TERMIOS|GROUP_PTY, XIOSHUT_NONE, XIOCLOSE_CLOSE, xioopen_pty1, 0, 0, 0 HELP(":<symlink>") };
+
+const union xioaddr_desc* xioaddrs_pty[] = {
+   (union xioaddr_desc *)&xioendpoint_pty0,
+   (union xioaddr_desc *)&xioendpoint_pty1,
+   NULL
+};
 
 const struct optdesc opt_symbolic_link = { "symbolic-link", "link", OPT_SYMBOLIC_LINK, GROUP_PTY, PH_LATE, TYPE_FILENAME, OFUNC_SPEC, 0, 0 };
 #if HAVE_POLL
@@ -28,7 +37,17 @@ const struct optdesc opt_pty_wait_slave = { "pty-wait-slave", "wait-slave", OPT_
 const struct optdesc opt_pty_intervall  = { "pty-intervall",  NULL,         OPT_PTY_INTERVALL,  GROUP_PTY, PH_EARLY, TYPE_TIMESPEC, OFUNC_SPEC, 0, 0 };
 #endif /* HAVE_POLL */
 
-static int xioopen_pty(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups, int dummy1, int dummy2, int dummy3) {
+static int xioopen_pty0(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups, int dummy1, int dummy2, int dummy3) {
+   char *linkname = NULL;
+   retropt_string(opts, OPT_SYMBOLIC_LINK, &linkname);
+   return xioopen_pty(linkname, opts, xioflags, xfd, groups);
+}
+
+static int xioopen_pty1(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups, int dummy1, int dummy2, int dummy3) {
+   return xioopen_pty(argv[1], opts, xioflags, xfd, groups);
+}
+
+static int xioopen_pty(const char *linkname, struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups) {
    /* we expect the form: filename */
    int ptyfd = -1, ttyfd = -1;
 #if defined(HAVE_DEV_PTMX) || defined(HAVE_DEV_PTC)
@@ -39,15 +58,12 @@ static int xioopen_pty(int argc, const char *argv[], struct opt *opts, int xiofl
 #endif	/* HAVE_OPENPTY */
    char ptyname[MAXPTYNAMELEN];
    char *tn = NULL;
-   char *linkname = NULL;
    bool opt_unlink_close = true;	/* remove symlink afterwards */
    bool wait_slave = false;	/* true would be better for many platforms, but
 				   some OSes cannot handle this, and for common
 				   default behaviour as well as backward 
 				   compatibility we choose "no" as default */
    struct timespec pollintv = { PTY_INTERVALL };
-
-   xfd->stream.howtoend = END_CLOSE;
 
    applyopts(-1, opts, PH_INIT);
    if (applyopts_single(&xfd->stream, opts, PH_INIT) < 0)  return -1;
@@ -142,7 +158,7 @@ static int xioopen_pty(int argc, const char *argv[], struct opt *opts, int xiofl
    }
 #endif /* HAVE_OPENPTY */
 
-   if (!retropt_string(opts, OPT_SYMBOLIC_LINK, &linkname)) {
+   if (linkname) {
       if (Unlink(linkname) < 0 && errno != ENOENT) {
 	 Error2("unlink(\"%s\"): %s", linkname, strerror(errno));
       }
@@ -163,10 +179,11 @@ static int xioopen_pty(int argc, const char *argv[], struct opt *opts, int xiofl
 
    applyopts_cloexec(ptyfd, opts);/*!*/
    xfd->stream.dtype    = XIODATA_PTY;
+   xfd->stream.fdtype   = FDTYPE_SINGLE;
 
    applyopts(ptyfd, opts, PH_FD);
    
-   xfd->stream.fd = ptyfd;
+   xfd->stream.fd1 = ptyfd;
    applyopts(ptyfd, opts, PH_LATE);
    if (applyopts_single(&xfd->stream, opts, PH_LATE) < 0)  return -1;
 

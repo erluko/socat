@@ -1,5 +1,5 @@
-/* $Id: xio-proxy.h,v 1.6 2006/05/31 19:17:57 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2002-2006 */
+/* $Id: xio-proxy.h,v 1.6.2.1 2006/07/24 19:18:10 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2002-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_proxy_h_included
@@ -19,7 +19,7 @@ extern const struct optdesc opt_ignorecr;
 extern const struct optdesc opt_proxy_resolve;
 extern const struct optdesc opt_proxy_authorization;
 
-extern const struct addrdesc addr_proxy_connect;
+extern const union xioaddr_desc    *xioaddrs_proxy_connect[];
 
 int _xioopen_proxy_prepare(struct proxyvars *proxyvars, struct opt *opts,
 			   const char *targetname, const char *targetport);

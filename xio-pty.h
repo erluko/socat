@@ -1,11 +1,11 @@
-/* $Id: xio-pty.h,v 1.2 2004/10/24 13:49:53 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2002-2004 */
+/* $Id: xio-pty.h,v 1.2.2.1 2006/07/24 19:18:15 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2002-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_pty_h_included
 #define __xio_pty_h_included 1
 
-extern const struct addrdesc addr_pty;
+extern const union xioaddr_desc* xioaddrs_pty[];
 
 extern const struct optdesc opt_symbolic_link;
 #if HAVE_POLL

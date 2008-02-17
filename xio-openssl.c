@@ -51,15 +51,44 @@ static int xioSSL_set_fd(struct single *xfd, int level);
 static int xioSSL_connect(struct single *xfd, bool opt_ver, int level);
 
 
-/* description record for ssl connect */
-const struct addrdesc addr_openssl = {
-   "openssl",	/* keyword for selecting this address type in xioopen calls
+/* description record for inter-address ssl connect with 0 parameters */
+static const struct xioaddr_inter_desc xiointer_openssl_connect0 = {
+   XIOADDR_INTER,	/* this is an embedded address (inter module) */
+   "openssl-client",	/* keyword for selecting this address type in xioopen calls
 		   (canonical or main name) */
-   3,		/* data flow directions this address supports on API layer:
-		   1..read, 2..write, 3..both */
+   0,		/* number of required parameters */
+   XIOBIT_ALL,	/* data flow directions this address supports on API layer:
+		   XIOBIT_RDONLY|XIOBIT_WRONLY|XIOBIT_RDWR */
+   GROUP_CHILD|GROUP_OPENSSL|GROUP_RETRY,	/* bitwise OR of address groups this address belongs to.
+		   You might have to specify a new group in xioopts.h */
+   XIOSHUT_OPENSSL,
+   XIOCLOSE_CLOSE,
    xioopen_openssl_connect,	/* a function pointer used to "open" these addresses.*/
+   0,		/* an integer passed to xioopen_openssl; makes it possible to
+		   use the same xioopen_openssl function for slightly different
+		   address types. */
+   0,		/* like previous argument */
+   0,		/* like previous arguments, but pointer type.
+		   No trailing comma or semicolon! */
+   XIOBIT_RDWR	/* SSL is a bidirectional protocol */
+   HELP("")	/* a text displayed from xio help function.
+			   No trailing comma or semicolon!
+			   only generates this text if WITH_HELP is != 0 */
+} ;
+
+/* description record for endpoint-address ssl connect with 2 parameters */
+static const struct xioaddr_endpoint_desc xioendpoint_openssl_connect2 = {
+   XIOADDR_ENDPOINT,	/* this is not an embedded address but a sys address */
+   "openssl-client",	/* keyword for selecting this address type in xioopen calls
+		   (canonical or main name) */
+   2,		/* number of required parameters */
+   XIOBIT_ALL,	/* data flow directions this address supports on API layer:
+		   XIOBIT_RDONLY|XIOBIT_WRONLY|XIOBIT_RDWR */
    GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_CHILD|GROUP_OPENSSL|GROUP_RETRY,	/* bitwise OR of address groups this address belongs to.
 		   You might have to specify a new group in xioopts.h */
+   XIOSHUT_OPENSSL,
+   XIOCLOSE_CLOSE,
+   xioopen_openssl_connect,	/* a function pointer used to "open" these addresses.*/
    0,		/* an integer passed to xioopen_openssl; makes it possible to
 		   use the same xioopen_openssl function for slightly different
 		   address types. */
@@ -71,16 +100,53 @@ const struct addrdesc addr_openssl = {
 			   only generates this text if WITH_HELP is != 0 */
 } ;
 
+/* array containing ssl connect description records */
+const union xioaddr_desc *xioaddrs_openssl_connect[] = {
+   (union xioaddr_desc *)&xiointer_openssl_connect0,
+   (union xioaddr_desc *)&xioendpoint_openssl_connect2,
+   NULL
+ };
+
+
 #if WITH_LISTEN
-/* description record for ssl listen */
-const struct addrdesc addr_openssl_listen = {
-   "openssl-listen",	/* keyword for selecting this address type in xioopen calls
+/* description record for inter-address ssl listen */
+static const struct xioaddr_inter_desc xiointer_openssl_listen0 = {
+   XIOADDR_INTER,	/* this is an embedded address (inter module) */
+   "openssl-server",	/* keyword for selecting this address type in xioopen calls
 		   (canonical or main name) */
-   3,		/* data flow directions this address supports on API layer:
-		   1..read, 2..write, 3..both */
+   0,		/* number of required parameters */
+   XIOBIT_ALL,	/* data flow directions this address supports on API layer:
+		   XIOBIT_RDONLY|XIOBIT_WRONLY|XIOBIT_RDWR */
+   GROUP_CHILD|GROUP_OPENSSL|GROUP_RETRY,	/* bitwise OR of address groups this address belongs to.
+		   You might have to specify a new group in xioopts.h */
+   XIOSHUT_OPENSSL,
+   XIOCLOSE_CLOSE,
    xioopen_openssl_listen,	/* a function pointer used to "open" these addresses.*/
+   0,		/* an integer passed to xioopen_openssl_listen; makes it possible to
+		   use the same xioopen_openssl_listen function for slightly different
+		   address types. */
+   0,		/* like previous argument */
+   0,		/* like previous arguments, but pointer type.
+		   No trailing comma or semicolon! */
+   XIOBIT_RDWR	/* SSL is a bidirectional protocol */
+   HELP("")	/* a text displayed from xio help function.
+			   No trailing comma or semicolon!
+			   only generates this text if WITH_HELP is != 0 */
+} ;
+
+/* description record for enpoint-address ssl listen */
+static const struct xioaddr_endpoint_desc xioendpoint_openssl_listen1 = {
+   XIOADDR_ENDPOINT,	/* this is not an embedded module but a sys module */
+   "openssl-server",	/* keyword for selecting this address type in xioopen calls
+		   (canonical or main name) */
+   1,		/* number of required parameters */
+   XIOBIT_ALL,	/* data flow directions this address supports on API layer:
+		   XIOBIT_RDONLY|XIOBIT_WRONLY|XIOBIT_RDWR */
    GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE|GROUP_OPENSSL|GROUP_RETRY,	/* bitwise OR of address groups this address belongs to.
 		   You might have to specify a new group in xioopts.h */
+   XIOSHUT_OPENSSL,
+   XIOCLOSE_CLOSE,
+   xioopen_openssl_listen,	/* a function pointer used to "open" these addresses.*/
    0,		/* an integer passed to xioopen_openssl_listen; makes it possible to
 		   use the same xioopen_openssl_listen function for slightly different
 		   address types. */
@@ -91,6 +157,13 @@ const struct addrdesc addr_openssl_listen = {
 			   No trailing comma or semicolon!
 			   only generates this text if WITH_HELP is != 0 */
 } ;
+
+/* array containing ssl listen description records */
+const union xioaddr_desc *xioaddrs_openssl_listen[] = {
+   (union xioaddr_desc *)&xiointer_openssl_listen0,
+   (union xioaddr_desc *)&xioendpoint_openssl_listen1,
+   NULL
+ };
 #endif /* WITH_LISTEN */
 
 /* both client and server */
@@ -153,7 +226,7 @@ static int
 {
    struct single *xfd = &xxfd->stream;
    struct opt *opts0 = NULL;
-   const char *hostname, *portname;
+   const char *hostname, *portname = NULL;
    int pf = PF_UNSPEC;
    int ipproto = IPPROTO_TCP;
    int socktype = SOCK_STREAM;
@@ -165,7 +238,7 @@ static int
    bool needbind = false;
    bool lowport = false;
    int level;
-   SSL_CTX* ctx;
+   /*0 SSL_CTX* ctx;*/
    bool opt_ver = true;	/* verify peer certificate */
    char *opt_cert = NULL;	/* file name of client certificate */
    int result;
@@ -176,32 +249,62 @@ static int
    }
    xfd->flags |= XIO_DOESCONVERT;
 
-   if (argc != 3) {
-      Error1("%s: 2 parameters required", argv[0]);
-      return STAT_NORETRY;
-   }
-   hostname = argv[1];
-   portname = argv[2];
+   xfd->howtoshut  = XIOSHUT_OPENSSL;
+   xfd->howtoclose = XIOCLOSE_CLOSE;
 
-   xfd->howtoend = END_SHUTDOWN;
-   if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
-   applyopts(-1, opts, PH_INIT);
+   /* we support two forms of openssl-connect */
+   if (argc == 3) {
+      hostname = argv[1];
+      portname = argv[2];
+
+      /* a "terminal" form where we build a tcp connection to given host and
+	 port */
+
+      applyopts_single(xfd, opts, PH_INIT);
+      applyopts(-1, opts, PH_INIT);
+
+      retropt_bool(opts, OPT_FORK, &dofork);
+
+      retropt_string(opts, OPT_OPENSSL_CERTIFICATE, &opt_cert);
+
+      result =
+	 _xioopen_openssl_prepare(opts, xfd, false, &opt_ver, opt_cert,
+				  &xfd->para.openssl.ctx);
+      if (result != STAT_OK)  return STAT_NORETRY;
+
+      result =
+	 _xioopen_ipapp_prepare(opts, &opts0, hostname, portname, &pf, ipproto,
+				xfd->para.socket.ip.res_opts[1],
+				xfd->para.socket.ip.res_opts[0],
+				them, &themlen, us, &uslen,
+				&needbind, &lowport, &socktype);
+      if (result != STAT_OK)  return STAT_NORETRY;
+   } else if (argc = 1) {
+
+      /* or a "non terminal" address without required parameters */
+      if (xfd->fd2 < 0) {
+	 Error("openssl-connect without hostname and port must be an embedded address");
+	 return STAT_NORETRY;
+      }
+   
+      if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
+      applyopts(-1, opts, PH_INIT);
+
+      retropt_bool(opts, OPT_FORK, &dofork);
+
+      retropt_string(opts, OPT_OPENSSL_CERTIFICATE, &opt_cert);
+
+      result =
+	 _xioopen_openssl_prepare(opts, xfd, false, &opt_ver, opt_cert,
+				  &xfd->para.openssl.ctx);
+      if (result != STAT_OK)  return STAT_NORETRY;
 
    retropt_bool(opts, OPT_FORK, &dofork);
 
-   retropt_string(opts, OPT_OPENSSL_CERTIFICATE, &opt_cert);
-
-   result =
-      _xioopen_openssl_prepare(opts, xfd, false, &opt_ver, opt_cert, &ctx);
-   if (result != STAT_OK)  return STAT_NORETRY;
-
-   result =
-      _xioopen_ipapp_prepare(opts, &opts0, hostname, portname, &pf, ipproto,
-			     xfd->para.socket.ip.res_opts[1],
-			     xfd->para.socket.ip.res_opts[0],
-			     them, &themlen, us, &uslen,
-			     &needbind, &lowport, &socktype);
-   if (result != STAT_OK)  return STAT_NORETRY;
+   } else {
+      Error1("%s: 0 or 2 parameters required", argv[0]);
+      return STAT_NORETRY;
+   }
 
    if (xioopts.logopt == 'm') {
       Info("starting connect loop, switching to syslog");
@@ -219,6 +322,8 @@ static int
 #endif /* WITH_RETRY */
 	 level = E_ERROR;
 
+      /*!!! this belongs only to "old" openssl-connect form */
+     if (portname) {
       /* this cannot fork because we retrieved fork option above */
       result =
 	 _xioopen_connect(xfd,
@@ -242,6 +347,7 @@ static int
 #endif /* WITH_RETRY */
       default:
 	 return result;
+	 }
       }
 
       /*! isn't this too early? */
@@ -249,14 +355,17 @@ static int
 	 return result;
       }
 
-      result = _xioopen_openssl_connect(xfd, opt_ver, ctx, level);
+      result =
+	 _xioopen_openssl_connect(xfd, opt_ver, xfd->para.openssl.ctx, level);
       switch (result) {
       case STAT_OK: break;
 #if WITH_RETRY
       case STAT_RETRYLATER:
       case STAT_RETRYNOW:
 	 if (xfd->forever || xfd->retry) {
-	    Close(xfd->fd);
+	    Close(xfd->fd1);
+	    if (xfd->fdtype == FDTYPE_DOUBLE)
+	       Close(xfd->fd2);
 	    dropopts(opts, PH_ALL); opts = copyopts(opts0, GROUP_ALL);
 	    if (result == STAT_RETRYLATER) {
 	       Nanosleep(&xfd->intervall, NULL);
@@ -297,7 +406,9 @@ static int
 	 }
 	 /* parent process */
 	 Notice1("forked off child process "F_pid, pid);
-	 Close(xfd->fd);
+	 Close(xfd->fd1);
+	 if (xfd->fdtype == FDTYPE_DOUBLE)
+	    Close(xfd->fd2);
 	 sycSSL_free(xfd->para.openssl.ssl);
 	 xfd->para.openssl.ssl = NULL;
 	 /* with and without retry */
@@ -383,7 +494,7 @@ static int
 					   addr_openssl */
 {
    struct single *xfd = &xxfd->stream;
-   const char *portname;
+   const char *portname = NULL;
    struct opt *opts0 = NULL;
    union sockaddr_union us_sa, *us = &us_sa;
    socklen_t uslen = sizeof(us_sa);
@@ -392,7 +503,7 @@ static int
    int ipproto = IPPROTO_TCP;
    /*! lowport? */
    int level;
-   SSL_CTX* ctx;
+   /*0 SSL_CTX* ctx;*/
    bool opt_ver = true;	/* verify peer certificate - changed with 1.6.0 */
    char *opt_cert = NULL;	/* file name of server certificate */
    int result;
@@ -403,11 +514,6 @@ static int
    }
    xfd->flags |= XIO_DOESCONVERT;
 
-   if (argc != 2) {
-      Error1("%s: 1 parameter required", argv[0]);
-      return STAT_NORETRY;
-   }
-
 #if WITH_IP4 && WITH_IP6
    pf = xioopts.default_ip=='6'?PF_INET6:PF_INET;
 #elif WITH_IP6
@@ -415,33 +521,57 @@ static int
 #else
    pf = PF_INET;
 #endif
-   
-   portname = argv[1];
 
-   xfd->howtoend = END_SHUTDOWN;
-   if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
-   applyopts(-1, opts, PH_INIT);
+   if (argc == 2) {
 
-   retropt_string(opts, OPT_OPENSSL_CERTIFICATE, &opt_cert);
-   if (opt_cert == NULL) {
-      Warn("no certificate given; consider option \"cert\"");
-   }
+      portname = argv[1];
+      if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
+      applyopts(-1, opts, PH_INIT);
 
-   applyopts(-1, opts, PH_EARLY);
+      retropt_string(opts, OPT_OPENSSL_CERTIFICATE, &opt_cert);
+      if (opt_cert == NULL) {
+	 Warn("no certificate given; consider option \"cert\"");
+      }
 
-   result =
-      _xioopen_openssl_prepare(opts, xfd, true, &opt_ver, opt_cert, &ctx);
-   if (result != STAT_OK)  return STAT_NORETRY;
+      result =
+	 _xioopen_openssl_prepare(opts, xfd, true, &opt_ver, opt_cert,
+				  &xfd->para.openssl.ctx);
+      if (result != STAT_OK)  return STAT_NORETRY;
 
-   if (_xioopen_ipapp_listen_prepare(opts, &opts0, portname, &pf, ipproto,
-				     xfd->para.socket.ip.res_opts[1],
-				     xfd->para.socket.ip.res_opts[0],
-				     us, &uslen, &socktype)
+      if (_xioopen_ipapp_listen_prepare(opts, &opts0, portname, &pf, ipproto,
+					xfd->para.socket.ip.res_opts[1],
+					xfd->para.socket.ip.res_opts[0],
+					us, &uslen, &socktype)
        != STAT_OK) {
-      return STAT_NORETRY;
+	 return STAT_NORETRY;
+      }
+
+   } else if (argc == 1) {
+      if (xfd->fd1 < 0) {
+	 Error("openssl-listen without port must be an embedded address");
+	 return STAT_NORETRY;
+      }
+
+      if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
+      applyopts(-1, opts, PH_INIT);
+
+      retropt_string(opts, OPT_OPENSSL_CERTIFICATE, &opt_cert);
+      if (opt_cert == NULL) {
+	 Warn("no certificate given; consider option \"cert\"");
+      }
+
+      applyopts(-1, opts, PH_EARLY);
+
+      result =
+	 _xioopen_openssl_prepare(opts, xfd, true, &opt_ver, opt_cert,
+				  &xfd->para.openssl.ctx);
+      if (result != STAT_OK)  return STAT_NORETRY;
+
+   } else {
+      Error1("%s: 1 parameter required", argv[0]);
+      return -1;
    }
 
-   xfd->addr  = &addr_openssl_listen;
    xfd->dtype = XIODATA_OPENSSL;
 
    while (true) {	/* loop over failed attempts */
@@ -453,17 +583,19 @@ static int
 #endif /* WITH_RETRY */
 	 level = E_ERROR;
 
-      /* tcp listen; this can fork() for us; it only returns on error or on
-	 successful establishment of tcp connection */
-      result = _xioopen_listen(xfd, xioflags,
-			       (struct sockaddr *)us, uslen,
-			       opts, pf, socktype, IPPROTO_TCP,
+      if (portname) {
+       /* tcp listen; this can fork() for us; it only returns on error or on
+	  successful establishment of tcp connection */
+	 result = _xioopen_listen(xfd, xioflags,
+				  (struct sockaddr *)us, uslen,
+				  opts, pf, socktype, IPPROTO_TCP,
 #if WITH_RETRY
-			       (xfd->retry||xfd->forever)?E_INFO:E_ERROR
+				  (xfd->retry||xfd->forever)?E_INFO:E_ERROR
 #else
-			       E_ERROR
+				  E_ERROR
 #endif /* WITH_RETRY */
-			       );
+				  );
+      }
 	 /*! not sure if we should try again on retry/forever */
       switch (result) {
       case STAT_OK: break;
@@ -484,8 +616,8 @@ static int
       default:
 	 return result;
       }
-
-      result = _xioopen_openssl_listen(xfd, opt_ver, ctx, level);
+      result =
+	 _xioopen_openssl_listen(xfd, opt_ver, xfd->para.openssl.ctx, level);
       switch (result) {
       case STAT_OK: break;
 #if WITH_RETRY
@@ -537,12 +669,11 @@ int _xioopen_openssl_listen(struct single *xfd,
    }
 
    /* assign the network connection to the SSL object */
-   if (sycSSL_set_fd(xfd->para.openssl.ssl, xfd->fd) <= 0) {
-      if (ERR_peek_error() == 0) Msg(level, "SSL_set_fd() failed");
-      while (err = ERR_get_error()) {
-	 Msg2(level, "SSL_set_fd(, %d): %s",
-	      xfd->fd, ERR_error_string(err, NULL));
-      }
+   ret = xioSSL_set_fd(xfd, level);
+   if (ret != STAT_OK) {
+      sycSSL_free(xfd->para.openssl.ssl);
+      xfd->para.openssl.ssl = NULL;
+      return ret;
    }
 
 #if WITH_DEBUG
@@ -634,7 +765,6 @@ int
    unsigned long err;
    int result;
 
-   xfd->addr  = &addr_openssl;
    xfd->dtype = XIODATA_OPENSSL;
 
    retropt_bool(opts, OPT_OPENSSL_FIPS, &opt_fips);
@@ -751,7 +881,7 @@ int
 	 if ((result =
 	      openssl_SSL_ERROR_SSL(E_ERROR, "SSL_CTX_load_verify_locations"))
 	     != STAT_OK) {
-	    /*! free ctx */
+	    SSL_CTX_free(*ctx); *ctx = NULL;
 	    return STAT_RETRYLATER;
 	 }
       }
@@ -963,14 +1093,33 @@ static int xioSSL_set_fd(struct single *xfd, int level) {
    unsigned long err;
 
    /* assign a network connection to the SSL object */
-   if (sycSSL_set_fd(xfd->para.openssl.ssl, xfd->fd) <= 0) {
+  if (xfd->fd2 < 0) {
+   if (sycSSL_set_fd(xfd->para.openssl.ssl, xfd->fd1) <= 0) {
       Msg(level, "SSL_set_fd() failed");
       while (err = ERR_get_error()) {
 	 Msg2(level, "SSL_set_fd(, %d): %s",
-	      xfd->fd, ERR_error_string(err, NULL));
+	      xfd->fd2, ERR_error_string(err, NULL));
       }
       return STAT_RETRYLATER;
    }
+  } else {
+      if (sycSSL_set_rfd(xfd->para.openssl.ssl, xfd->fd1) <= 0) {
+	 Msg(level, "SSL_set_rfd() failed");
+	 while (err = ERR_get_error()) {
+	    Msg2(level, "SSL_set_rfd(, %d): %s",
+		 xfd->fd1, ERR_error_string(err, NULL));
+	 }
+	 return STAT_RETRYLATER;
+      }
+      if (sycSSL_set_wfd(xfd->para.openssl.ssl, xfd->fd2) <= 0) {
+	 Msg(level, "SSL_set_wfd() failed");
+	 while (err = ERR_get_error()) {
+	    Msg2(level, "SSL_set_wfd(, %d): %s",
+		 xfd->fd2, ERR_error_string(err, NULL));
+	 }
+	 return STAT_RETRYLATER;
+      }
+   }      
    return STAT_OK;
 }
 

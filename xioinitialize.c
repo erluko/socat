@@ -1,24 +1,30 @@
 /* $Id: xioinitialize.c,v 1.17 2006/12/28 14:21:41 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for the initialize function */
 
 #include "xiosysincludes.h"
 
+#include "xiostatic.h"
 #include "xioopen.h"
 #include "xiolockfile.h"
+#include "xiosigchld.h"
 
 #include "xio-openssl.h"	/* xio_reset_fips_mode() */
 
 static int xioinitialized;
 xiofile_t *sock[XIO_MAXSOCK];
-int (*xiohook_newchild)(void);	/* xio calls this function from a new child
+int (*xiohook_newchild)(void);	/* xio calls this function in every new child
 				   process */
 
 
+/* call this function before calling any other xio function.
+   With xioflags, you have to set the features that xio can make use of.
+   Use XIO_MAYALL for unrestricted use. */
 /* returns 0 on success or != if an error occurred */
-int xioinitialize(void) {
+int xioinitialize(int xioflags) {
+   int xio_flags;
    if (xioinitialized)  return 0;
 
    /* configure and .h's cannot guarantee this */
@@ -67,7 +73,7 @@ int xioinitialize(void) {
       assert(tdata.termarg.c_ospeed == tdata.speeds[OSPEED_OFFSET]);
 #endif
    }
-#endif
+#endif /* WITH_TERMIOS */
 
    /* these dependencies required in applyopts() for OFUNC_FCNTL */
    assert(F_GETFD == F_SETFD-1);
@@ -103,15 +109,41 @@ int xioinitialize(void) {
       return -1;
    }
 
+   xio_flags = xioflags;
+
+   if ((xio_flags|XIO_MAYFORK) || (xio_flags|XIO_MAYCHILD) ||
+       (xio_flags|XIO_MAYCHAIN)) {
+      
+#if HAVE_SIGACTION
+      struct sigaction act;
+      memset(&act, 0, sizeof(struct sigaction));
+      act.sa_flags   = SA_NOCLDSTOP|SA_RESTART|SA_SIGINFO
+#ifdef SA_NOMASK
+	 |SA_NOMASK
+#endif
+	 ;
+      act.sa_sigaction = childdied;
+      if (Sigaction(SIGCHLD, &act, NULL) < 0) {
+	 /*! Linux man does not explicitely say that errno is defined */
+	 Warn2("sigaction(SIGCHLD, %p, NULL): %s", childdied, strerror(errno));
+      }
+#else /* !HAVE_SIGACTION */
+      act.sa_handler = childdied;
+      if (Signal(SIGCHLD, childdied) == SIG_ERR) {
+	 Warn2("signal(SIGCHLD, %p): %s", childdied, strerror(errno));
+      }
+#endif /* !HAVE_SIGACTION */
+   }
+
    xioinitialized = 1;
    return 0;
 }
 
 
 /* well, this function is not for initialization, but I could not find a better
-   place for it
+   source file for it
    it is called in the child process after fork
-   it drops the locks of the xiofile's so only the parent owns them
+   it drops the lock references of the xiofile's so only the parent owns them
  */
 void xiodroplocks(void) {
    int i;
@@ -124,6 +156,7 @@ void xiodroplocks(void) {
 }
 
 
+#if 0
 /* consider an invokation like this:
    socat -u exec:'some program that accepts data' tcp-l:...,fork
    we do not want the program to be killed by the first tcp-l sub process, it's
@@ -146,16 +179,17 @@ static int xio_nokill(xiofile_t *sock) {
    case XIO_TAG_WRONLY:
    case XIO_TAG_RDWR:
       /* here is the core of this function */
-      switch (sock->stream.howtoend) {
-      case END_SHUTDOWN_KILL: sock->stream.howtoend = END_CLOSE; break;
-      case END_CLOSE_KILL:    sock->stream.howtoend = END_CLOSE; break;
-      case END_SHUTDOWN:      sock->stream.howtoend = END_CLOSE; break;
+      switch (sock->stream.howtoclose) {
+      case END_SHUTDOWN_KILL: sock->stream.howtoclose = END_CLOSE; break;
+      case END_CLOSE_KILL:    sock->stream.howtoclose = END_CLOSE; break;
+      case END_SHUTDOWN:      sock->stream.howtoclose = END_CLOSE; break;
       default: break;
       }
       break;
    }
    return result;
 }
+#endif /* 0 */
 
 /* call this function immediately after fork() in child process */
 /* it performs some neccessary actions
@@ -175,6 +209,7 @@ int xio_forked_inchild(void) {
       }
    }
 
+#if 0
    /* change XIO_SHUTDOWN_KILL to XIO_SHUTDOWN */
    if (sock1 != NULL) {
       int result2;
@@ -182,6 +217,7 @@ int xio_forked_inchild(void) {
       if (result2 < 0)  Exit(1);
       result |= result2;
    }
+#endif
 
    return result;
 }

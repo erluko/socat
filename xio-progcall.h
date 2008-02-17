@@ -1,5 +1,5 @@
 /* $Id: xio-progcall.h,v 1.13 2006/02/08 19:37:15 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_progcall_h_included
@@ -18,7 +18,12 @@ extern const struct optdesc opt_sighup;
 extern const struct optdesc opt_sigint;
 extern const struct optdesc opt_sigquit;
 
-extern int _xioopen_foxec(int rw,	/* O_RDONLY etc. */
+extern int _xioopen_foxec_int(int rw,	/* O_RDONLY etc. */
+		struct single *fd,
+		unsigned groups,
+		struct opt **opts
+		);
+extern int _xioopen_foxec_end(int rw,	/* O_RDONLY etc. */
 		struct single *fd,
 		unsigned groups,
 		struct opt **opts

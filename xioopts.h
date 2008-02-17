@@ -145,6 +145,7 @@ enum e_func {
 #define GROUP_PROCESS	0x10000000	/* a process related option */
 #define GROUP_APPL	0x20000000	/* option handled by data loop */
 #define GROUP_HTTP	0x40000000	/* any HTTP client */
+#define GROUP_SOCKS5	0x80000000
 
 #define GROUP_ANY	(GROUP_PROCESS|GROUP_APPL)
 #define GROUP_ALL	0xffffffff
@@ -533,6 +534,7 @@ enum e_optcode {
    OPT_SETSID,
    OPT_SETUID,
    OPT_SETUID_EARLY,
+   OPT_SHUT_NONE,
    OPT_SIGHUP,
    OPT_SIGINT,
    OPT_SIGQUIT,
@@ -630,6 +632,8 @@ enum e_optcode {
 #ifdef SO_USE_IFBUFS
    OPT_SO_USE_IFBUFS,
 #endif /* SO_USE_IFBUFS */
+   OPT_SOCKS5_PASSWORD,
+   OPT_SOCKS5_USERNAME,
 #if 1 || defined(WITH_SOCKS4)
    OPT_SOCKSPORT,
    OPT_SOCKSUSER,
@@ -856,10 +860,10 @@ extern int applyopts_single(struct single *fd, struct opt *opts, enum e_phase ph
 extern int applyopts_offset(struct single *xfd, struct opt *opts);
 extern int applyopts_signal(struct single *xfd, struct opt *opts);
 extern int _xio_openlate(struct single *fd, struct opt *opts);
-extern int parseopts(const char **a, unsigned int groups, struct opt **opts);
-extern int parseopts_table(const char **a, unsigned int groups,
-			   struct opt **opts,
+extern int parseopts(const char **a, struct opt **opts);
+extern int parseopts_table(const char **a, struct opt **opts,
 			 const struct optname optionnames[], size_t optionnum);
+extern int xiocheckopts(struct opt *opts, unsigned int groups);
 extern struct opt *copyopts(const struct opt *opts, unsigned int groups);
 extern struct opt *moveopts(struct opt *opts, unsigned int groups);
 extern int leftopts(const struct opt *opts);

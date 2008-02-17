@@ -9,6 +9,7 @@
 
 #include "xio-termios.h"
 #include "xio-socket.h"
+#include "xio-test.h"
 #include "xio-readline.h"
 #include "xio-openssl.h"
 
@@ -21,6 +22,7 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
    int nexthead;
 #endif
    struct single *pipe;
+   int fd;
    int _errno;
 
    if (file->tag == XIO_TAG_INVALID) {
@@ -50,10 +52,12 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
       }
    }
 
+   fd = XIO_GETRDFD(file);
+
    switch (pipe->dtype & XIODATA_READMASK) {
    case XIOREAD_STREAM:
       do {
-	 bytes = Read(pipe->fd, buff, bufsiz);
+	 bytes = Read(fd, buff, bufsiz);
       } while (bytes < 0 && errno == EINTR);
       if (bytes < 0) {
 	 _errno = errno;
@@ -61,12 +65,30 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 #if 1
 	 case EPIPE: case ECONNRESET:
 	    Warn4("read(%d, %p, "F_Zu"): %s",
-		  pipe->fd, buff, bufsiz, strerror(_errno));
+		  fd, buff, bufsiz, strerror(_errno));
 	    break;
 #endif
 	 default:
 	    Error4("read(%d, %p, "F_Zu"): %s",
-		   pipe->fd, buff, bufsiz, strerror(_errno));
+		   fd, buff, bufsiz, strerror(_errno));
+ 	 }
+	 return -1;
+      }
+      break;
+
+   case XIODATA_PTY:
+      do {
+	 bytes = Read(fd, buff, bufsiz);
+      } while (bytes < 0 && errno == EINTR);
+      if (bytes < 0) {
+	 _errno = errno;
+	 if (_errno == EIO) {
+	    Notice4("read(%d, %p, "F_Zu"): %s (probably PTY closed)",
+		    fd, buff, bufsiz, strerror(_errno));
+	    return 0;
+	 } else {
+	    Error4("read(%d, %p, "F_Zu"): %s",
+		   fd, buff, bufsiz, strerror(_errno));
 	 }
 	 errno = _errno;
 	 return -1;
@@ -75,17 +97,17 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 
    case XIOREAD_PTY:
       do {
-	 bytes = Read(pipe->fd, buff, bufsiz);
+	 bytes = Read(fd, buff, bufsiz);
       } while (bytes < 0 && errno == EINTR);
       if (bytes < 0) {
 	 _errno = errno;
 	 if (_errno == EIO) {
 	    Notice4("read(%d, %p, "F_Zu"): %s (probably PTY closed)",
-		    pipe->fd, buff, bufsiz, strerror(_errno));
+		    fd, buff, bufsiz, strerror(_errno));
 	    return 0;
 	 } else {
 	    Error4("read(%d, %p, "F_Zu"): %s",
-		   pipe->fd, buff, bufsiz, strerror(_errno));
+		   fd, buff, bufsiz, strerror(_errno));
 	 }
 	 errno = _errno;
 	 return -1;
@@ -99,6 +121,15 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
       }      
       break;
 #endif /* WITH_READLINE */
+
+#if WITH_TEST
+   case XIOREAD_TEST:
+      /* this function prints its error messages */
+      if ((bytes = xioread_test(pipe, buff, bufsiz)) < 0) {
+	 return -1;
+      }
+      break;
+#endif /* WITH_TEST */
 
 #if WITH_OPENSSL
    case XIOREAD_OPENSSL:
@@ -118,14 +149,13 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
       char infobuff[256];
 
       do {
-	 bytes =
-	    Recvfrom(pipe->fd, buff, bufsiz, 0, &from.soa, &fromlen);
+	 bytes = Recvfrom(fd, buff, bufsiz, 0, &from.soa, &fromlen);
       } while (bytes < 0 && errno == EINTR);
       if (bytes < 0) {
 	 char infobuff[256];
 	 _errno = errno;
 	 Error6("recvfrom(%d, %p, "F_Zu", 0, %s, {"F_socklen"}): %s",
-		pipe->fd, buff, bufsiz,
+		fd, buff, bufsiz,
 		sockaddr_info(&from.soa, fromlen, infobuff, sizeof(infobuff)),
 		fromlen, strerror(errno));
 	 errno = _errno;
@@ -209,7 +239,7 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 	    headlen = 4*((struct ip *)buff)->ip_vhl;
 #endif
 	    if (headlen > bytes) {
-	       Warn1("xioread(%d, ...)/IP4: short packet", pipe->fd);
+	       Warn1("xioread(%d, ...)/IP4: short packet", fd);
 	       bytes = 0;
 	    } else {
 	       memmove(buff, ((char *)buff)+headlen, bytes-headlen);
@@ -286,11 +316,11 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 
       socket_init(pipe->para.socket.la.soa.sa_family, &from);
       /* get source address */
-      if (xiogetpacketsrc(pipe->fd, &from, &fromlen) < 0) {
+      if (xiogetpacketsrc(fd, &from, &fromlen) < 0) {
 	 return STAT_RETRYNOW;
       }
       if (xiocheckpeer(pipe, &from, &pipe->para.socket.la) < 0) {
-	 Recvfrom(pipe->fd, buff, bufsiz, 0, &from.soa, &fromlen);  /* drop */
+	 Recvfrom(fd, buff, bufsiz, 0, &from.soa, &fromlen);  /* drop */
 	 errno = EAGAIN;  return -1;
       }
       Info1("permitting packet from %s",
@@ -299,13 +329,13 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 
       do {
 	 bytes =
-	    Recvfrom(pipe->fd, buff, bufsiz, 0, &from.soa, &fromlen);
+	    Recvfrom(fd, buff, bufsiz, 0, &from.soa, &fromlen);
       } while (bytes < 0 && errno == EINTR);
       if (bytes < 0) {
 	 char infobuff[256];
 	 _errno = errno;
 	 Error6("recvfrom(%d, %p, "F_Zu", 0, %s, "F_socklen"): %s",
-		pipe->fd, buff, bufsiz,
+		fd, buff, bufsiz,
 		sockaddr_info(&from.soa, fromlen, infobuff, sizeof(infobuff)),
 		fromlen, strerror(errno));
 	 errno = _errno;
@@ -334,7 +364,7 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 	    headlen = 4*((struct ip *)buff)->ip_vhl;
 #endif
 	    if (headlen > bytes) {
-	       Warn1("xioread(%d, ...)/IP4: short packet", pipe->fd);
+	       Warn1("xioread(%d, ...)/IP4: short packet", fd);
 	       bytes = 0;
 	    } else {
 	       memmove(buff, ((char *)buff)+headlen, bytes-headlen);

@@ -1,5 +1,5 @@
-/* $Id: xio-tcp.c,v 1.24 2006/07/13 06:48:47 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* $Id: xio-tcp.c,v 1.24.2.1 2006/07/24 19:18:39 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for TCP related functions and options */
@@ -17,23 +17,29 @@
 /****** TCP addresses ******/
 
 #if WITH_IP4 || WITH_IP6
-const struct addrdesc addr_tcp_connect = { "tcp-connect", 1+XIO_RDWR, xioopen_ipapp_connect, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_CHILD|GROUP_RETRY, SOCK_STREAM, IPPROTO_TCP, PF_UNSPEC HELP(":<host>:<port>") };
+static const struct xioaddr_endpoint_desc xioendpoint_tcp_connect2 = { XIOADDR_SYS, "tcp-connect", 2, XIOBIT_ALL, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_CHILD|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_connect, SOCK_STREAM, IPPROTO_TCP, PF_UNSPEC HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_tcp_connect[] =  { (union xioaddr_desc *)&xioendpoint_tcp_connect2, NULL };
 #if WITH_LISTEN
-const struct addrdesc addr_tcp_listen  = { "tcp-listen",  1+XIO_RDWR, xioopen_ipapp_listen,  GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE|GROUP_RETRY, SOCK_STREAM, IPPROTO_TCP, PF_UNSPEC HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioendpoint_tcp_listen1  = { XIOADDR_SYS, "tcp-listen",  1, XIOBIT_ALL, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_listen,  SOCK_STREAM, IPPROTO_TCP, PF_UNSPEC HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_tcp_listen[] =   { (union xioaddr_desc *)&xioendpoint_tcp_listen1, NULL };
 #endif
 #endif
 
 #if WITH_IP4
-const struct addrdesc addr_tcp4_connect = { "tcp4-connect", 1+XIO_RDWR, xioopen_ipapp_connect, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_TCP|GROUP_CHILD|GROUP_RETRY, SOCK_STREAM, IPPROTO_TCP, PF_INET HELP(":<host>:<port>") };
+static const struct xioaddr_endpoint_desc xioendpoint_tcp4_connect2 = { XIOADDR_SYS, "tcp4-connect", 2, XIOBIT_ALL, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_TCP|GROUP_CHILD|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_connect, SOCK_STREAM, IPPROTO_TCP, PF_INET HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_tcp4_connect[] = { (union xioaddr_desc *)&xioendpoint_tcp4_connect2, NULL };
 #if WITH_LISTEN
-const struct addrdesc addr_tcp4_listen  = { "tcp4-listen", 1+XIO_RDWR, xioopen_ipapp_listen, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_TCP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE|GROUP_RETRY, SOCK_STREAM, IPPROTO_TCP, PF_INET HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioendpoint_tcp4_listen1  = { XIOADDR_SYS, "tcp4-listen",  1, XIOBIT_ALL, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_TCP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_listen, SOCK_STREAM, IPPROTO_TCP, PF_INET HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_tcp4_listen[] =  { (union xioaddr_desc *)&xioendpoint_tcp4_listen1, NULL };
 #endif
 #endif /* WITH_IP4 */
 
 #if WITH_IP6
-const struct addrdesc addr_tcp6_connect = { "tcp6-connect", 1+XIO_RDWR, xioopen_ipapp_connect, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_CHILD|GROUP_RETRY, SOCK_STREAM, IPPROTO_TCP, PF_INET6 HELP(":<host>:<port>") };
+static const struct xioaddr_endpoint_desc xioendpoint_tcp6_connect2 = { XIOADDR_SYS, "tcp6-connect", 2, XIOBIT_ALL, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_CHILD|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_connect, SOCK_STREAM, IPPROTO_TCP, PF_INET6 HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_tcp6_connect[] = {(union xioaddr_desc *) &xioendpoint_tcp6_connect2, NULL };
 #if WITH_LISTEN
-const struct addrdesc addr_tcp6_listen  = { "tcp6-listen", 1+XIO_RDWR, xioopen_ipapp_listen, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE|GROUP_RETRY, SOCK_STREAM, IPPROTO_TCP, PF_INET6 HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioendpoint_tcp6_listen1  = { XIOADDR_SYS, "tcp6-listen",  1, XIOBIT_ALL, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_TCP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE|GROUP_RETRY, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_listen, SOCK_STREAM, IPPROTO_TCP, PF_INET6 HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_tcp6_listen[] =  { (union xioaddr_desc *)&xioendpoint_tcp6_listen1, NULL };
 #endif
 #endif /* WITH_IP6 */
 
@@ -83,10 +89,10 @@ const struct optdesc opt_tcp_info   = { "tcp-info",     "info", OPT_TCP_INFO,   
 const struct optdesc opt_tcp_quickack = { "tcp-quickack", "quickack", OPT_TCP_QUICKACK, GROUP_IP_TCP, PH_PASTSOCKET, TYPE_INT, OFUNC_SOCKOPT, SOL_TCP, TCP_QUICKACK };
 #endif
 #ifdef TCP_NOOPT
-const struct optdesc opt_tcp_noopt  = { "tcp-noopt",   "noopt",  OPT_TCP_NOOPT,  GROUP_IP_TCP, PH_PASTSOCKET, TYPE_INT,	OFUNC_SOCKOPT, SOL_TCP, TCP_NOOPT };
+const struct optdesc opt_tcp_noopt  = { "tcp-noopt",   "noopt",  OPT_TCP_NOOPT,  GROUP_IP_TCP, PH_PASTSOCKET, TYPE_INT,        OFUNC_SOCKOPT, SOL_TCP, TCP_NOOPT };
 #endif
 #ifdef TCP_NOPUSH
-const struct optdesc opt_tcp_nopush = { "tcp-nopush",  "nopush", OPT_TCP_NOPUSH, GROUP_IP_TCP, PH_PASTSOCKET, TYPE_INT,	OFUNC_SOCKOPT, SOL_TCP, TCP_NOPUSH };
+const struct optdesc opt_tcp_nopush = { "tcp-nopush",  "nopush", OPT_TCP_NOPUSH, GROUP_IP_TCP, PH_PASTSOCKET, TYPE_INT,        OFUNC_SOCKOPT, SOL_TCP, TCP_NOPUSH };
 #endif
 #ifdef TCP_MD5SIG
 const struct optdesc opt_tcp_md5sig = { "tcp-md5sig",   "md5sig", OPT_TCP_MD5SIG, GROUP_IP_TCP, PH_PASTSOCKET, TYPE_INT, OFUNC_SOCKOPT, SOL_TCP, TCP_MD5SIG };

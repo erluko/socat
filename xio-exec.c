@@ -1,8 +1,11 @@
-/* $Id: xio-exec.c,v 1.19 2006/07/12 21:59:28 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* $Id: xio-exec.c,v 1.19.2.1 2006/07/24 19:17:35 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of exec type */
+/* this file contains the source for an inter address that just invokes a
+   program. The program should provide its data side on FDs 0 and 1, and its
+   protocol side on FDs 3 and 4. */
 
 #include "xiosysincludes.h"
 #include "xioopen.h"
@@ -13,18 +16,25 @@
 
 #if WITH_EXEC
 
-static int xioopen_exec(int argc, const char *argv[], struct opt *opts,
+static int xioopen_exec1end(int argc, const char *argv[], struct opt *opts,
 		int xioflags,	/* XIO_RDONLY etc. */
 		xiofile_t *fd,
 		unsigned groups,
 		int dummy1, int dummy2, int dummy3
 		);
 
-const struct addrdesc addr_exec = { "exec",   3, xioopen_exec, GROUP_FD|GROUP_FORK|GROUP_EXEC|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_TERMIOS|GROUP_FIFO|GROUP_PTY|GROUP_PARENT, 0, 0, 0 HELP(":<command-line>") };
+
+static const struct xioaddr_endpoint_desc xioaddr_exec1end = { XIOADDR_ENDPOINT, "exec",  1, XIOBIT_ALL, GROUP_FD|GROUP_FORK|GROUP_EXEC|GROUP_SOCKET|GROUP_SOCK_UNIX|GROUP_TERMIOS|GROUP_FIFO|GROUP_PTY|GROUP_PARENT, XIOSHUT_UNSPEC, XIOCLOSE_UNSPEC, xioopen_exec1end, 0, 0, 0 HELP(":<command-line>") };
+
+const union xioaddr_desc *xioaddrs_exec[] = {
+   (union xioaddr_desc *)&xioaddr_exec1end,
+   NULL };
+
 
 const struct optdesc opt_dash = { "dash", "login", OPT_DASH, GROUP_EXEC, PH_PREEXEC, TYPE_BOOL, OFUNC_SPEC };
 
-static int xioopen_exec(int argc, const char *argv[], struct opt *opts,
+
+static int xioopen_exec1end(int argc, const char *argv[], struct opt *opts,
 		int xioflags,	/* XIO_RDONLY, XIO_MAYCHILD etc. */
 		xiofile_t *fd,
 		unsigned groups,
@@ -39,7 +49,7 @@ static int xioopen_exec(int argc, const char *argv[], struct opt *opts,
       
    retropt_bool(opts, OPT_DASH, &dash);
 
-   status = _xioopen_foxec(xioflags, &fd->stream, groups, &opts);
+   status = _xioopen_foxec_end(xioflags, &fd->stream, groups, &opts);
    if (status < 0)  return status;
    if (status == 0) {	/* child */
       const char *ends[] = { " ", NULL };
@@ -74,7 +84,7 @@ static int xioopen_exec(int argc, const char *argv[], struct opt *opts,
       token = Malloc(len); /*! */
       tokp = token;
       if (nestlex(&strp, &tokp, &len, ends, hquotes, squotes, nests,
-		  true, true, false) < 0) {
+		  false, true, true, false) < 0) {
 	 Error("internal: miscalculated string lengths");
       }
       *tokp++ = '\0';
@@ -89,7 +99,7 @@ static int xioopen_exec(int argc, const char *argv[], struct opt *opts,
 	 ++strp;
 	 pargv[pargc++] = tokp;
 	 if (nestlex(&strp, &tokp, &len, ends, hquotes, squotes, nests,
-		     true, true, false) < 0) {
+		     false, true, true, false) < 0) {
 	    Error("internal: miscalculated string lengths");
 	 }
 	 *tokp++ = '\0';
@@ -134,4 +144,5 @@ static int xioopen_exec(int argc, const char *argv[], struct opt *opts,
    /* parent */
    return 0;
 }
+
 #endif /* WITH_EXEC */

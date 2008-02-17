@@ -1,16 +1,16 @@
-/* $Id: xio-tcp.h,v 1.12 2006/03/21 20:59:34 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* $Id: xio-tcp.h,v 1.12.2.1 2006/07/24 19:18:42 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_tcp_h_included
 #define __xio_tcp_h_included 1
 
-extern const struct addrdesc addr_tcp_connect;
-extern const struct addrdesc addr_tcp_listen;
-extern const struct addrdesc addr_tcp4_connect;
-extern const struct addrdesc addr_tcp4_listen;
-extern const struct addrdesc addr_tcp6_connect;
-extern const struct addrdesc addr_tcp6_listen;
+extern const union xioaddr_desc *xioaddrs_tcp_connect[];
+extern const union xioaddr_desc *xioaddrs_tcp_listen[];
+extern const union xioaddr_desc *xioaddrs_tcp4_connect[];
+extern const union xioaddr_desc *xioaddrs_tcp4_listen[];
+extern const union xioaddr_desc *xioaddrs_tcp6_connect[];
+extern const union xioaddr_desc *xioaddrs_tcp6_listen[];
 
 extern const struct optdesc opt_tcp_nodelay;
 extern const struct optdesc opt_tcp_maxseg;

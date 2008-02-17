@@ -21,23 +21,26 @@
 #endif
 
 #if WITH_SOCKS4A
-#  define WITH_SOCKS4 1
+#  define _WITH_SOCKS4 1
 #endif
 
-#if WITH_SOCKS4 || WITH_PROXY
-#  define WITH_TCP 1
-#  define WITH_IP4 1	/* currently this socks implementation does not work
+#if WITH_SOCKS4 || WITH_SOCKS5 || WITH_PROXY
+#  define _WITH_TCP 1
+#  define _WITH_IP4 1	/* currently this socks implementation does not work
 			   with IP6 */
 #endif
 
-#if WITH_OPENSSL
-#  define WITH_TCP 1
-#  define WITH_IP4 1
+#if 0
+#if !defined(HAVE_NETINET_IP6_H)
+#  undef WITH_IP6
+#endif
 #endif
 
-#if WITH_IP6
-#  if !defined(HAVE_NETINET_IP6_H)
-#    undef WITH_IP6
+#if WITH_OPENSSL
+#  define _WITH_TCP 1
+#  define _WITH_IP4 1
+#  if WITH_IP6
+#    define _WITH_IP6 1
 #  endif
 #endif
 
@@ -47,7 +50,11 @@
 #  endif
 #endif
 
-#if WITH_UNIX || WITH_IP4 || WITH_IP6 || WITH_SOCKS4 || WITH_RAWIP
+#if WITH_UNIX || HAVE_SYS_UN_H
+#  define _WITH_UNIX 1
+#endif
+
+#if WITH_IP4 || WITH_IP6 || WITH_SOCKS4 || WITH_RAWIP || _WITH_UNIX
 #  define WITH_SOCKET 1
 #else
 #  undef WITH_SOCKET
@@ -63,6 +70,14 @@
 
 #if WITH_SOCKET || WITH_TUN
 #  define _WITH_SOCKET 1
+#endif
+
+#if WITH_TCP
+#  define _WITH_TCP 1
+#  define _WITH_IP4 1
+#  if WITH_IP6
+#    define _WITH_IP6 1
+#  endif
 #endif
 
 #if WITH_IP4 || WITH_TUN

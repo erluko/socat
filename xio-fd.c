@@ -1,5 +1,5 @@
 /* $Id: xio-fd.c,v 1.26 2006/12/28 07:35:50 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains common file descriptor related option definitions */
@@ -74,4 +74,5 @@ const struct optdesc opt_flock_ex_nb  = { "flock-ex-nb", "flock-nb", OPT_FLOCK_E
 const struct optdesc opt_cool_write = { "cool-write", "coolwrite", OPT_COOL_WRITE, GROUP_FD, PH_INIT, TYPE_BOOL, OFUNC_OFFSET, (bool)&((xiofile_t *)0)->stream.cool_write };
 
 /* control closing of connections */
-const struct optdesc opt_end_close = { "end-close", "close", OPT_END_CLOSE, GROUP_FD, PH_INIT, TYPE_CONST, OFUNC_OFFSET, (bool)&((xiofile_t *)0)->stream.howtoend, END_CLOSE };
+const struct optdesc opt_end_close = { "end-close", NULL,        OPT_END_CLOSE, GROUP_FD, PH_INIT, TYPE_CONST, OFUNC_OFFSET, (bool)&((xiofile_t *)0)->stream.howtoclose, XIOCLOSE_CLOSE };
+const struct optdesc opt_shut_none = { "shut-none", NULL,        OPT_SHUT_NONE, GROUP_FD, PH_INIT, TYPE_CONST, OFUNC_OFFSET, (bool)&((xiofile_t *)0)->stream.howtoshut, XIOSHUT_NONE };

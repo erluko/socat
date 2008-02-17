@@ -11,7 +11,7 @@
 #include "xio-file.h"
 
 
-static int xioopen_open(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
+static int xioopen_open1(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
 
 
 #if WITH_OPEN
@@ -66,13 +66,17 @@ const struct optdesc opt_o_trunc     = { "o-trunc",     "trunc",  OPT_O_TRUNC,  
 
 #if _WITH_FILE	/*! inconsistent name FILE vs. OPEN */
 
-const struct addrdesc addr_open   = { "open",   3, xioopen_open, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_REG|GROUP_NAMED|GROUP_OPEN|GROUP_FILE|GROUP_TERMIOS, 0, 0, 0 HELP(":<filename>") };
+static const struct xioaddr_endpoint_desc xioaddr_open1 = { XIOADDR_SYS, "open", 1, XIOBIT_ALL, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_REG|GROUP_NAMED|GROUP_OPEN|GROUP_FILE|GROUP_TERMIOS, XIOSHUT_CLOSE, XIOCLOSE_CLOSE, xioopen_open1, 0, 0, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_open[] = {
+   (union xioaddr_desc *)&xioaddr_open1,
+   NULL
+};
 
 /* open for writing:
    if the filesystem entry already exists, the data is appended
    if it does not exist, a file is created and the data is appended
 */
-static int xioopen_open(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3) {
+static int xioopen_open1(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3) {
    const char *filename = argv[1];
    int rw = (xioflags & XIO_ACCMODE);
    bool exists;
@@ -96,13 +100,14 @@ static int xioopen_open(int argc, const char *argv[], struct opt *opts, int xiof
 	   filetypenames[(result&S_IFMT)>>12], filename, ddirection[rw]);
    if ((result = _xioopen_open(filename, rw, opts)) < 0)
       return result;
-   fd->stream.fd = result;
+   fd->stream.fd1 = result;
+   fd->stream.fdtype = FDTYPE_SINGLE;
 
 #if WITH_TERMIOS
-   if (Isatty(fd->stream.fd)) {
-      if (Tcgetattr(fd->stream.fd, &fd->stream.savetty) < 0) {
+   if (Isatty(fd->stream.fd1)) {
+      if (Tcgetattr(fd->stream.fd1, &fd->stream.savetty) < 0) {
 	 Warn2("cannot query current terminal settings on fd %d: %s",
-	       fd->stream.fd, strerror(errno));
+	       fd->stream.fd1, strerror(errno));
       } else {
 	 fd->stream.ttyvalid = true;
       }
@@ -110,10 +115,10 @@ static int xioopen_open(int argc, const char *argv[], struct opt *opts, int xiof
 #endif /* WITH_TERMIOS */
 
    applyopts_named(filename, opts, PH_FD);
-   applyopts(fd->stream.fd, opts, PH_FD);
-   applyopts_cloexec(fd->stream.fd, opts);
+   applyopts(fd->stream.fd1, opts, PH_FD);
+   applyopts_cloexec(fd->stream.fd1, opts);
 
-   applyopts_fchown(fd->stream.fd, opts);
+   applyopts_fchown(fd->stream.fd1, opts);
 
    if ((result = _xio_openlate(&fd->stream, opts)) < 0)
       return result;

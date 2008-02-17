@@ -1,5 +1,5 @@
-/* $Id: xio-creat.c,v 1.16 2006/07/13 06:39:01 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* $Id: xio-creat.c,v 1.16.2.1 2006/07/24 19:17:32 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of create type */
@@ -17,8 +17,11 @@ static int xioopen_creat(int arg, const char *argv[], struct opt *opts, int rw, 
 
 
 /*! within stream model, this is a write-only address - use 2 instead of 3 */
-const struct addrdesc addr_creat  = { "create", 3, xioopen_creat, GROUP_FD|GROUP_NAMED|GROUP_FILE, 0, 0, 0 HELP(":<filename>") };
-
+static const struct xioaddr_endpoint_desc xioaddr_creat1  = { XIOADDR_SYS, "create", 1, XIOBIT_ALL/*?*/, GROUP_FD|GROUP_NAMED|GROUP_FILE, XIOSHUT_NONE, XIOCLOSE_CLOSE, xioopen_creat, 0, 0, 0 HELP(":<filename>") };
+const union xioaddr_desc *xioaddrs_creat[] = {
+   (union xioaddr_desc *)&xioaddr_creat1,
+   NULL
+};
 
 /* retrieve the mode option and perform the creat() call.
    returns the file descriptor or a negative value. */
@@ -60,15 +63,16 @@ static int xioopen_creat(int argc, const char *argv[], struct opt *opts, int xio
    Notice2("creating regular file \"%s\" for %s", filename, ddirection[rw]);
    if ((result = _xioopen_creat(filename, rw, opts)) < 0)
       return result;
-   fd->stream.fd = result;
+   fd->stream.fd1 = fd->stream.fd2 = result;
+   fd->stream.fdtype = FDTYPE_SINGLE;
 
    applyopts_named(filename, opts, PH_PASTOPEN);
-   if ((result = applyopts2(fd->stream.fd, opts, PH_PASTOPEN, PH_LATE2)) < 0)
+   if ((result = applyopts2(fd->stream.fd1, opts, PH_PASTOPEN, PH_LATE2)) < 0)
       return result;
 
-   applyopts_cloexec(fd->stream.fd, opts);
+   applyopts_cloexec(fd->stream.fd1, opts);
 
-   applyopts_fchown(fd->stream.fd, opts);
+   applyopts_fchown(fd->stream.fd1, opts);
 
    if ((result = _xio_openlate(&fd->stream, opts)) < 0)
       return result;

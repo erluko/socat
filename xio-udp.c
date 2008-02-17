@@ -35,42 +35,59 @@ static
 int xioopen_udp_recv(int argc, const char *argv[], struct opt *opts,
 		     int xioflags, xiofile_t *xfd, unsigned groups,
 		     int pf, int socktype, int ipproto);
-
 static
 int _xioopen_udp_sendto(const char *hostname, const char *servname,
 			struct opt *opts,
 			int xioflags, xiofile_t *xxfd, unsigned groups,
 			int pf, int socktype, int ipproto);
 
-const struct addrdesc addr_udp_connect  = { "udp-connect",    3, xioopen_ipapp_connect, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP, SOCK_DGRAM, IPPROTO_UDP, PF_UNSPEC HELP(":<host>:<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp_connect2  = { XIOADDR_SYS, "udp-connect",  2, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_connect, SOCK_DGRAM, IPPROTO_UDP, PF_UNSPEC HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp_connect[]   = { (union xioaddr_desc *)&xioaddr_udp_connect2, NULL };
 #if WITH_LISTEN
-const struct addrdesc addr_udp_listen   = { "udp-listen", 3, xioopen_ipdgram_listen, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE, PF_UNSPEC, IPPROTO_UDP, PF_UNSPEC HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp_listen1   = { XIOADDR_SYS, "udp-listen",   1, XIOBIT_RDONLY|XIO_RDWR,    GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipdgram_listen, PF_UNSPEC, IPPROTO_UDP, PF_UNSPEC HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_udp_listen[]    = { (union xioaddr_desc *)&xioaddr_udp_listen1, NULL };
 #endif /* WITH_LISTEN */
-const struct addrdesc addr_udp_sendto   = { "udp-sendto",   3, xioopen_udp_sendto,     GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP, PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };
-const struct addrdesc addr_udp_recvfrom = { "udp-recvfrom",   3, xioopen_udp_recvfrom,   GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_CHILD|GROUP_RANGE, PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP HELP(":<port>") };
-const struct addrdesc addr_udp_recv     = { "udp-recv",       1, xioopen_udp_recv,     GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_RANGE,             PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP  HELP(":<port>") };
-const struct addrdesc addr_udp_datagram = { "udp-datagram", 3, xioopen_udp_datagram,   GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_RANGE, PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp_sendto2   = { XIOADDR_SYS, "udp-sendto",   2, XIOBIT_WRONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_sendto, PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp_sendto[]    = { (union xioaddr_desc *)&xioaddr_udp_sendto2, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp_recvfrom1 = { XIOADDR_SYS, "udp-recvfrom", 1, XIOBIT_RDONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_CHILD|GROUP_RANGE, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_udp_recvfrom,   PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_udp_recvfrom[]  = { (union xioaddr_desc *)&xioaddr_udp_recvfrom1, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp_recv1     = { XIOADDR_SYS, "udp-recv",     1, XIOBIT_RDONLY,             GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_RANGE,     XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_recv,     PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP  HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_udp_recv[]      = { (union xioaddr_desc *)&xioaddr_udp_recv1, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp_datagram2 = { XIOADDR_SYS, "udp-datagram", 2, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_RANGE,     XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_datagram, PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp_datagram[]  = { (union xioaddr_desc *)&xioaddr_udp_datagram2, NULL };
 
 #if WITH_IP4
-const struct addrdesc addr_udp4_connect = { "udp4-connect",    3, xioopen_ipapp_connect, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP, SOCK_DGRAM, IPPROTO_UDP, PF_INET HELP(":<host>:<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp4_connect2 = { XIOADDR_SYS, "udp4-connect", 2, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_connect, SOCK_DGRAM, IPPROTO_UDP, PF_INET HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp4_connect[]  = { (union xioaddr_desc *)&xioaddr_udp4_connect2, NULL };
 #if WITH_LISTEN
-const struct addrdesc addr_udp4_listen  = { "udp4-listen", 3, xioopen_ipdgram_listen, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE, PF_INET, IPPROTO_UDP, PF_INET HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp4_listen1  = { XIOADDR_SYS, "udp4-listen",  1, XIOBIT_RDONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipdgram_listen, PF_INET, IPPROTO_UDP, PF_INET HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_udp4_listen[]   = { (union xioaddr_desc *)&xioaddr_udp4_listen1, NULL };
 #endif /* WITH_LISTEN */
-const struct addrdesc addr_udp4_sendto  = { "udp4-sendto",     3, xioopen_udp_sendto,   GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP, PF_INET, SOCK_DGRAM, IPPROTO_UDP  HELP(":<host>:<port>") };
-const struct addrdesc addr_udp4_datagram = { "udp4-datagram",3, xioopen_udp_datagram,  GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP|GROUP_RANGE, PF_INET, SOCK_DGRAM, IPPROTO_UDP HELP(":<remote-address>:<port>") };
-const struct addrdesc addr_udp4_recvfrom= { "udp4-recvfrom",   3, xioopen_udp_recvfrom, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP|GROUP_CHILD|GROUP_RANGE, PF_INET, SOCK_DGRAM, IPPROTO_UDP  HELP(":<host>:<port>") };
-const struct addrdesc addr_udp4_recv    = { "udp4-recv",       1, xioopen_udp_recv,     GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP|GROUP_RANGE,             PF_INET, SOCK_DGRAM, IPPROTO_UDP  HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp4_sendto2  = { XIOADDR_SYS, "udp4-sendto",  2, XIOBIT_WRONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_sendto,   PF_INET, SOCK_DGRAM, IPPROTO_UDP  HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp4_sendto[]   = { (union xioaddr_desc *)&xioaddr_udp4_sendto2, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp4_datagram2= { XIOADDR_SYS, "udp4-datagram",2, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_datagram,   PF_INET, SOCK_DGRAM, IPPROTO_UDP  HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp4_datagram[] = { (union xioaddr_desc *)&xioaddr_udp4_datagram2, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp4_recvfrom1= { XIOADDR_SYS, "udp4-recvfrom",1, XIOBIT_RDONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP|GROUP_CHILD|GROUP_RANGE, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_udp_recvfrom, PF_INET, SOCK_DGRAM, IPPROTO_UDP  HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp4_recvfrom[] = { (union xioaddr_desc *)&xioaddr_udp4_recvfrom1, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp4_recv1    = { XIOADDR_SYS, "udp4-recv",    1, XIOBIT_RDONLY,             GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_IP_UDP|GROUP_RANGE,             XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_recv,     PF_INET, SOCK_DGRAM, IPPROTO_UDP  HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_udp4_recv[]     = { (union xioaddr_desc *)&xioaddr_udp4_recv1, NULL };
 #endif /* WITH_IP4 */
 
 #if WITH_IP6
-const struct addrdesc addr_udp6_connect = { "udp6-connect",    3, xioopen_ipapp_connect, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP, SOCK_DGRAM, IPPROTO_UDP, PF_INET6 HELP(":<host>:<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp6_connect2 = { XIOADDR_SYS, "udp6-connect", 2, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_connect, SOCK_DGRAM, IPPROTO_UDP, PF_INET6 HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp6_connect[]  = { (union xioaddr_desc *)&xioaddr_udp6_connect2, NULL };
 #if WITH_LISTEN
-const struct addrdesc addr_udp6_listen  = { "udp6-listen", 3, xioopen_ipdgram_listen, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE, PF_INET6, IPPROTO_UDP, 0 HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp6_listen1  = { XIOADDR_SYS, "udp6-listen",  1, XIOBIT_RDONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipdgram_listen, PF_INET6, IPPROTO_UDP, 0 HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_udp6_listen[]   = { (union xioaddr_desc *)&xioaddr_udp6_listen1, NULL };
 #endif /* WITH_LISTEN */
-const struct addrdesc addr_udp6_sendto  = { "udp6-sendto",     3, xioopen_udp_sendto, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP, PF_INET6, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };
-const struct addrdesc addr_udp6_datagram= { "udp6-datagram",   3, xioopen_udp_datagram,GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_RANGE, PF_INET6, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };
-const struct addrdesc addr_udp6_recvfrom= { "udp6-recvfrom",   3, xioopen_udp_recvfrom, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_CHILD|GROUP_RANGE, PF_INET6, SOCK_DGRAM, IPPROTO_UDP  HELP(":<port>") };
-const struct addrdesc addr_udp6_recv    = { "udp6-recv",       1, xioopen_udp_recv,     GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_RANGE,             PF_INET6, SOCK_DGRAM, IPPROTO_UDP  HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp6_sendto2  = { XIOADDR_SYS, "udp6-sendto",  2, XIOBIT_WRONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_sendto, PF_INET6, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp6_sendto[]   = { (union xioaddr_desc *)&xioaddr_udp6_sendto2, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp6_datagram2= { XIOADDR_SYS, "udp6-datagram",2, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_datagram, PF_INET6, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };
+const union xioaddr_desc *xioaddrs_udp6_datagram[] = { (union xioaddr_desc *)&xioaddr_udp6_datagram2, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp6_recvfrom1= { XIOADDR_SYS, "udp6-recvfrom",1, XIOBIT_RDONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_CHILD|GROUP_RANGE, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_udp_recvfrom, PF_INET6, SOCK_DGRAM, IPPROTO_UDP  HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_udp6_recvfrom[] = { (union xioaddr_desc *)&xioaddr_udp6_recvfrom1, NULL };
+static const struct xioaddr_endpoint_desc xioaddr_udp6_recv1    = { XIOADDR_SYS, "udp6-recv",    1, XIOBIT_RDONLY,             GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_RANGE,             XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_recv,     PF_INET6, SOCK_DGRAM, IPPROTO_UDP  HELP(":<port>") };
+const union xioaddr_desc *xioaddrs_udp6_recv[]     = { (union xioaddr_desc *)&xioaddr_udp6_recv1, NULL };
 #endif /* WITH_IP6 */
 
 
@@ -112,6 +129,8 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 
    if (applyopts_single(&fd->stream, opts, PH_INIT) < 0)  return -1;
    applyopts(-1, opts, PH_INIT);
+
+   fd->stream.fdtype = FDTYPE_SINGLE;
 
    uslen = socket_init(pf, &us);
    retropt_int(opts, OPT_SO_TYPE, &socktype);
@@ -172,61 +191,61 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
       union sockaddr_union _sockname;
       union sockaddr_union *la = &_sockname;	/* local address */
 
-      if ((fd->stream.fd = Socket(pf, socktype, ipproto)) < 0) {
+      if ((fd->stream.fd1 = Socket(pf, socktype, ipproto)) < 0) {
 	 Error4("socket(%d, %d, %d): %s", pf, socktype, ipproto, strerror(errno));
 	 return STAT_RETRYLATER;
       }
-      applyopts(fd->stream.fd, opts, PH_PASTSOCKET);
-      if (Setsockopt(fd->stream.fd, opt_so_reuseaddr.major,
+      /*0 Info4("socket(%d, %d, %d) -> %d", pf, socktype, ipproto, fd->stream.fd);*/
+      applyopts(fd->stream.fd1, opts, PH_PASTSOCKET);
+      if (Setsockopt(fd->stream.fd1, opt_so_reuseaddr.major,
 		     opt_so_reuseaddr.minor, &one, sizeof(one)) < 0) {
 	 Warn6("setsockopt(%d, %d, %d, {%d}, "F_Zd"): %s",
-	       fd->stream.fd, opt_so_reuseaddr.major,
+	       fd->stream.fd1, opt_so_reuseaddr.major,
 	       opt_so_reuseaddr.minor, one, sizeof(one), strerror(errno));
       }
-      applyopts_cloexec(fd->stream.fd, opts);
-      applyopts(fd->stream.fd, opts, PH_PREBIND);
-      applyopts(fd->stream.fd, opts, PH_BIND);
-      if (Bind(fd->stream.fd, &us.soa, uslen) < 0) {
-	 Error4("bind(%d, {%s}, "F_Zd"): %s", fd->stream.fd,
+      applyopts_cloexec(fd->stream.fd1, opts);
+      applyopts(fd->stream.fd1, opts, PH_PREBIND);
+      applyopts(fd->stream.fd1, opts, PH_BIND);
+      if (Bind(fd->stream.fd1, &us.soa, uslen) < 0) {
+	 Error4("bind(%d, {%s}, "F_Zd"): %s", fd->stream.fd1,
 		sockaddr_info(&us.soa, uslen, infobuff, sizeof(infobuff)),
 		uslen, strerror(errno));
 	 return STAT_RETRYLATER;
       }
       /* under some circumstances bind() fills sockaddr with interesting info. */
-      if (Getsockname(fd->stream.fd, &us.soa, &uslen) < 0) {
+      if (Getsockname(fd->stream.fd1, &us.soa, &uslen) < 0) {
 	 Error4("getsockname(%d, %p, {%d}): %s",
-		fd->stream.fd, &us.soa, uslen, strerror(errno));
+		fd->stream.fd1, &us.soa, uslen, strerror(errno));
       }
-      applyopts(fd->stream.fd, opts, PH_PASTBIND);
+      applyopts(fd->stream.fd1, opts, PH_PASTBIND);
 
       Notice1("listening on UDP %s",
 	      sockaddr_info(&us.soa, uslen, infobuff, sizeof(infobuff)));
       FD_ZERO(&in); FD_ZERO(&out); FD_ZERO(&expt);
-      FD_SET(fd->stream.fd, &in);
-      while (Select(fd->stream.fd+1, &in, &out, &expt, NULL) < 0) {
+      FD_SET(fd->stream.fd1, &in);
+      while (Select(fd->stream.fd1+1, &in, &out, &expt, NULL) < 0) {
 	 if (errno != EINTR)  break;
       }
 
       themlen = socket_init(pf, them);
       do {
-	 result = Recvfrom(fd->stream.fd, buff1, 1, MSG_PEEK,
+	 result = Recvfrom(fd->stream.fd1, buff1, 1, MSG_PEEK,
 			     &them->soa, &themlen);
       } while (result < 0 && errno == EINTR);
       if (result < 0) {
 	 Error5("recvfrom(%d, %p, 1, MSG_PEEK, {%s}, {"F_Zu"}): %s",
-		fd->stream.fd, buff1,
+		fd->stream.fd1, buff1,
 		sockaddr_info(&them->soa, themlen, infobuff, sizeof(infobuff)),
 		themlen, strerror(errno));
 	 return STAT_RETRYLATER;
       }
-
       Notice1("accepting UDP connection from %s",
 	      sockaddr_info(&them->soa, themlen, infobuff, sizeof(infobuff)));
 
       if (xiocheckpeer(&fd->stream, them, la) < 0) {
 	 /* drop packet */
 	 char buff[512];
-	 Recv(fd->stream.fd, buff, sizeof(buff), 0);
+	 Recv(fd->stream.fd1, buff, sizeof(buff), 0);
 	 continue;
       }
       Info1("permitting UDP connection from %s",
@@ -249,8 +268,8 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 	 /* server: continue loop with select */
 	 /* when we dont close this we get awkward behaviour on Linux 2.4:
 	    recvfrom gives 0 bytes with invalid socket address */
-	 if (Close(fd->stream.fd) < 0) {
-	    Info2("close(%d): %s", fd->stream.fd, strerror(errno));
+	 if (Close(fd->stream.fd1) < 0) {
+	    Info2("close(%d): %s", fd->stream.fd1, strerror(errno));
 	 }
 	 Notice1("forked off child process "F_pid, pid);
 	 Sleep(1);	/*! give child a chance to consume the old packet */
@@ -260,18 +279,17 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
       break;
    }
 
-   applyopts(fd->stream.fd, opts, PH_CONNECT);
-   if ((result = Connect(fd->stream.fd, &them->soa, themlen)) < 0) {
+   applyopts(fd->stream.fd1, opts, PH_CONNECT);
+   if ((result = Connect(fd->stream.fd1, &them->soa, themlen)) < 0) {
       Error4("connect(%d, {%s}, "F_Zd"): %s",
-	     fd->stream.fd,
+	     fd->stream.fd1,
 	     sockaddr_info(&them->soa, themlen, infobuff, sizeof(infobuff)),
 	     themlen, strerror(errno));
       return STAT_RETRYLATER;
    }
 
-   fd->stream.howtoend = END_SHUTDOWN;
-   applyopts_fchown(fd->stream.fd, opts);
-   applyopts(fd->stream.fd, opts, PH_LATE);
+   applyopts_fchown(fd->stream.fd1, opts);
+   applyopts(fd->stream.fd1, opts, PH_LATE);
 
    if ((result = _xio_openlate(&fd->stream, opts)) < 0)
       return result;
@@ -312,7 +330,6 @@ int _xioopen_udp_sendto(const char *hostname, const char *servname,
    bool needbind = false;
    int result;
 
-   xfd->howtoend = END_SHUTDOWN;
    retropt_int(opts, OPT_SO_TYPE, &socktype);
 
    /* ...res_opts[] */
@@ -452,7 +469,6 @@ int xioopen_udp_recvfrom(int argc, const char *argv[], struct opt *opts,
       return STAT_NORETRY;
    }
 
-   xfd->stream.howtoend = END_NONE;
    retropt_socket_pf(opts, &pf);
    if (pf == PF_UNSPEC) {
 #if WITH_IP4 && WITH_IP6

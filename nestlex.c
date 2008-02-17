@@ -1,5 +1,5 @@
 /* $Id: nestlex.c,v 1.4 2006/06/23 17:04:36 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2006 */
+/* Copyright Gerhard Rieger 2006-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* a function for lexical scanning of nested character patterns */
@@ -29,6 +29,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
 	    const char *squotes[],/* list of strings that quote softly */
 	    const char *nests[],/* list of strings that start nesting;
 				   every second one is matching end */
+	    bool dropspace,	/* drop trailing space before end token */
 	    bool dropquotes,	/* drop the outermost quotes */
 	    bool c_esc,		/* solve C char escapes: \n \t \0 etc */
 	    bool html_esc	/* solve HTML char escapes: %0d %08 etc */
@@ -38,6 +39,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
    const char **quotx;	/* loops over quote patterns */
    const char **nestx;	/* loops over nest patterns */
    char *out = *token;	/* pointer into output token */
+   char *lastnonspace = out;
    char c;
    int i;
    int result;
@@ -46,7 +48,9 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
 
       /* is this end of input string? */
       if (*in == 0)  {
-	 
+	 if (dropspace) {
+	    out = lastnonspace;
+	 }
 	 break; /* end of string */
       }
 
@@ -55,6 +59,9 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
       while (*endx) {
 	 if (!strncmp(in, *endx, strlen(*endx))) {
 	    /* this end pattern matches */
+	    if (dropspace) {
+	       out = lastnonspace;
+	    }
 	    *addr = in;
 	    *token = out;
 	    return 0;
@@ -83,7 +90,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
 	    result =
 	       nestlex(&in, &out, len, endnest, NULL/*hquotes*/,
 		       NULL/*squotes*/, NULL/*nests*/,
-		       false, c_esc, html_esc);
+		       false, false, c_esc, html_esc);
 	    if (result == 0 && dropquotes) {
 	       /* we strip this quote */
 	       in += strlen(*quotx);
@@ -101,6 +108,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
       }
       if (hquotes && *quotx != NULL) {
 	 /* there was a quote; string might continue with hard quote */
+	 lastnonspace = out;
 	 continue;
       }
 
@@ -126,7 +134,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
 	    result =
 	       nestlex(&in, &out, len, endnest, hquotes,
 		       squotes, nests,
-		       false, c_esc, html_esc);
+		       false, false, c_esc, html_esc);
 
 	    if (result == 0 && dropquotes) {
 	       /* we strip the trailing quote */
@@ -144,6 +152,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
       }
       if (squotes && *quotx != NULL) {
 	 /* there was a soft quote; string might continue with any quote */
+	 lastnonspace = out;
 	 continue;
       }
 
@@ -163,7 +172,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
 
 	    result =
 	       nestlex(&in, &out, len, endnest, hquotes, squotes, nests,
-		       false, c_esc, html_esc);
+		       false, false, c_esc, html_esc);
 	    if (result == 0) {
 	       /* copy endnest */
 	       i = strlen(nestx[1]); while (i > 0) {
@@ -182,6 +191,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
       }
       if (nests && *nestx) {
 	 /* we handled a nested expression, continue loop */
+	 lastnonspace = out;
 	 continue;
       }
 
@@ -216,6 +226,7 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
 	    *token = out;
 	    return -1;	/* output overflow */
 	 }
+	 lastnonspace = out;
 	 continue;
       }
 
@@ -227,6 +238,9 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
 	 *token = out;
 	 return -1;	/* output overflow */
       }
+      if (!isspace(c)) {
+	 lastnonspace = out;
+      }	  
 
    }
    /* never come here? */
@@ -234,4 +248,11 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
    *addr = in;
    *token = out;
    return 0;	/* OK */
+}
+
+int skipsp(const char **text) {
+    while (isspace(**text)) {
+	++(*text);
+    }
+    return 0;
 }

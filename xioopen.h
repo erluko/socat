@@ -1,5 +1,5 @@
-/* $Id: xioopen.h,v 1.22 2006/05/12 20:14:05 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* $Id: xioopen.h,v 1.22.2.1 2006/07/24 19:26:29 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xioopen_h_included
@@ -33,16 +33,25 @@ extern const struct optdesc opt_tabdly;
 extern const struct optdesc opt_csize;
 
 
-struct addrname {
+struct xioaddrname {
    const char *name;
-   const struct addrdesc *desc;
+   const union xioaddr_desc **desc;
+} ;
+
+struct xioaddr_endpoint_name {
+   const char *name;
+   const struct xioaddr_endpoint_desc **desc;
 } ;
 
 extern const char *ddirection[];
 extern const char *filetypenames[];
-extern const struct addrname addressnames[];
+extern const struct xioaddrname address_names[];
 extern const struct optname optionnames[];
 
+extern xiofile_t *socat_open(const char *addrs0, int dirs, int flags);
+extern xiofile_t *xioparse_dual(const char **addr);
+extern int xioopen_inter_dual(xiofile_t *xfd, int xioflags);
+extern int xioopen_endpoint_dual(xiofile_t *xfd, int xioflags);
 extern int xioopen_makedual(xiofile_t *file);
 
 #define retropt_2bytes(o,c,r) retropt_ushort(o,c,r)

@@ -87,7 +87,7 @@ $ socat -u -,cr -
 
 // save piped data similar to 'tee':
 // copies stdin to stdout, but writes everything to the file too
-$ socat -,echo=0 open:/tmp/myfile,create,trunc,ignoreeof!!/tmp/myfile
+$ socat - OPEN:/tmp/myfile,create,trunc%open:/tmp/myfile,ignoreeof
 
 ///////////////////////////////////////////////////////////////////////////////
 // intrusion testing
@@ -113,23 +113,23 @@ $ socat -,echo=0 open:/tmp/myfile,create,trunc,ignoreeof!!/tmp/myfile
 // forms of stdin with stdout, all equivalent
 $ socat echo -
 $ socat echo STDIO
-$ socat echo STDIN!!STDOUT
-$ socat echo STDIO!!STDIO
-$ socat echo -!!-
-$ socat echo FD:0!!FD:1
-$ socat echo 0!!1
-$ socat echo /dev/stdin!!/dev/stdout	// if your OS provides these
+$ socat echo STDOUT%STDIN
+$ socat echo STDIO%STDIO
+$ socat echo -%-
+$ socat echo FD:1%FD:0
+$ socat echo 1%0
+$ socat echo /dev/stdout%/dev/stdin	// if your OS provides these
 
 ///////////////////////////////////////////////////////////////////////////////
 // some echo address examples
 $ socat - PIPE
 $ socat - PIPE:/tmp/pipi		// other version of echo
-$ socat - PIPE:/tmp/pipi,nonblock!!/tmp/pipi	// other version of echo
+$ socat - PIPE:/tmp/pipi%/tmp/pipi	// other version of echo
 $ socat - EXEC:/bin/cat		// another echo
 $ socat - SYSTEM:/bin/cat		// another echo
 $ socat - TCP:loopback:7	// if inetd echo/TCP service activated
 $ socat - UDP:loopback:7	// if inetd echo/UDP service activated
-$ socat - /tmp/hugo,trunc,ignoreeof!!/tmp/hugo	// with delay
+$ socat - /tmp/hugo,trunc%/tmp/hugo,ignoreeof	// with delay
 $ socat - UDP:loopback:2000,bind=:2000	// self "connection"
 $ socat - TCP:loopback:2000,bind=:2000	// Linux bug?
 # socat - IP:loopback:222	// raw protocol, self "connected" (attention,
@@ -151,7 +151,7 @@ $ socat -u - CREATE:/tmp/outfile1,group=floppy,perm=0640
 
 ///////////////////////////////////////////////////////////////////////////////
 // file handling
-$ socat - FILE:/tmp/outfile1,ignoreeof!!FILE:/tmp/outfile1,append	// prints outfile1, then echoes input and protocols into file (appends to old data)
+$ socat - FILE:/tmp/outfile1,append%FILE:/tmp/outfile1,ignoreeof	// prints outfile1, then echoes input and protocols into file (appends to old data)
 
 ///////////////////////////////////////////////////////////////////////////////
 // unix socket handling

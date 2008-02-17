@@ -67,10 +67,11 @@
 #if HAVE_FCNTL_H
 #include <fcntl.h>	/* open(), O_RDWR */
 #endif
+#include <pthread.h>
 #if HAVE_NETDB_H && (_WITH_IP4 || _WITH_IP6)
 #include <netdb.h>	/* struct hostent, gethostbyname() */
 #endif
-#if HAVE_SYS_UN_H && WITH_UNIX
+#if HAVE_SYS_UN_H && _WITH_UNIX
 #include <sys/un.h>	/* struct sockaddr_un, unix domain sockets */
 #endif
 #if HAVE_SYS_IOCTL_H

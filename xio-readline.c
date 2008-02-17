@@ -30,8 +30,13 @@ static int xioopen_readline(int argc, const char *argv[], struct opt *opts,
 			    int dummy1, int dummy2, int dummy3);
 
 
-const struct addrdesc addr_readline = {
-   "readline", 3, xioopen_readline, GROUP_FD|GROUP_TERMIOS|GROUP_READLINE, 0, 0, 0 HELP(NULL) };
+static const struct xioaddr_endpoint_desc xioendpoint_readline0 = {
+   XIOADDR_SYS, "readline", 0, XIOBIT_WRONLY|XIOBIT_RDWR, GROUP_FD|GROUP_TERMIOS|GROUP_READLINE, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_readline, 0, 0, 0 HELP(NULL) };
+
+const union xioaddr_desc *xioaddrs_readline[] = {
+   (union xioaddr_desc *)&xioendpoint_readline0,
+   NULL
+};
 
 const struct optdesc opt_history_file = { "history-file", "history", OPT_HISTORY_FILE, GROUP_READLINE, PH_LATE, TYPE_STRING, OFUNC_OFFSET, (int)&((xiofile_t *)0)->stream.para.readline.history_file };
 const struct optdesc opt_prompt       = { "prompt",       NULL,      OPT_PROMPT,       GROUP_READLINE, PH_LATE, TYPE_STRING, OFUNC_OFFSET, (int)&((xiofile_t *)0)->stream.para.readline.prompt };
@@ -69,15 +74,16 @@ static int xioopen_readline(int argc, const char *argv[], struct opt *opts,
    }
    Notice(msgbuf);
 
-   xfd->stream.fd = 0;	/* stdin */
-   xfd->stream.howtoend = END_NONE;
+   xfd->stream.fd1      = 0;	/* stdin */
+   xfd->stream.howtoclose = XIOCLOSE_READLINE;
    xfd->stream.dtype    = XIODATA_READLINE;
+   xfd->stream.fdtype   = FDTYPE_SINGLE;
 
 #if WITH_TERMIOS
-   if (Isatty(xfd->stream.fd)) {
-      if (Tcgetattr(xfd->stream.fd, &xfd->stream.savetty) < 0) {
+   if (Isatty(xfd->stream.fd1)) {
+      if (Tcgetattr(xfd->stream.fd1, &xfd->stream.savetty) < 0) {
 	 Warn2("cannot query current terminal settings on fd %d. %s",
-	       xfd->stream.fd, strerror(errno));
+	       xfd->stream.fd1, strerror(errno));
       } else {
 	 xfd->stream.ttyvalid = true;
       }
@@ -87,7 +93,7 @@ static int xioopen_readline(int argc, const char *argv[], struct opt *opts,
    if (applyopts_single(&xfd->stream, opts, PH_INIT) < 0)  return -1;
    applyopts(-1, opts, PH_INIT);
 
-   applyopts2(xfd->stream.fd, opts, PH_INIT, PH_FD);
+   applyopts2(xfd->stream.fd1, opts, PH_INIT, PH_FD);
 
    Using_history();
    applyopts_offset(&xfd->stream, opts);
@@ -120,8 +126,8 @@ static int xioopen_readline(int argc, const char *argv[], struct opt *opts,
    if (xfd->stream.para.readline.history_file) {
       Read_history(xfd->stream.para.readline.history_file);
    }
-   xiotermios_clrflag(xfd->stream.fd, 3, ICANON);
-   xiotermios_clrflag(xfd->stream.fd, 3, ECHO);
+   xiotermios_clrflag(xfd->stream.fd1, 3, ICANON);
+   xiotermios_clrflag(xfd->stream.fd1, 3, ECHO);
    return _xio_openlate(&xfd->stream, opts);
 }
 
@@ -141,40 +147,40 @@ ssize_t xioread_readline(struct single *pipe, void *buff, size_t bufsiz) {
 	 readline */
 	 struct termios saveterm, setterm;
 	 *pipe->para.readline.dynend = '\0';
-	 Tcgetattr(pipe->fd, &saveterm);	/*! error */
+	 Tcgetattr(pipe->fd1, &saveterm);	/*! error */
 	 setterm = saveterm;
 	 setterm.c_lflag |= ICANON;
-	 Tcsetattr(pipe->fd, TCSANOW, &setterm);	/*!*/
+	 Tcsetattr(pipe->fd1, TCSANOW, &setterm);	/*!*/
 	 do {
-	    bytes = Read(pipe->fd, buff, bufsiz);
+	    bytes = Read(pipe->fd1, buff, bufsiz);
 	 } while (bytes < 0 && errno == EINTR);
 	 if (bytes < 0) {
 	    _errno = errno;
 	    Error4("read(%d, %p, "F_Zu"): %s",
-		   pipe->fd, buff, bufsiz, strerror(_errno));
+		   pipe->fd1, buff, bufsiz, strerror(_errno));
 	    errno = _errno;
 	    return -1;
 	 }
 	 setterm.c_lflag &= ~ICANON;
-	 Tcgetattr(pipe->fd, &setterm);	/*! error */
-	 Tcsetattr(pipe->fd, TCSANOW, &saveterm);	/*!*/
+	 Tcgetattr(pipe->fd1, &setterm);	/*! error */
+	 Tcsetattr(pipe->fd1, TCSANOW, &saveterm);	/*!*/
 	 pipe->para.readline.dynend = pipe->para.readline.dynprompt;
-	 /*Write(pipe->fd, "\n", 1);*/	/*!*/
+	 /*Write(pipe->fd1, "\n", 1);*/	/*!*/
 	 return bytes;
       }
 #endif /* HAVE_REGEX_H */
 
-      xiotermios_setflag(pipe->fd, 3, ECHO);
+      xiotermios_setflag(pipe->fd1, 3, ECHO);
       if (pipe->para.readline.prompt || pipe->para.readline.dynprompt) {
 	 /* we must carriage return, because readline will first print the
 	    prompt */
 	 ssize_t writt;
 	 do {
-	    writt = Write(pipe->fd, "\r", 1);
+	    writt = Write(pipe->fd1, "\r", 1);
 	 } while (writt < 0 && errno == EINTR);
 	 if (writt < 0) {
 	    Warn2("write(%d, \"\\r\", 1): %s",
-		   pipe->fd, strerror(errno));
+		   pipe->fd1, strerror(errno));
 	 } else if (writt < 1) {
 	    Warn1("write() only wrote "F_Zu" of 1 byte", writt);
 	 }
@@ -191,7 +197,7 @@ ssize_t xioread_readline(struct single *pipe, void *buff, size_t bufsiz) {
       if (line == NULL) {
 	 return 0;	/* EOF */
       }
-      xiotermios_clrflag(pipe->fd, 3, ECHO);
+      xiotermios_clrflag(pipe->fd1, 3, ECHO);
       Add_history(line);
       bytes = strlen(line);
       strncpy(buff, line, bufsiz);

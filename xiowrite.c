@@ -8,6 +8,7 @@
 #include "xiosysincludes.h"
 #include "xioopen.h"
 
+#include "xio-test.h"
 #include "xio-readline.h"
 #include "xio-openssl.h"
 
@@ -20,6 +21,7 @@
 ssize_t xiowrite(xiofile_t *file, const void *buff, size_t bytes) {
    ssize_t writt;
    struct single *pipe;
+   int fd;
    int _errno;
 
    if (file->tag == XIO_TAG_INVALID) {
@@ -46,11 +48,13 @@ ssize_t xiowrite(xiofile_t *file, const void *buff, size_t bytes) {
    }
 #endif /* WITH_READLINE */
 
+   fd = XIO_GETWRFD(file);
+
    switch (pipe->dtype & XIODATA_WRITEMASK) {
 
    case XIOWRITE_STREAM:
       do {
-	 writt = Write(pipe->fd, buff, bytes);
+	 writt = Write(fd, buff, bytes);
       } while (writt < 0 && errno == EINTR);
       if (writt < 0) {
 	 _errno = errno;
@@ -59,13 +63,13 @@ ssize_t xiowrite(xiofile_t *file, const void *buff, size_t bytes) {
 	 case ECONNRESET:
 	    if (pipe->cool_write) {
 	       Notice4("write(%d, %p, "F_Zu"): %s",
-		       pipe->fd, buff, bytes, strerror(_errno));
+		       fd, buff, bytes, strerror(_errno));
 	       break;
 	    }
 	    /*PASSTRHOUGH*/
 	 default:
 	    Error4("write(%d, %p, "F_Zu"): %s",
-		   pipe->fd, buff, bytes, strerror(_errno));
+		   fd, buff, bytes, strerror(_errno));
 	 }
 	 errno = _errno;
 	 return -1;
@@ -85,14 +89,14 @@ ssize_t xiowrite(xiofile_t *file, const void *buff, size_t bytes) {
       /*socklen_t fromlen;*/
 
       do {
-	 writt = Sendto(pipe->fd, buff, bytes, 0,
+	 writt = Sendto(fd, buff, bytes, 0,
 			&pipe->peersa.soa, pipe->salen);
       } while (writt < 0 && errno == EINTR);
       if (writt < 0) {
 	 char infobuff[256];
 	 _errno = errno;
 	 Error6("sendto(%d, %p, "F_Zu", 0, %s, "F_socklen"): %s",
-		pipe->fd, buff, bytes, 
+		fd, buff, bytes, 
 		sockaddr_info(&pipe->peersa.soa, pipe->salen,
 			      infobuff, sizeof(infobuff)),
 		pipe->salen, strerror(_errno));
@@ -102,7 +106,7 @@ ssize_t xiowrite(xiofile_t *file, const void *buff, size_t bytes) {
       if ((size_t)writt < bytes) {
 	 char infobuff[256];
 	 Warn7("sendto(%d, %p, "F_Zu", 0, %s, "F_socklen") only wrote "F_Zu" of "F_Zu" bytes",
-	       pipe->fd, buff, bytes, 
+	       fd, buff, bytes, 
 	       sockaddr_info(&pipe->peersa.soa, pipe->salen,
 			     infobuff, sizeof(infobuff)),
 	       pipe->salen, writt, bytes);
@@ -112,7 +116,7 @@ ssize_t xiowrite(xiofile_t *file, const void *buff, size_t bytes) {
 	 char infobuff[256];
 	 union sockaddr_union us;
 	 socklen_t uslen = sizeof(us);
-	 Getsockname(pipe->fd, &us.soa, &uslen);
+	 Getsockname(fd, &us.soa, &uslen);
 	 Notice1("local address: %s",
 		 sockaddr_info(&us.soa, uslen, infobuff, sizeof(infobuff)));
       }
@@ -120,13 +124,14 @@ ssize_t xiowrite(xiofile_t *file, const void *buff, size_t bytes) {
 #endif /* WITH_SOCKET */
 
    case XIOWRITE_PIPE:
+   case XIOWRITE_2PIPE:
       do {
-	 writt = Write(pipe->para.bipipe.fdout, buff, bytes);
+	 writt = Write(fd, buff, bytes);
       } while (writt < 0 && errno == EINTR);
       _errno = errno;
       if (writt < 0) {
 	 Error4("write(%d, %p, "F_Zu"): %s",
-		pipe->para.bipipe.fdout, buff, bytes, strerror(_errno));
+		fd, buff, bytes, strerror(_errno));
 	 errno = _errno;
 	 return -1;
       }
@@ -136,22 +141,14 @@ ssize_t xiowrite(xiofile_t *file, const void *buff, size_t bytes) {
       }
       break;
 
-   case XIOWRITE_2PIPE:
-      do {
-	 writt = Write(pipe->para.exec.fdout, buff, bytes);
-      } while (writt < 0 && errno == EINTR);
-      _errno = errno;
-      if (writt < 0) {
-	 Error4("write(%d, %p, "F_Zu"): %s",
-		pipe->para.exec.fdout, buff, bytes, strerror(_errno));
-	 errno = _errno;
-	 return -1;
-      }
-      if ((size_t)writt < bytes) {
-	 Warn2("write() only processed "F_Zu" of "F_Zu" bytes",
-	       writt, bytes);
-      }
-      break;
+#if WITH_TEST
+   case XIOWRITE_TEST:
+      /* this function prints its own error messages */
+      return xiowrite_test(pipe, buff, bytes);
+   case XIOWRITE_TESTREV:
+      /* this function prints its own error messages */
+      return xiowrite_testrev(pipe, buff, bytes);
+#endif /* WITH_TEST */
 
 #if WITH_OPENSSL
    case XIOWRITE_OPENSSL:

@@ -131,11 +131,11 @@ int xio_tcpwrap_check(xiosingle_t *xfd, union sockaddr_union *us,
       Warn1("inet_ntop(): %s", strerror(errno));
    }
    Debug7("request_init(%p, RQ_FILE, %d, RQ_CLIENT_SIN, {%s:%u}, RQ_SERVER_SIN, {%s:%u}, RQ_DAEMON, \"%s\", 0",
-	   &ri, xfd->fd, clientaddr,
+	   &ri, xfd->fd1, clientaddr,
 	   ntohs(((struct sockaddr_in *)them)->sin_port),
 	   serveraddr, ntohs(us->ip4.sin_port),
 	   xfd->para.socket.ip.libwrapname?xfd->para.socket.ip.libwrapname:(char *)diag_get_string('p'));
-   request_init(&ri, RQ_FILE, xfd->fd,
+   request_init(&ri, RQ_FILE, xfd->fd1,
 		RQ_CLIENT_SIN, them,
 		RQ_SERVER_SIN, &us->soa,
 		RQ_DAEMON, xfd->para.socket.ip.libwrapname?xfd->para.socket.ip.libwrapname:(char *)diag_get_string('p'), 0);

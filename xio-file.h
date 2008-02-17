@@ -1,5 +1,5 @@
-/* $Id: xio-file.h,v 1.8 2006/07/13 21:19:15 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* $Id: xio-file.h,v 1.8.2.1 2006/07/24 19:17:44 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_file_h_included
@@ -26,6 +26,6 @@ extern const struct optdesc opt_o_priv;
 extern const struct optdesc opt_o_trunc;
 extern const struct optdesc opt_o_noatime;
 
-extern const struct addrdesc addr_open;
+extern const union xioaddr_desc *xioaddrs_open[];
 
 #endif /* !defined(__xio_file_h_included) */

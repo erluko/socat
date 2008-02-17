@@ -1,11 +1,11 @@
-/* $Id: xio-readline.h,v 1.4 2003/12/23 21:38:59 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2002, 2003 */
+/* $Id: xio-readline.h,v 1.4.2.1 2006/07/24 19:18:24 gerhard Exp $ */
+/* Copyright Gerhard Rieger 2002-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_readline_h_included
 #define __xio_readline_h_included 1
 
-extern const struct addrdesc addr_readline;
+extern const union xioaddr_desc *xioaddrs_readline[];
 
 extern const struct optdesc opt_history_file;
 extern const struct optdesc opt_prompt;

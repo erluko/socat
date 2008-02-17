@@ -5,18 +5,18 @@
 #ifndef __xio_unix_h_included
 #define __xio_unix_h_included 1
 
-extern const struct addrdesc addr_unix_connect;
-extern const struct addrdesc addr_unix_listen;
-extern const struct addrdesc addr_unix_sendto;
-extern const struct addrdesc addr_unix_recvfrom;
-extern const struct addrdesc addr_unix_recv;
-extern const struct addrdesc addr_unix_client;
-extern const struct addrdesc xioaddr_abstract_connect;
-extern const struct addrdesc xioaddr_abstract_listen;
-extern const struct addrdesc xioaddr_abstract_sendto;
-extern const struct addrdesc xioaddr_abstract_recvfrom;
-extern const struct addrdesc xioaddr_abstract_recv;
-extern const struct addrdesc xioaddr_abstract_client;
+extern const union xioaddr_desc *xioaddrs_unix_connect[];
+extern const union xioaddr_desc *xioaddrs_unix_listen[];
+extern const union xioaddr_desc *xioaddrs_unix_sendto[];
+extern const union xioaddr_desc *xioaddrs_unix_recvfrom[];
+extern const union xioaddr_desc *xioaddrs_unix_recv[];
+extern const union xioaddr_desc *xioaddrs_unix_client[];
+extern const union xioaddr_desc *xioaddrs_abstract_connect[];
+extern const union xioaddr_desc *xioaddrs_abstract_listen[];
+extern const union xioaddr_desc *xioaddrs_abstract_sendto[];
+extern const union xioaddr_desc *xioaddrs_abstract_recvfrom[];
+extern const union xioaddr_desc *xioaddrs_abstract_recv[];
+extern const union xioaddr_desc *xioaddrs_abstract_client[];
 
 extern const struct optdesc opt_unix_tightsocklen;
 

@@ -444,6 +444,8 @@
 #undef HAVE_PROC_DIR_FD
 
 #undef WITH_HELP
+#undef WITH_NOP
+#undef WITH_TEST
 #undef WITH_STDIO
 #undef WITH_FDNUM
 #undef WITH_FILE
@@ -461,6 +463,8 @@
 #undef WITH_LISTEN
 #undef WITH_SOCKS4
 #undef WITH_SOCKS4A
+#define WITH_SOCKS5 1
+#define WITH_SOCKS4_SERVER 1
 #undef WITH_PROXY
 #undef WITH_EXEC
 #undef WITH_SYSTEM

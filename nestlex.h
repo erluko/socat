@@ -1,5 +1,5 @@
 /* $Id: nestlex.h,v 1.3 2006/06/23 17:04:39 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2006 */
+/* Copyright Gerhard Rieger 2006-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __nestlex_h_included
@@ -15,9 +15,13 @@ int nestlex(const char **addr,	/* input string; aft points to end token */
 	    const char *squotes[],/* list of strings that quote softly */
 	    const char *nests[],/* list of strings that start nesting;
 				   every second one is matching end */
+	    bool dropspace,	/* drop trailing space before end token */
 	    bool dropquotes,	/* drop the outermost quotes */
 	    bool c_esc,		/* solve C char escapes: \n \t \0 etc */
 	    bool html_esc	/* solve HTML char escapes: %0d %08 etc */
 	    );
+
+extern
+int skipsp(const char **text);
 
 #endif /* !defined(__nestlex_h_included) */

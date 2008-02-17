@@ -46,7 +46,13 @@ const struct optdesc opt_iff_automedia   = { "iff-automedia",   "automedia",   O
 const struct optdesc opt_route           = { "route",           NULL,          OPT_ROUTE,           GROUP_INTERFACE, PH_INIT, TYPE_STRING,   OFUNC_SPEC };
 #endif
 
-const struct addrdesc xioaddr_tun    = { "tun",    3, xioopen_tun, GROUP_FD|GROUP_CHR|GROUP_NAMED|GROUP_OPEN|GROUP_TUN, 0, 0, 0 HELP(":<ip-addr>/<bits>") };
+static const struct xioaddr_endpoint_desc xioendpoint_tun1    = { XIOADDR_SYS, "tun",   1, XIOBIT_ALL, GROUP_FD|GROUP_CHR|GROUP_NAMED|GROUP_OPEN|GROUP_TUN, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_tun, 0, 0, 0 HELP(":<ip-addr>/<bits>") };
+
+const union xioaddr_desc *xioaddrs_tun[] = {
+   (union xioaddr_desc *)&xioendpoint_tun1,
+   NULL
+};
+
 // "if-name"=tun3
 // "route"=address/netmask
 // "ip6-route"=address/netmask
@@ -101,7 +107,7 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
    Notice("creating tunnel network interface");
    if ((result = _xioopen_open(tundevice, rw, opts)) < 0)
       return result;
-   xfd->stream.fd = result;
+   xfd->stream.fd1 = result;
 
    /* prepare configuration of the new network interface */
    memset(&ifr, 0,sizeof(ifr));
@@ -132,10 +138,10 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
       }
    }
 
-   if (Ioctl(xfd->stream.fd, TUNSETIFF, &ifr) < 0) {
+   if (Ioctl(xfd->stream.fd1, TUNSETIFF, &ifr) < 0) {
       Error3("ioctl(%d, TUNSETIFF, {\"%s\"}: %s",
-	     xfd->stream.fd, ifr.ifr_name, strerror(errno));
-      Close(xfd->stream.fd);
+	     xfd->stream.fd1, ifr.ifr_name, strerror(errno));
+      Close(xfd->stream.fd1);
    }
 
    /*===================== setting interface properties =====================*/
@@ -143,7 +149,7 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
    /* we seem to need a socket for manipulating the interface */
    if ((sockfd = Socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
       Error1("socket(PF_INET, SOCK_DGRAM, 0): %s", strerror(errno));
-      sockfd = xfd->stream.fd;	/* desparate fallback attempt */
+      sockfd = xfd->stream.fd1;	/* desparate fallback attempt */
    }
 
    /*--------------------- setting interface address and netmask ------------*/
@@ -195,10 +201,10 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
 #if LATER
    applyopts_named(tundevice, opts, PH_FD);
 #endif
-   applyopts(xfd->stream.fd, opts, PH_FD);
-   applyopts_cloexec(xfd->stream.fd, opts);
+   applyopts(xfd->stream.fd1, opts, PH_FD);
+   applyopts_cloexec(xfd->stream.fd1, opts);
 
-   applyopts_fchown(xfd->stream.fd, opts);
+   applyopts_fchown(xfd->stream.fd1, opts);
 
    if ((result = _xio_openlate(&xfd->stream, opts)) < 0)
       return result;
