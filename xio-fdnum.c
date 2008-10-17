@@ -1,4 +1,4 @@
-/* $Id: xio-fdnum.c,v 1.13.2.1 2006/07/24 19:17:38 gerhard Exp $ */
+/* source: xio-fdnum.c */
 /* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 

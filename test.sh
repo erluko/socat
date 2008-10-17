@@ -1,6 +1,6 @@
 #! /bin/bash
-# $Id: test.sh,v 1.134 2007/03/06 21:06:20 gerhard Exp $
-# Copyright Gerhard Rieger 2001-2007
+# source: test.sh
+# Copyright Gerhard Rieger 2001-2008
 # Published under the GNU General Public License V.2, see file COPYING
 
 # perform lots of tests on socat
@@ -380,11 +380,11 @@ filloptionvalues() {
     esac
     # PTY
     case "$OPTS" in
-    *,pty-intervall,*) OPTS=$(echo "$OPTS" |sed "s/,pty-intervall,/,pty-intervall=$INTERFACE,/g");;
+    *,pty-interval,*) OPTS=$(echo "$OPTS" |sed "s/,pty-interval,/,pty-interval=$INTERFACE,/g");;
     esac
     # RETRY
     case "$OPTS" in
-    *,intervall,*) OPTS=$(echo "$OPTS" |sed "s/,intervall,/,intervall=1,/g");;
+    *,interval,*) OPTS=$(echo "$OPTS" |sed "s/,interval,/,interval=1,/g");;
     esac
     # READLINE
     case "$OPTS" in
@@ -1444,15 +1444,13 @@ testecho () {
     #$ECHO "testing $title (test $num)... \c"
     $PRINTF "test $F_n %s... " $num "$title"
     #echo "$da" |$cmd >"$tf" 2>"$te"
-#set -vx
-    (echo "$da"; rsleep $T) |$SOCAT $opts "$arg1" "$arg2" >"$tf" 2>"$te" &
+    (echo "$da"; rsleep $T) |($SOCAT $opts "$arg1" "$arg2" >"$tf" 2>"$te"; echo $? >"$td/test$N.rc") &
     export rc1=$!
     #sleep 5 && kill $rc1 2>/dev/null &
 #    rc2=$!
     wait $rc1
 #    kill $rc2 2>/dev/null
-#set +vx
-    if [ "$?" != 0 ]; then
+    if [ "$(cat "$td/test$N.rc")" != 0 ]; then
 	$PRINTF "$FAILED: $SOCAT:\n"
 	echo "$SOCAT $opts $arg1 $arg2"
 	cat "$te"
@@ -1522,7 +1520,7 @@ testod () {
     local te="$td/test$N.stderr"
     local tdiff="$td/test$N.diff"
     local dain="$(date)"
-    local daout="$(echo "$dain" |od -c)"
+    local daout="$(echo "$dain" |$OD_C)"
     $PRINTF "test $F_n %s... " $num "$title"
     (echo "$dain"; rsleep $T) |$SOCAT $opts "$arg1" "$arg2" >"$tf" 2>"$te"
     if [ "$?" != 0 ]; then
@@ -1573,6 +1571,61 @@ testoptions () {
 	return 1
     done
     return 0
+}
+
+# check if a process with given pid exists; print its ps line
+# if yes: prints line to stdout, returns 0
+# if not: prints ev.message to stderr, returns 1
+ifprocess () {
+    local l
+    case "$UNAME" in
+    AIX)     l="$(ps -fade |grep "^........ $(printf %6u $1)")" ;;
+    FreeBSD) l="$(ps -faje |grep "^........ $(printf %5u $1)")" ;;
+    HP-UX)   l="$(ps -fade |grep "^........ $(printf %5u $1)")" ;;
+    Linux)   l="$(ps -fade |grep "^........ $(printf %5u $1)")" ;;
+    SunOS)   l="$(ps -fade |grep "^........ $(printf %5u $1)")" ;;
+    *)       l="$(ps -fade |grep "^[^ ][^ ]*[ ][ ]*$(printf %5u $1) ")" ;;
+    esac
+    if [ -z "$l" ]; then
+	return 1;
+    fi
+    echo "$l"
+    return 0
+}
+
+# check if the given pid exists and has child processes
+# if yes: prints child process lines to stdout, returns 0
+# if not: prints ev.message to stderr, returns 1
+childprocess () {
+    local l
+    case "$UNAME" in
+    AIX)     l="$(ps -fade |grep "^........ ...... $(printf %6u $1)")" ;;
+    FreeBSD) l="$(ps -faje |grep "^........ ..... $(printf %5u $1)")" ;;
+    HP-UX)   l="$(ps -fade |grep "^........ ..... $(printf %5u $1)")" ;;
+    Linux)   l="$(ps -fade |grep "^........ ..... $(printf %5u $1)")" ;;
+    SunOS)   l="$(ps -fade |grep "^........ ..... $(printf %5u $1)")" ;;
+    *)       l="$(ps -fade |grep "^[^ ][^ ]*[ ][ ]*[0-9][0-9]**[ ][ ]*$(printf %5u $1) ")" ;;    esac
+    if [ -z "$l" ]; then
+	return 1;
+    fi
+    echo "$l"
+    return 0
+}
+
+# check if the given process line refers to a defunct (zombie) process
+# yes: returns 0
+# no: returns 1
+isdefunct () {
+    local l
+    case "$UNAME" in
+    AIX)     l="$(echo "$1" |grep ' <defunct>$')" ;;
+    FreeBSD) l="$(echo "$1" |grep ' <defunct>$')" ;;
+    HP-UX)   l="$(echo "$1" |grep ' <defunct>$')" ;;
+    Linux)   l="$(echo "$1" |grep ' <defunct>$')" ;;
+    SunOS)   l="$(echo "$1" |grep ' <defunct>$')" ;;
+    *)       l="$(echo "$1" |grep ' <defunct>$')" ;;
+    esac
+    [ -n "$l" ];
 }
 
 unset HAVENOT_IP4
@@ -2052,7 +2105,11 @@ esac
 N=$((N+1))
 
 
+# test: send EOF to exec'ed sub process, let it finished its operation, and 
+# check if the sub process returns its data before terminating.
 NAME=EXECSOCKETFLUSH
+# idea: have socat exec'ing od; send data and EOF, and check if the od'ed data
+# arrives.
 case "$TESTS" in
 *%functions%*|*%exec%*|*%$NAME%*)
 TEST="$NAME: call to od via exec with socketpair"
@@ -2341,13 +2398,15 @@ CMD1="$SOCAT $opts TCP4-LISTEN:$tsl,reuseaddr PIPE"
 CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
 printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
+pid1=$!
 waittcp4port $tsl 1
 echo "$da" |$CMD2 >>"$tf" 2>>"${te}2"
 if [ $? -ne 0 ]; then
    $PRINTF "$FAILED: $SOCAT:\n"
    echo "$CMD1 &"
+   cat "${te}1"
    echo "$CMD2"
-   cat "$te"
+   cat "${te}2"
    numFAIL=$((numFAIL+1))
 elif ! echo "$da" |diff - "$tf" >"$tdiff"; then
    $PRINTF "$FAILED\n"
@@ -2357,7 +2416,9 @@ else
    $PRINTF "$OK\n"
    if [ -n "$debug" ]; then cat "${te}1" "${te}2"; fi
    numOK=$((numOK+1))
-fi ;;
+fi
+kill $pid1 2>/dev/null
+wait ;;
 esac
 PORT=$((PORT+1))
 N=$((N+1))
@@ -3642,6 +3703,52 @@ esac
 PORT=$((PORT+1))
 N=$((N+1))
 
+# does our OpenSSL implementation support halfclose?
+NAME=OPENSSLEOF
+case "$TESTS" in
+*%functions%*|*%openssl%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
+TEST="$NAME: openssl half close"
+# have an SSL server that executes "$OD_C" and see if EOF on the SSL client
+# brings the result of od to the client
+if ! testaddrs openssl >/dev/null; then
+    $PRINTF "test $F_n $TEST... ${YELLOW}OPENSSL not available${NORMAL}\n" $N
+    numCANT=$((numCANT+1))
+elif ! testaddrs listen tcp ip4 >/dev/null || ! runsip4 >/dev/null; then
+    $PRINTF "test $F_n $TEST... ${YELLOW}TCP/IPv4 not available${NORMAL}\n" $N
+    numCANT=$((numCANT+1))
+else
+gentestcert testsrv
+tf="$td/test$N.stdout"
+te="$td/test$N.stderr"
+tdiff="$td/test$N.diff"
+da=$(date)
+CMD2="$SOCAT $opts OPENSSL-LISTEN:$PORT,pf=ip4,reuseaddr,$SOCAT_EGD,cert=testsrv.crt,key=testsrv.key,verify=0 exec:'$OD_C'"
+CMD="$SOCAT $opts - openssl:$LOCALHOST:$PORT,verify=0,$SOCAT_EGD"
+printf "test $F_n $TEST... " $N
+eval "$CMD2 2>\"${te}1\" &"
+pid=$!	# background process id
+waittcp4port $PORT
+echo "$da" |$CMD >$tf 2>"${te}2"
+if ! echo "$da" |$OD_C |diff - "$tf" >"$tdiff"; then
+    $PRINTF "$FAILED: $SOCAT:\n"
+    echo "$CMD2 &"
+    echo "$CMD"
+    cat "${te}1"
+    cat "${te}2"
+    cat "$tdiff"
+    numFAIL=$((numFAIL+1))
+else
+   $PRINTF "$OK\n"
+   if [ -n "$debug" ]; then cat "${te}1" "${te}2"; fi
+   numOK=$((numOK+1))
+fi
+kill $pid 2>/dev/null
+wait
+fi
+esac
+PORT=$((PORT+1))
+N=$((N+1))
+
 
 NAME=OPENSSL_SERVERAUTH
 case "$TESTS" in
@@ -4482,7 +4589,7 @@ da=$(date)
 # this is the server in the protected network that we want to reach
 CMD1="$SOCAT -lpserver $opts tcp4-l:$PORT,reuseaddr,bind=$LOCALHOST echo"
 # this is the double client in the protected network
-CMD2="$SOCAT -lp2client $opts tcp4:$LOCALHOST:$((PORT+1)),retry=10,intervall=1 tcp4:$LOCALHOST:$PORT"
+CMD2="$SOCAT -lp2client $opts tcp4:$LOCALHOST:$((PORT+1)),retry=10,interval=1 tcp4:$LOCALHOST:$PORT"
 # this is the double server in the outside network
 CMD3="$SOCAT -lp2server $opts tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST tcp4-l:$((PORT+1)),reuseaddr,bind=$LOCALHOST"
 # this is the outside client that wants to use the protected server
@@ -4544,7 +4651,7 @@ CMD2="$SOCAT $opts -lpproxy tcp4-l:$((PORT+1)),reuseaddr,bind=$LOCALHOST,fork ex
 #CMD3="$SOCAT $opts -lpwrapper tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST,fork proxy:$LOCALHOST:$LOCALHOST:$((PORT+3)),pf=ip4,proxyport=$((PORT+1)),resolve"
 CMD3="$SOCAT $opts -lpwrapper tcp4-l:$((PORT+2)),reuseaddr,bind=$LOCALHOST,fork proxy:$LOCALHOST:$((PORT+3)),resolve\\|tcp4:$LOCALHOST:$((PORT+1))"
 # this is our double client in the protected network using SSL
-#CMD4="$SOCAT $opts -lp2client ssl:$LOCALHOST:$((PORT+2)),pf=ip4,retry=10,intervall=1,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD tcp4:$LOCALHOST:$PORT"
+#CMD4="$SOCAT $opts -lp2client ssl:$LOCALHOST:$((PORT+2)),pf=ip4,retry=10,interval=1,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD tcp4:$LOCALHOST:$PORT"
 #CMD4="$SOCAT $opts -lp2client ssl:$LOCALHOST:$((PORT+2)),pf=ip4,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD tcp4:$LOCALHOST:$PORT"
 CMD4="$SOCAT $opts -lp2client ssl,cert=testcli.pem,cafile=testsrv.crt,$SOCAT_EGD\|tcp4:$LOCALHOST:$((PORT+2)) tcp4:$LOCALHOST:$PORT"
 # this is the double server in the outside network
@@ -5299,7 +5406,7 @@ NAME=UNIEXECEOF
 case "$TESTS" in
 *%functions%*|*%$NAME%*)
 TEST="$NAME: give exec'd write-only process a chance to flush (-u)"
-testod "$N" "$TEST" "" exec:'od -c' "$opts -u"
+testod "$N" "$TEST" "" exec:"$OD_C" "$opts -u"
 esac
 N=$((N+1))
 
@@ -5308,7 +5415,7 @@ NAME=REVEXECEOF
 case "$TESTS" in
 *%functions%*|*%$NAME%*)
 TEST="$NAME: give exec'd write-only process a chance to flush (-U)"
-testod "$N" "$TEST" exec:'od -c' "-" "$opts -U"
+testod "$N" "$TEST" exec:"$OD_C" "-" "$opts -U"
 esac
 N=$((N+1))
 
@@ -6050,7 +6157,10 @@ NAME=RAWIP6RECVFROM
 case "$TESTS" in
 *%functions%*|*%ip%*|*%ip6%*|*%rawip%*|*%rawip6%*|*%dgram%*|*%root%*|*%$NAME%*)
 TEST="$NAME: raw IPv6 datagram by self addressing"
-if [ $(id -u) -ne 0 -a "$withroot" -eq 0 ]; then
+if ! feat=$(testaddrs ip6 rawip) || ! runsip6 >/dev/null; then
+    $PRINTF "test $F_n $TEST... ${YELLOW}$feat not available${NORMAL}\n" $N
+    numCANT=$((numCANT+1))
+elif [ $(id -u) -ne 0 -a "$withroot" -eq 0 ]; then
     $PRINTF "test $F_n $TEST... ${YELLOW}must be root${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
@@ -6278,7 +6388,7 @@ NAME=RAWIP6RECV
 case "$TESTS" in
 *%functions%*|*%ip6%*|*%dgram%*|*%rawip%*|*%rawip6%*|*%recv%*|*%root%*|*%$NAME%*)
 TEST="$NAME: raw IPv6 receive"
-if ! feat=$(testaddrs ip6 rawip) || ! runsip4 >/dev/null; then
+if ! feat=$(testaddrs ip6 rawip) || ! runsip6 >/dev/null; then
     $PRINTF "test $F_n $TEST... ${YELLOW}$feat not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 elif [ $(id -u) -ne 0 -a "$withroot" -eq 0 ]; then
@@ -6985,14 +7095,14 @@ N=$((N+1))
 
 NAME=COOLWRITE
 case "$TESTS" in
-*%functions%*|*%timeout%*|*%ignoreeof%*|*%$NAME%*)
+*%functions%*|*%timeout%*|*%ignoreeof%*|*%coolwrite%*|*%$NAME%*)
 TEST="$NAME: option cool-write"
 if ! testoptions cool-write >/dev/null; then
     $PRINTF "test $F_n $TEST... ${YELLOW}option cool-write not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 #set -vx
-ti="$td/test$N.file"
+ti="$td/test$N.pipe"
 tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
 tdiff="$td/test$N.diff"
@@ -7005,6 +7115,53 @@ $CMD1 2>"${te}1" &
 bg=$!	# background process id
 sleep 1
 (echo .; sleep 1; echo) |$CMD 2>"$te"
+rc=$?
+kill $bg 2>/dev/null; wait
+if [ $rc -ne 0 ]; then
+    $PRINTF "$FAILED: $SOCAT:\n"
+    echo "$CMD &"
+    cat "$te"
+    numFAIL=$((numFAIL+1))
+else
+   $PRINTF "$OK\n"
+   if [ -n "$debug" ]; then cat "$te"; fi
+   numOK=$((numOK+1))
+fi
+fi # testoptions
+esac
+N=$((N+1))
+
+
+# test if option coolwrite can be applied to bidirectional address stdio
+# this failed up to socat 1.6.0.0
+NAME=COOLSTDIO
+case "$TESTS" in
+*%functions%*|*%timeout%*|*%ignoreeof%*|*%coolwrite%*|*%$NAME%*)
+TEST="$NAME: option cool-write on bidirectional stdio"
+# this test starts a socat reader that terminates after receiving one+ 
+# bytes (option readbytes); and a test process that sends two bytes via
+# named pipe to the receiving process and, a second later, sends another
+# byte. The last write will fail with "broken pipe"; if option coolwrite
+# has been applied successfully, socat will terminate with 0 (OK),
+# otherwise with error.
+if ! testoptions cool-write >/dev/null; then
+    $PRINTF "test $F_n $TEST... ${YELLOW}option cool-write not available${NORMAL}\n" $N
+    numCANT=$((numCANT+1))
+else
+#set -vx
+ti="$td/test$N.pipe"
+tf="$td/test$N.stdout"
+te="$td/test$N.stderr"
+tdiff="$td/test$N.diff"
+da="$(date) $RANDOM"
+# a reader that will terminate after 1 byte
+CMD1="$SOCAT $opts -u pipe:\"$ti\",readbytes=1 /dev/null"
+CMD="$SOCAT $opts -,cool-write pipe >\"$ti\""
+printf "test $F_n $TEST... " $N
+$CMD1 2>"${te}1" &
+bg=$!	# background process id
+sleep 1
+(echo .; sleep 1; echo) |eval "$CMD" 2>"$te"
 rc=$?
 kill $bg 2>/dev/null; wait
 if [ $rc -ne 0 ]; then
@@ -7740,6 +7897,7 @@ touch "$ts"	# make a file with same name, so non-abstract fails
 eval "$SRV 2>${te}s &"
 pids=$!
 #waitfile "$ts"
+sleep 1
 echo "$da1" |eval "$CMD" >"${tf}1" 2>"${te}1"
 if [ $? -ne 0 ]; then
     kill "$pids" 2>/dev/null
@@ -7790,6 +7948,7 @@ printf "test $F_n $TEST... " $N
 touch "$ts1"	# make a file with same name, so non-abstract fails
 $CMD1 2>"${te}1" &
 pid1="$!"
+sleep 1
 echo "$da" |$CMD2 >>"$tf" 2>>"${te}2"
 rc2=$?
 kill "$pid1" 2>/dev/null; wait
@@ -7836,6 +7995,7 @@ touch "$ts1"	# make a file with same name, so non-abstract fails
 $CMD1 >"$tf" 2>"${te}1" &
 pid1="$!"
 #waitfile $ts1 1
+sleep 1
 echo "$da" |$CMD2 2>>"${te}2"
 rc2="$?"
 i=0; while [ ! -s "$tf" -a "$i" -lt 10 ]; do  usleep 100000; i=$((i+1));  done
@@ -7865,7 +8025,7 @@ N=$((N+1))
 NAME=OPENSSLREAD
 # socat determined availability of data using select(). With openssl, the
 # following situation might occur:
-# a SSL data block with more than 8192 bytes (socat defaults blocksize) 
+# a SSL data block with more than 8192 bytes (socats default blocksize) 
 # arrives; socat calls SSL_read, and the SSL routine reads the complete block.
 # socat then reads 8192 bytes from the SSL layer, the rest remains buffered.
 # If the TCP connection stays idle for some time, the data in the SSL layer
@@ -7894,7 +8054,9 @@ printf "test $F_n $TEST... " $N
 #
 $CMD1 2>"${te}1" >"$tf" &
 pid=$!	# background process id
+waittcp4port $PORT
 (echo "$da"; sleep 2) |$CMD2 2>"${te}2"
+kill "$pid" 2>/dev/null; wait
 if ! echo "$da" |diff - "$tf" >"$tdiff"; then
     $PRINTF "$FAILED: $SOCAT:\n"
     echo "$CMD1"
@@ -7909,6 +8071,7 @@ else
    numOK=$((numOK+1))
 fi
 fi
+wait ;;
 esac
 N=$((N+1))
 
@@ -7926,8 +8089,7 @@ TEST="$NAME: trigger EOF after that many bytes, even when socket idle"
 # we try to transfer data in the other direction then; if transfer succeeds,
 # the process did not terminate and the bug is still there.
 if false; then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not avail
-able${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 tr="$td/test$N.ref"
@@ -7951,6 +8113,248 @@ fi
 fi
 esac
 N=$((N+1))
+
+
+# test: there was a bug with exec:...,pty that did not kill the exec'd sub
+# process under some circumstances.
+NAME=EXECPTYKILL
+case "$TESTS" in
+*%functions%*|*%bugs%*|*%exec%*|*%$NAME%*)
+TEST="$NAME: exec:...,pty explicitely kills sub process"
+# we want to check if the exec'd sub process is kill in time
+# for this we have a shell script that generates a file after two seconds;
+# it should be killed after one second, so if the file was generated the test
+# has failed
+tf="$td/test$N.stdout"
+te="$td/test$N.stderr"
+ts="$td/test$N.sock"
+tda="$td/test$N.data"
+tsh="$td/test$N.sh"
+tdiff="$td/test$N.diff"
+cat >"$tsh" <<EOF
+sleep 1; echo; sleep 1;  touch "$tda"; echo
+EOF
+chmod a+x "$tsh"
+CMD1="$SOCAT $opts -U UNIX-LISTEN:$ts,fork EXEC:$tsh,pty"
+CMD="$SOCAT $opts /dev/null UNIX-CONNECT:$ts"
+printf "test $F_n $TEST... " $N
+$CMD1 2>"${te}2" &
+pid1=$!
+sleep 1
+waitfile $ts 1
+$CMD 2>>"${te}1" >>"$tf"
+usleep 2500000
+kill "$pid1" 2>/dev/null
+wait
+if [ $? -ne 0 ]; then
+    $PRINTF "$FAILED: $SOCAT:\n"
+    echo "$CMD1 &"
+    echo "$CMD2"
+    cat "${te}1" "${te}2"
+    numFAIL=$((numFAIL+1))
+elif [ -f "$tda" ]; then
+    $PRINTF "$FAILED\n"
+    cat "${te}1" "${te}2"
+    numFAIL=$((numFAIL+1))
+else
+    $PRINTF "$OK\n"
+    if [ -n "$debug" ]; then cat "${te}1" "${te}2"; fi
+    numOK=$((numOK+1))
+fi ;;
+esac
+PORT=$((PORT+1))
+N=$((N+1))
+
+
+# test if service name resolution works; this was buggy in 1.5 and 1.6.0.0
+NAME=TCP4SERVICE
+case "$TESTS" in
+*%functions%*|*%ip4%*|*%ipapp%*|*%tcp%*|*%$NAME%*)
+TEST="$NAME: echo via connection to TCP V4 socket"
+# select a tcp entry from /etc/services, have a server listen on the port 
+# number and connect using the service name; with the bug, connection will to a
+# wrong port
+tf="$td/test$N.stdout"
+te="$td/test$N.stderr"
+tdiff="$td/test$N.diff"
+# find a service entry we do not need root for (>=1024; here >=1100 for ease)
+SERVENT="$(grep '^[a-z][a-z]*[^!-~][^!-~]*[1-9][1-9][0-9][0-9]/tcp' /etc/services |head -n 1)"
+SERVICE="$(echo $SERVENT |cut -d' ' -f1)"
+PORT="$(echo $SERVENT |sed 's/.* \([1-9][0-9]*\).*/\1/')"
+tsl="$PORT"
+ts="127.0.0.1:$SERVICE"
+da=$(date)
+CMD1="$SOCAT $opts TCP4-LISTEN:$tsl,reuseaddr PIPE"
+CMD2="$SOCAT $opts stdout%stdin TCP4:$ts"
+printf "test $F_n $TEST... " $N
+$CMD1 >"$tf" 2>"${te}1" &
+pid1=$!
+waittcp4port $tsl 1
+echo "$da" |$CMD2 >>"$tf" 2>>"${te}2"
+if [ $? -ne 0 ]; then
+   $PRINTF "$FAILED: $SOCAT:\n"
+   echo "$CMD1 &"
+   cat "${te}1"
+   echo "$CMD2"
+   cat "${te}2"
+   numFAIL=$((numFAIL+1))
+elif ! echo "$da" |diff - "$tf" >"$tdiff"; then
+   $PRINTF "$FAILED\n"
+   cat "$tdiff"
+   numFAIL=$((numFAIL+1))
+else
+   $PRINTF "$OK\n"
+   if [ -n "$debug" ]; then cat "${te}1" "${te}2"; fi
+   numOK=$((numOK+1))
+fi
+kill $pid1 2>/dev/null
+wait ;;
+esac
+#PORT=$((PORT+1))
+N=$((N+1))
+
+
+# test: up to socat 1.6.0.0, the highest file descriptor supported in socats
+# transfer engine was FOPEN_MAX-1; this usually worked fine but would fail when
+# socat was invoked with many file descriptors already opened. socat would 
+# just hang in the select() call. Thanks to Daniel Lucq for reporting this
+# problem. 
+# FOPEN_MAX on different OS's:
+#   OS			FOPEN_	ulimit	ulimit	FD_
+#			MAX	-H -n	-S -n	SETSIZE
+#   Linux 2.6:		16	1024	1024	1024
+#   HP-UX 11.11:	60	2048	2048	2048
+#   FreeBSD:		20	11095	11095	1024
+#   Cygwin:		20	unlimit	256	64
+#   AIX:		32767	65534		65534
+#   SunOS 8:		20			1024
+NAME=EXCEED_FOPEN_MAX
+case "$TESTS" in
+*%functions%*|*%maxfds%*|*%$NAME%*)
+TEST="$NAME: more than FOPEN_MAX FDs in use"
+# this test opens a number of FDs before socat is invoked. socat will have to
+# allocate higher FD numbers and thus hang if it cannot handle them.
+REDIR=
+#set -vx
+FOPEN_MAX=$($PROCAN -c 2>/dev/null |grep '^#define[ ][ ]*FOPEN_MAX' |awk '{print($3);}')
+if [ -z "$FOPEN_MAX" ]; then
+    $PRINTF "test $F_n $TEST... ${YELLOW}could not determine FOPEN_MAX${NORMAL}\n" "$N"
+    numCANT=$((numCANT+1))
+else
+OPEN_FILES=$FOPEN_MAX	# more than the highest FOPEN_MAX
+i=3; while [ "$i" -lt "$OPEN_FILES" ]; do
+    REDIR="$REDIR $i>&2"
+    i=$((i+1))
+done
+#echo "$REDIR"
+#testecho "$N" "$TEST" "" "pipe" "$opts -T 3" "" 1 
+#set -vx
+eval testecho "\"$N\"" "\"$TEST\"" "\"\"" "pipe" "\"$opts -T 1\"" 1 $REDIR
+#set +vx
+fi # could determine FOPEN_MAX
+esac
+N=$((N+1))
+
+
+# there was a bug with udp-listen and fork: terminating sub processes became
+# zombies because the master process did not catch SIGCHLD
+NAME=UDP4LISTEN_SIGCHLD
+case "$TESTS" in
+*%functions%*|*%ip4%*|*%ipapp%*|*%udp%*|*%zombie%*|*%$NAME%*)
+TEST="$NAME: test if UDP4-LISTEN child becomes zombie"
+# idea: run a udp-listen process with fork and -T. Connect once, so a sub
+# process is forked off. Make some transfer and wait until the -T timeout is
+# over. Now check for the child process: if it is zombie the test failed. 
+# Correct is that child process terminated
+tf="$td/test$N.stdout"
+te="$td/test$N.stderr"
+tdiff="$td/test$N.diff"
+tsl=$PORT
+ts="$LOCALHOST:$tsl"
+da=$(date)
+CMD1="$SOCAT $opts -T 0.5 UDP4-LISTEN:$tsl,reuseaddr,fork PIPE"
+CMD2="$SOCAT $opts - UDP4:$ts"
+printf "test $F_n $TEST... " $N
+$CMD1 >"$tf" 2>"${te}1" &
+pid1=$!
+waitudp4port $tsl 1
+echo "$da" |$CMD2 >>"$tf" 2>>"${te}2"
+rc2=$?
+sleep 1
+#read -p ">"
+l="$(childprocess $pid1)"
+kill $pid1 2>/dev/null; wait
+if [ $rc2 -ne 0 ]; then
+    $PRINTF "$NO_RESULT\n"	# already handled in test UDP4STREAM
+    numCANT=$((numCANT+1))
+elif ! echo "$da" |diff - "$tf" >"$tdiff"; then
+    $PRINTF "$NO_RESULT\n"	# already handled in test UDP4STREAM
+    numCANT=$((numCANT+1))
+elif $(isdefunct "$l"); then
+    $PRINTF "$FAILED: $SOCAT:\n"
+    echo "$CMD1 &"
+    echo "$CMD2"
+    cat "${te}1" "${te}2"
+    numFAIL=$((numFAIL+1))
+else
+    $PRINTF "$OK\n"
+    if [ -n "$debug" ]; then cat "${te}1" "${te}2"; fi
+    numOK=$((numOK+1))
+fi ;;
+esac
+PORT=$((PORT+1))
+N=$((N+1))
+
+
+# there was a bug with udp-recvfrom and fork: terminating sub processes became
+# zombies because the master process caught SIGCHLD but did not wait()
+NAME=UDP4RECVFROM_SIGCHLD
+case "$TESTS" in
+*%functions%*|*%ip4%*|*%udp%*|*%dgram%*|*%zombie%*|*%$NAME%*)
+TEST="$NAME: test if UDP4-RECVFROM child becomes zombie"
+# idea: run a udp-recvfrom process with fork and -T. Sent it one packet, so a
+# sub process is forked off. Make some transfer and wait until the -T timeout
+# is over. Now check for the child process: if it is zombie the test failed. 
+# Correct is that child process terminated
+tf="$td/test$N.stdout"
+te="$td/test$N.stderr"
+tdiff="$td/test$N.diff"
+tsl=$PORT
+ts="$LOCALHOST:$tsl"
+da=$(date)
+CMD1="$SOCAT $opts -T 0.5 UDP4-RECVFROM:$tsl,reuseaddr,fork PIPE"
+CMD2="$SOCAT $opts - UDP4-SENDTO:$ts"
+printf "test $F_n $TEST... " $N
+$CMD1 >"$tf" 2>"${te}1" &
+pid1=$!
+waitudp4port $tsl 1
+echo "$da" |$CMD2 >>"$tf" 2>>"${te}2"
+rc2=$?
+sleep 1
+#read -p ">"
+l="$(childprocess $pid1)"
+kill $pid1 2>/dev/null; wait
+if [ $rc2 -ne 0 ]; then
+    $PRINTF "$NO_RESULT\n"	# already handled in test UDP4DGRAM
+    numCANT=$((numCANT+1))
+elif ! echo "$da" |diff - "$tf" >"$tdiff"; then
+    $PRINTF "$NO_RESULT\n"	# already handled in test UDP4DGRAMM
+    numCANT=$((numCANT+1))
+elif $(isdefunct "$l"); then
+    $PRINTF "$FAILED: $SOCAT:\n"
+    echo "$CMD1 &"
+    echo "$CMD2"
+    cat "${te}1" "${te}2"
+    numFAIL=$((numFAIL+1))
+else
+    $PRINTF "$OK\n"
+    if [ -n "$debug" ]; then cat "${te}1" "${te}2"; fi
+    numOK=$((numOK+1))
+fi ;;
+esac
+PORT=$((PORT+1))
+N=$((N+1))
+
 
 echo "summary: $((N-1)) tests; $numOK ok, $numFAIL failed, $numCANT could not be performed"
 

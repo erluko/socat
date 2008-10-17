@@ -1,5 +1,5 @@
-/* $Id: xio-rawip.c,v 1.32 2007/02/05 19:56:34 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xio-rawip.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of raw IP type */
@@ -29,7 +29,7 @@ int xioopen_rawip_datagram(int argc, const char *argv[], struct opt *opts,
 static
 int xioopen_rawip_recvfrom(int argc, const char *argv[], struct opt *opts,
 			 int xioflags, xiofile_t *xfd, unsigned groups,
-			 int pf, int dummy2, int dummy3);
+			 int pf, int socktype, int dummy3);
 static
 int xioopen_rawip_recv(int argc, const char *argv[], struct opt *opts,
 		       int xioflags, xiofile_t *xfd, unsigned groups,
@@ -262,11 +262,12 @@ int xioopen_rawip_recvfrom(int argc, const char *argv[], struct opt *opts,
 static
 int xioopen_rawip_recv(int argc, const char *argv[], struct opt *opts,
 		       int xioflags, xiofile_t *xfd, unsigned groups,
-		       int pf, int socktype, int ipproto) {
+		       int pf, int socktype, int dummy3) {
    const char *protname = argv[1];
    char *garbage;
    union sockaddr_union us;
    socklen_t uslen = sizeof(us);
+   int ipproto;
    int result;
 
    if (argc != 2) {
@@ -276,11 +277,11 @@ int xioopen_rawip_recv(int argc, const char *argv[], struct opt *opts,
    }
 
    if ((ipproto = strtoul(protname, &garbage, 0)) >= 256) {
-      Error2("xioopen_rawip_recvfrom(\"%s\",,): protocol number exceeds 255 (%u)",
+      Error2("xioopen_rawip_recv(\"%s\",,): protocol number exceeds 255 (%u)",
 	     protname, ipproto);
       return STAT_NORETRY;
    } else if (*garbage) {
-      Warn1("xioopen_rawip_recvfrom(\"%s\",,): trailing garbage in protocol specification",
+      Warn1("xioopen_rawip_recv(\"%s\",,): trailing garbage in protocol specification",
 	     protname);
       /*return STAT_NORETRY;*/
    }

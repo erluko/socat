@@ -1,5 +1,5 @@
-/* $Id: xiosigchld.c,v 1.21 2006/12/28 14:38:38 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xiosigchld.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source of the extended child signal handler */
@@ -290,5 +290,28 @@ void xiosigaction_child(int signum, siginfo_t *siginfo, void *ucontext) {
    if (xfd->child.sigchild) {
       (*xfd->child.sigchild)(xfd);
    }
+}
+
+
+int xiosetchilddied(void) {
+#if HAVE_SIGACTION
+   struct sigaction act;
+   memset(&act, 0, sizeof(struct sigaction));
+   act.sa_flags   = SA_NOCLDSTOP|SA_RESTART|SA_SIGINFO
+#ifdef SA_NOMASK
+      |SA_NOMASK
+#endif
+      ;
+   act.sa_sigaction = childdied;
+   if (Sigaction(SIGCHLD, &act, NULL) < 0) {
+      /*! man does not say that errno is defined */
+      Warn2("sigaction(SIGCHLD, %p, NULL): %s", childdied, strerror(errno));
+   }
+#else /* HAVE_SIGACTION */
+   if (Signal(SIGCHLD, childdied) == SIG_ERR) {
+      Warn2("signal(SIGCHLD, %p): %s", childdied, strerror(errno));
+   }
+#endif /* !HAVE_SIGACTION */
+   return 0;
 }
 

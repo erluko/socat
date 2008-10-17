@@ -1,5 +1,5 @@
-/* $Id: xio-proxy.c,v 1.28 2006/12/28 14:02:54 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2002-2007 */
+/* source: xio-proxy.c */
+/* Copyright Gerhard Rieger 2002-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of HTTP proxy CONNECT
@@ -253,6 +253,10 @@ static int xioopen_proxy_connect3(int argc, const char *argv[], struct opt *opts
 #endif /* WITH_RETRY */
       default:
 	 return result;
+      }
+
+      if (dofork) {
+	 xiosetchilddied();	/* set SIGCHLD handler */
       }
 
 #if WITH_RETRY

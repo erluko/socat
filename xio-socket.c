@@ -1,5 +1,5 @@
-/* $Id: xio-socket.c,v 1.45 2007/03/06 21:12:09 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xio-socket.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for socket related functions */
@@ -402,6 +402,10 @@ int xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 	 return result;
       }
 
+      if (dofork) {
+	 xiosetchilddied();	/* set SIGCHLD handler */
+      }
+
 #if WITH_RETRY
       if (dofork) {
 	 pid_t pid;
@@ -509,9 +513,37 @@ int _xioopen_dgram_sendto(/* them is already in xfd->peersa */
 static pid_t xio_waitingfor;
 static bool xio_hashappened;
 void xiosigaction_hasread(int signum, siginfo_t *siginfo, void *ucontext) {
+   pid_t pid;
+   int _errno;
+   int status = 0;
+   bool wassig = false;
    Debug5("xiosigaction_hasread(%d, {%d,%d,%d,"F_pid"}, )",
 	  signum, siginfo->si_signo, siginfo->si_errno, siginfo->si_code,
 	  siginfo->si_pid);
+   _errno = errno;
+   do {
+      pid = Waitpid(-1, &status, WNOHANG);
+      if (pid == 0) {
+	 Msg(wassig?E_INFO:E_WARN,
+	     "waitpid(-1, {}, WNOHANG): no child has exited");
+	 Info("childdied() finished");
+	 errno = _errno;
+	 return;
+      } else if (pid < 0 && errno == ECHILD) {
+	 Msg1(wassig?E_INFO:E_WARN,
+	      "waitpid(-1, {}, WNOHANG): %s", strerror(errno));
+	 Info("childdied() finished");
+	 errno = _errno;
+	 return;
+      }
+      wassig = true;
+      if (pid < 0) {
+	 Warn2("waitpid(-1, {%d}, WNOHANG): %s", status, strerror(errno));
+	 Info("childdied() finished");
+	 errno = _errno;
+	 return;
+      }
+   } while (1);
    if (xio_waitingfor == siginfo->si_pid) {
       xio_hashappened = true;
    }

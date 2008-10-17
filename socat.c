@@ -1,5 +1,5 @@
-/* $Id: socat.c,v 1.111 2007/03/06 21:03:28 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: socat.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the main source, including command line option parsing, general

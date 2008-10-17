@@ -1,5 +1,5 @@
-/* $Id: xio-listen.c,v 1.44 2007/02/08 18:27:00 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xio-listen.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for listen socket options */
@@ -114,6 +114,10 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
    }
 
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
+
+   if (dofork) {
+      xiosetchilddied();	/* set SIGCHLD handler */
+   }
 
    if ((xfd->fd1 = Socket(pf, socktype, proto)) < 0) {
       Msg4(level,

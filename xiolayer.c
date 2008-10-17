@@ -1,5 +1,5 @@
-/* $Id: xiolayer.c,v 1.7 2005/08/18 19:56:05 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xiolayer.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for common options */

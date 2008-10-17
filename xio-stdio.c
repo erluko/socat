@@ -1,5 +1,5 @@
-/* $Id: xio-stdio.c,v 1.18 2006/12/28 14:07:01 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xio-stdio.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses stdio type */
@@ -34,8 +34,7 @@ const union xioaddr_desc *xioaddrs_stdout[] = {
 const union xioaddr_desc *xioaddrs_stderr[] = {
    (union xioaddr_desc *)&xioaddr_stderr0, NULL };
 
-/* process a bidirectional "stdio" or "-" argument with options.
-   generate a dual address. */
+/* process a bidirectional "stdio" or "-" argument with options. */
 int xioopen_stdio_bi(xiofile_t *sock) {
    struct opt *opts1, *opts2, *optspr;
    unsigned int groups1 = xioaddr_stdio0.groups, groups2 = xioaddr_stdio0.groups;
@@ -68,8 +67,8 @@ int xioopen_stdio_bi(xiofile_t *sock) {
       }
    }
 #endif /* WITH_TERMIOS */
-
-   if (applyopts_single(&sock->stream, sock->stream.opts, PH_INIT) < 0)  return -1;
+   if (applyopts_single(&sock->stream, sock->stream.opts, PH_INIT) < 0)
+      return -1;
    applyopts(-1, sock->stream.opts, PH_INIT);
 
    /* options here are one-time and one-direction, no second use */

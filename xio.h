@@ -1,5 +1,5 @@
-/* $Id: xio.h,v 1.66 2007/03/06 21:25:51 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xio.h */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_h_included
@@ -591,6 +591,8 @@ extern int xioopenhelp(FILE *of, int level);
 extern xiofile_t *xioallocfd(void);
 extern void xiofreefd(xiofile_t *xfd);
 
+extern int xiosetsigchild(xiofile_t *xfd, int (*callback)(struct single *));
+extern int xiosetchilddied(void);
 extern int xio_opt_signal(pid_t pid, int signum);
 
 extern void *xioengine(void *thread_arg);

@@ -1,5 +1,5 @@
-/* $Id: xio-openssl.c,v 1.33 2007/02/26 21:31:40 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2002-2007 */
+/* source: xio-openssl.c */
+/* Copyright Gerhard Rieger 2002-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the implementation of the openssl addresses */
@@ -375,6 +375,10 @@ static int
 	 }
 #endif /* WITH_RETRY */
       default: return STAT_NORETRY;
+      }
+
+      if (dofork) {
+	 xiosetchilddied();	/* set SIGCHLD handler */
       }
 
 #if WITH_RETRY

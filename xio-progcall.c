@@ -1,5 +1,5 @@
-/* $Id: xio-progcall.c,v 1.54 2007/03/06 21:11:55 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xio-progcall.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains common code dealing with program calls (exec, system) */
@@ -941,6 +941,8 @@ int _xioopen_foxec_end(int xioflags,	/* XIO_RDONLY etc. */
 	 return STAT_RETRYLATER;
       }
       applyopts_cloexec(ptyfd, popts);/*!*/
+
+      /* exec:...,pty did not kill child process under some circumstances */
       if (fd->howtoshut == XIOSHUT_UNSPEC) {
 	 fd->howtoshut = XIOSHUTRD_SIGTERM|XIOSHUTWR_SIGHUP;
       }
@@ -1077,11 +1079,8 @@ int _xioopen_foxec_end(int xioflags,	/* XIO_RDONLY etc. */
    /*0   if ((optpr = copyopts(*copts, GROUP_PROCESS)) == NULL)
      return STAT_RETRYLATER;*/
    retropt_bool(*copts, OPT_STDERR, &withstderr);
-#if 0
-   if (Signal(SIGCHLD, childdied) == SIG_ERR) {
-      Warn2("signal(SIGCHLD, %p): %s", childdied, strerror(errno));
-   }
-#endif
+
+   xiosetchilddied();	/* set SIGCHLD handler */
 
    if (withfork) {
       const char *forkwaitstring;

@@ -1,5 +1,5 @@
-/* $Id: procan_main.c,v 1.13 2007/03/06 21:19:18 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: procan_main.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 const char copyright[] = "procan by Gerhard Rieger - send bug reports to socat@dest-unreach.org";
@@ -32,6 +32,7 @@ int main(int argc, const char *argv[]) {
 #if WITH_HELP
       case '?': case 'h': procan_usage(stdout); exit(0);
 #endif /* WITH_HELP */
+      case 'c': procan_cdefs(stdout); exit(0);
 #if LATER
       case 'V': procan_version(stdout); exit(0);
       case 'l': diag_set(arg1[0][2], &arg1[0][3]); break;
@@ -79,6 +80,7 @@ static void procan_usage(FILE *fd) {
 #if WITH_HELP
    fputs("      -?|-h  print a help text describing command line options\n", fd);
 #endif
+   fputs("      -c     print values of compile time C defines\n", fd);
 #if LATER
    fputs("      -d     increase verbosity (use up to 4 times; 2 are recommended)\n", fd);
 #endif

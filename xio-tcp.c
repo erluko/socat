@@ -1,4 +1,4 @@
-/* $Id: xio-tcp.c,v 1.24.2.1 2006/07/24 19:18:39 gerhard Exp $ */
+/* source: xio-tcp.c */
 /* Copyright Gerhard Rieger 2001-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 

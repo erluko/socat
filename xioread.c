@@ -1,5 +1,5 @@
-/* $Id: xioread.c,v 1.38 2007/03/06 21:20:07 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xioread.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source of the extended read function */
@@ -172,7 +172,7 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
       }
 
       if (pipe->peersa.soa.sa_family != PF_UNSPEC) {
-	 /* a peer address is defined, so we need to check if it matches */
+	 /* a peer address is registered, so we need to check if it matches */
 #if 0 /* with UNIX sockets we find inconsistent lengths */
 	 if (fromlen != pipe->salen) {
 	    Info("recvfrom(): wrong peer address length, ignoring packet");

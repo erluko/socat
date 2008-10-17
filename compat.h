@@ -1,13 +1,13 @@
-/* $Id: compat.h,v 1.32 2006/06/19 20:28:52 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: compat.h */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __compat_h_included
 #define __compat_h_included 1
 
 /*****************************************************************************/
-/* I dont like this system dependent part, but it would be quit a challenge for
-   configure */
+/* I dont like this system dependent part, but it would be quite a challenge
+   for configure */
 
 /* define if the following does not work:
    socket()

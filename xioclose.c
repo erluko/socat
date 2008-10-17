@@ -1,5 +1,5 @@
-/* $Id: xioclose.c,v 1.26 2007/01/25 21:36:11 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xioclose.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source of the extended close function */
@@ -12,7 +12,7 @@
 #include "xio-termios.h"
 
 
-/* close the xio fd; must be valid and "simple" */
+/* close the xio fd; must be valid and "simple" (not dual) */
 int xioclose1(struct single *pipe) {
 
    if (pipe->tag == XIO_TAG_INVALID) {

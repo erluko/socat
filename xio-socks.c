@@ -1,5 +1,5 @@
-/* $Id: xio-socks.c,v 1.33 2006/12/28 14:06:37 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xio-socks.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of socks4 type */
@@ -204,6 +204,10 @@ static int xioopen_socks4_connect(int argc, const char *argv[], struct opt *opts
 #endif /* WITH_RETRY */
       default:
 	 return result;
+      }
+
+      if (dofork) {
+	 xiosetchilddied();	/* set SIGCHLD handler */
       }
 
 #if WITH_RETRY

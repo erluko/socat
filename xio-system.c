@@ -1,5 +1,5 @@
-/* $Id: xio-system.c,v 1.13.2.1 2006/07/24 19:18:36 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xio-system.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of system type */
@@ -58,6 +58,7 @@ static int xioopen_system(int argc, const char *argv[], struct opt *opts,
       result = System(string);
       if (result != 0) {
 	 Warn2("system(\"%s\") returned with status %d", string, result);
+	 Warn1("system(): %s", strerror(errno));
       }
       Exit(0);	/* this child process */
    }

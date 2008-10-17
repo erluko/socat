@@ -1,5 +1,5 @@
-/* $Id: xioopts.c,v 1.99 2007/03/06 21:22:04 gerhard Exp $ */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* source: xioopts.c */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for address options handling */
@@ -586,6 +586,7 @@ const struct optname optionnames[] = {
 #ifdef SO_BINDTODEVICE
 	IF_SOCKET ("interface",	&opt_so_bindtodevice)
 #endif
+	IF_RETRY  ("interval",	&opt_intervall)
 	IF_RETRY  ("intervall",	&opt_intervall)
 	IF_TERMIOS("intr",	&opt_vintr)
 #ifdef IP_ADD_MEMBERSHIP
@@ -1067,6 +1068,7 @@ const struct optname optionnames[] = {
 	IF_EXEC   ("pty",	&opt_pty)
 #endif
 #if HAVE_PTY && HAVE_POLL
+	IF_PTY    ("pty-interval",	&opt_pty_intervall)
 	IF_PTY    ("pty-intervall",	&opt_pty_intervall)
 	IF_PTY    ("pty-wait-slave",	&opt_pty_wait_slave)
 #endif /* HAVE_PTY && HAVE_POLL */
@@ -1542,7 +1544,9 @@ const struct optname optionnames[] = {
 #endif
 #if HAVE_PTY && HAVE_POLL
 	IF_PTY    ("wait-slave",	&opt_pty_wait_slave)
+#endif /* HAVE_PTY && HAVE_POLL */
 	IF_ANY    ("waitlock",	&opt_waitlock)
+#if HAVE_PTY && HAVE_POLL
 	IF_PTY    ("waitslave",	&opt_pty_wait_slave)
 #endif /* HAVE_PTY && HAVE_POLL */
 #ifdef VWERASE

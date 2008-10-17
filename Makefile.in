@@ -1,5 +1,5 @@
-# $Id: Makefile.in,v 1.114 2007/03/06 21:52:34 gerhard Exp $
-# Copyright Gerhard Rieger 2001-2007
+# source: Makefile.in
+# Copyright Gerhard Rieger 2001-2008
 # Published under the GNU General Public License V.2, see file COPYING
 
 # note: @...@ forms are filled in by configure script
@@ -51,7 +51,7 @@ XIOSRCS = xioinitialize.c xiohelp.c xioparam.c xiodiag.c xioopen.c xioopts.c \
 	xio-ascii.c xiolockfile.c xio-tcpwrap.c xio-ext2.c xio-tun.c \
 	xio-nop.c xio-test.c
 XIOOBJS = $(XIOSRCS:.c=.o)
-UTLSRCS = error.c dalan.c procan.c hostan.c fdname.c sysutils.c utils.c nestlex.c @FILAN@ @SYCLS@ @SSLCLS@
+UTLSRCS = error.c dalan.c procan.c procan-cdefs.c hostan.c fdname.c sysutils.c utils.c nestlex.c @FILAN@ @SYCLS@ @SSLCLS@
 UTLOBJS = $(UTLSRCS:.c=.o)
 CFILES = $(XIOSRCS) $(UTLSRCS) socat.c procan_main.c filan_main.c
 OFILES = $(CFILES:.c=.o)
@@ -68,7 +68,7 @@ HFILES = sycls.h sslcls.h error.h dalan.h procan.h filan.h hostan.h sysincludes.
 	xio-ascii.h xiolockfile.h xio-tcpwrap.h xio-ext2.h xio-tun.h \
 	xiosigchld.h xiostatic.h xio-nop.h xio-test.h
 
-DOCFILES = README README.FIPS CHANGES FILES EXAMPLES PORTING SECURITY DEVELOPMENT doc/socat.1 doc/socat.html FAQ BUGREPORTS COPYING COPYING.OpenSSL doc/dest-unreach.css doc/socat-openssltunnel.html doc/socat-multicast.html doc/socat-tun.html
+DOCFILES = README README.FIPS CHANGES FILES EXAMPLES PORTING SECURITY DEVELOPMENT doc/socat.yo doc/socat.1 doc/socat.html FAQ BUGREPORTS COPYING COPYING.OpenSSL doc/dest-unreach.css doc/socat-openssltunnel.html doc/socat-multicast.html doc/socat-tun.html
 SHFILES = daemon.sh mail.sh ftp.sh readline.sh
 TESTFILES = test.sh socks4echo.sh proxyecho.sh gatherinfo.sh readline-test.sh \
 	proxy.sh socks4a-echo.sh testcert.conf
@@ -82,7 +82,23 @@ TESTFILES = test.sh socks4echo.sh proxyecho.sh gatherinfo.sh readline-test.sh \
 #	Config/Makefile.Tru64-5-1B Config/config.Tru64-5-1B.h 
 
 
-all: progs
+all: progs doc
+
+scmclean: gitclean
+
+gitclean: distclean docclean
+	rm -f Makefile.bak configure
+
+doc: doc/socat.1 doc/socat.html
+
+docclean:
+	rm -f doc/socat.1 doc/socat.html
+
+doc/socat.1: doc/socat.yo
+	yodl2man -o $@ $+
+
+doc/socat.html: doc/socat.yo
+	yodl2html -o $@ $+
 
 progs: $(PROGS)
 
@@ -92,7 +108,7 @@ depend: $(CFILES) $(HFILES)
 socat: socat.o libxio.a
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ socat.o libxio.a $(CLIBS)
 
-PROCAN_OBJS=procan_main.o procan.o hostan.o error.o sycls.o sysutils.o utils.o
+PROCAN_OBJS=procan_main.o procan.o procan-cdefs.o hostan.o error.o sycls.o sysutils.o utils.o
 procan: $(PROCAN_OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(PROCAN_OBJS) $(CLIBS)
 
@@ -119,7 +135,7 @@ install: progs doc/socat.1
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDEST)/socat
-	rm -f $(DESTDIR)$(BINDEST)/procat
+	rm -f $(DESTDIR)$(BINDEST)/procan
 	rm -f $(DESTDIR)$(BINDEST)/filan
 	rm -f $(DESTDIR)$(MANDEST)/man1/socat.1
 
