@@ -15,6 +15,7 @@ exec_prefix = @exec_prefix@
 
 BINDEST = @bindir@
 
+datarootdir = @datarootdir@
 MANDEST = @mandir@
 
 srcdir = @srcdir@
@@ -44,10 +45,12 @@ XIOSRCS = xioinitialize.c xiohelp.c xioparam.c xiodiag.c xioopen.c xioopts.c \
 	xiolayer.c xioshutdown.c xioclose.c xioexit.c xiosocketpair.c \
 	xio-process.c xio-fd.c xio-fdnum.c xio-stdio.c xio-pipe.c \
 	xio-gopen.c xio-creat.c xio-file.c xio-named.c \
-	xio-socket.c xio-listen.c xio-unix.c xio-ip.c xio-ip4.c xio-ip6.c xio-ipapp.c xio-tcp.c xio-socks.c xio-socks5.c xio-proxy.c xio-udp.c \
-	xio-rawip.c \
+	xio-socket.c xio-interface.c xio-listen.c xio-unix.c \
+	xio-ip.c xio-ip4.c xio-ip6.c xio-ipapp.c xio-tcp.c \
+	xio-sctp.c xio-rawip.c \
+	xio-socks.c xio-socks5.c xio-proxy.c xio-udp.c \
 	xio-progcall.c xio-exec.c xio-system.c xio-termios.c xio-readline.c \
-	xio-pty.c xio-openssl.c \
+	xio-pty.c xio-openssl.c xio-streams.c\
 	xio-ascii.c xiolockfile.c xio-tcpwrap.c xio-ext2.c xio-tun.c \
 	xio-nop.c xio-test.c
 XIOOBJS = $(XIOSRCS:.c=.o)
@@ -60,27 +63,28 @@ PROGS = socat procan filan
 HFILES = sycls.h sslcls.h error.h dalan.h procan.h filan.h hostan.h sysincludes.h xio.h xioopen.h sysutils.h utils.h nestlex.h compat.h \
 	xioconfig.h mytypes.h xioopts.h xiodiag.h xiohelp.h xiosysincludes.h \
 	xiomodes.h xiolayer.h xio-process.h xio-fd.h xio-fdnum.h xio-stdio.h \
-	xio-named.h xio-file.h xio-creat.h xio-gopen.h xio-pipe.h xio-socket.h \
-	xio-listen.h xio-unix.h xio-rawip.h xio-ip.h xio-ip4.h xio-ip6.h \
-	xio-ipapp.h xio-tcp.h xio-udp.h xio-socks.h xio-socks5.h xio-proxy.h xio-progcall.h xio-exec.h \
+	xio-named.h xio-file.h xio-creat.h xio-gopen.h xio-pipe.h \
+	xio-socket.h xio-interface.h xio-listen.h xio-unix.h \
+	xio-ip.h xio-ip4.h xio-ip6.h xio-rawip.h \
+	xio-ipapp.h xio-tcp.h xio-udp.h xio-sctp.h \
+	xio-socks.h xio-socks5.h xio-proxy.h xio-progcall.h xio-exec.h \
 	xio-system.h xio-termios.h xio-readline.h \
-	xio-pty.h xio-openssl.h \
+	xio-pty.h xio-openssl.h xio-streams.h \
 	xio-ascii.h xiolockfile.h xio-tcpwrap.h xio-ext2.h xio-tun.h \
 	xiosigchld.h xiostatic.h xio-nop.h xio-test.h
 
-DOCFILES = README README.FIPS CHANGES FILES EXAMPLES PORTING SECURITY DEVELOPMENT doc/socat.yo doc/socat.1 doc/socat.html FAQ BUGREPORTS COPYING COPYING.OpenSSL doc/dest-unreach.css doc/socat-openssltunnel.html doc/socat-multicast.html doc/socat-tun.html
+DOCFILES = README README.FIPS CHANGES FILES EXAMPLES PORTING SECURITY DEVELOPMENT doc/socat.yo doc/socat.1 doc/socat.html doc/xio.help FAQ BUGREPORTS COPYING COPYING.OpenSSL doc/dest-unreach.css doc/socat-openssltunnel.html doc/socat-multicast.html doc/socat-tun.html doc/socat-genericsocket.html
 SHFILES = daemon.sh mail.sh ftp.sh readline.sh
 TESTFILES = test.sh socks4echo.sh proxyecho.sh gatherinfo.sh readline-test.sh \
 	proxy.sh socks4a-echo.sh testcert.conf
-#OSFILES = Config/Makefile.Linux-2-6-16 Config/config.Linux-2-6-16.h \
-#	Config/Makefile.AIX-5-1 Config/config.AIX-5-1.h \
-#	Config/Makefile.SunOS-5-8 Config/config.SunOS-5-8.h \
-#	Config/Makefile.HP-UX-B-11-11 Config/config.HP-UX-B-11-11.h \
-#	Config/Makefile.FreeBSD-6-1 Config/config.FreeBSD-6-1.h \
-#	Config/Makefile.NetBSD-2-0-2 Config/config.NetBSD-2-0-2.h \
-#	Config/Makefile.OpenBSD-3-8 Config/config.OpenBSD-3-8.h \
-#	Config/Makefile.Tru64-5-1B Config/config.Tru64-5-1B.h 
-
+OSFILES = Config/Makefile.Linux-2-6-24 Config/config.Linux-2-6-24.h \
+	Config/Makefile.SunOS-5-10 Config/config.SunOS-5-10.h \
+	Config/Makefile.FreeBSD-6-1 Config/config.FreeBSD-6-1.h \
+	Config/Makefile.NetBSD-4-0 Config/config.NetBSD-4-0.h \
+	Config/Makefile.OpenBSD-4-3 Config/config.OpenBSD-4-3.h \
+	Config/Makefile.AIX-5-3 Config/config.AIX-5-3.h \
+	Config/Makefile.Cygwin-1-5-25 Config/config.Cygwin-1-5-25.h \
+	Config/Makefile.MacOSX-10-5 Config/config.MacOSX-10-5.h
 
 all: progs doc
 
@@ -98,7 +102,7 @@ doc/socat.1: doc/socat.yo
 	yodl2man -o $@ $+
 
 doc/socat.html: doc/socat.yo
-	yodl2html -o $@ $+
+	cd doc; yodl2html -o socat.html socat.yo; cd ..
 
 progs: $(PROGS)
 
@@ -125,13 +129,13 @@ doc: doc/xio.help
 strip: progs
 	strip $(PROGS)
 
-install: progs doc/socat.1
+install: progs $(srcdir)/doc/socat.1
 	mkdir -p $(DESTDIR)$(BINDEST)
 	$(INSTALL) -m 755 socat $(DESTDIR)$(BINDEST)
 	$(INSTALL) -m 755 procan $(DESTDIR)$(BINDEST)
 	$(INSTALL) -m 755 filan $(DESTDIR)$(BINDEST)
 	mkdir -p $(DESTDIR)$(MANDEST)/man1
-	$(INSTALL) -m 644 doc/socat.1 $(DESTDIR)$(MANDEST)/man1/
+	$(INSTALL) -m 644 $(srcdir)/doc/socat.1 $(DESTDIR)$(MANDEST)/man1/
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDEST)/socat

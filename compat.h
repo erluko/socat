@@ -604,6 +604,10 @@
 #  define NETDB_INTERNAL h_NETDB_INTERNAL
 #endif
 
+#ifndef INET_ADDRSTRLEN
+#  define INET_ADDRSTRLEN sizeof(struct sockaddr_in)
+#endif
+
 #if !HAVE_PROTOTYPE_HSTRERROR
 /* with MacOSX this is  char *  */
 extern const char *hstrerror(int);

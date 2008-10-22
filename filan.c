@@ -1,5 +1,5 @@
 /* source: filan.c */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* the subroutine filan makes a "FILe descriptor ANalysis". It checks the
@@ -26,7 +26,9 @@ struct sockopt {
    char *name;
 };
 
-/* dirty workaround so we dont get an error on AIX when getting linked with
+static int filan_streams_analyze(int fd, FILE *outfile);
+
+/* dirty workaround so we dont get an error on AIX when being linked with
    libwrap */
 int allow_severity, deny_severity;
 
@@ -127,7 +129,17 @@ int filan_fd(int fd, FILE *outfile) {
       { /* see if data is available */
 	 struct pollfd ufds;
 	 ufds.fd = fd;
-	 ufds.events = POLLIN|POLLPRI|POLLOUT|POLLRDNORM|POLLRDBAND|POLLWRNORM|POLLWRBAND
+	 ufds.events = POLLIN|POLLPRI|POLLOUT
+#ifdef POLLRDNORM
+	    |POLLRDNORM
+#endif
+#ifdef POLLRDBAND
+	    |POLLRDBAND
+#endif
+	    |POLLWRNORM
+#ifdef POLLWRBAND
+	    |POLLWRBAND
+#endif
 #ifdef POLLMSG
 	    |POLLMSG
 #endif
@@ -150,7 +162,7 @@ int filan_fd(int fd, FILE *outfile) {
 	       }
 	    }
 #endif /* defined(FIONREAD) */
-#if WITH_SOCKET && defined(MSG_DONTWAIT)
+#if _WITH_SOCKET && defined(MSG_DONTWAIT)
 	    if ((ufds.revents & POLLIN) && isasocket(fd)) {
 	       char _peername[SOCKADDR_MAX];
 	       struct sockaddr *pa = (struct sockaddr *)_peername;
@@ -186,7 +198,7 @@ int filan_fd(int fd, FILE *outfile) {
 		  fprintf(outfile, "recvmsg="F_Zd", ", bytes);
 	       }
 	    }
-#endif /* WITH_SOCKET && defined(MSG_DONTWAIT) */
+#endif /* _WITH_SOCKET && defined(MSG_DONTWAIT) */
 	 }	 
       }
    }
@@ -353,6 +365,9 @@ int filan_stat(
 	   , outfile);
   }
 
+   /* ever heard of POSIX streams? here we handle these */
+   filan_streams_analyze(statfd, outfile);
+
    /* now see for type specific infos */
   if (statfd >= 0) { /*!indent */
    switch (buf->st_mode&S_IFMT) {
@@ -371,12 +386,12 @@ int filan_stat(
       break;
 #ifdef S_IFSOCK
    case (S_IFSOCK): /* 12, socket */
-#if WITH_SOCKET
+#if _WITH_SOCKET
       result = sockan(statfd, outfile);
 #else
       Warn("SOCKET support not compiled in");
       return -1;
-#endif /* !WITH_SOCKET */
+#endif /* !_WITH_SOCKET */
       break;
 #endif /* S_IFSOCK */
    }
@@ -408,10 +423,53 @@ int devinfo(int fd) {
 #endif
 
 
+/* returns 0 on success (not a stream descriptor, or no module)
+   returns <0 on failure */
+static int filan_streams_analyze(int fd, FILE *outfile) {
+#ifdef I_LIST
+#  define SL_NMODS 8	/* max number of module names we can store */
+   struct str_list modnames;
+   int i;
+
+   if (!isastream(fd)) {
+      fprintf(outfile, "\t(no STREAMS modules)");
+      return 0;
+   }
+#if 0	/* uncomment for debugging */
+   fprintf(outfile, "\tfind=%d", ioctl(fd, I_FIND, "ldterm"));
+#endif
+   modnames.sl_nmods = ioctl(fd, I_LIST, 0);
+   if (modnames.sl_nmods < 0) {
+      fprintf(stderr, "ioctl(%d, I_LIST, 0): %s\n", fd, strerror(errno));
+      return -1;
+   }
+   modnames.sl_modlist = Malloc(modnames.sl_nmods*(sizeof(struct str_mlist)));
+   if (modnames.sl_modlist == NULL) {
+      fprintf(stderr, "out of memory\n");
+      return -1;
+   }
+   if (ioctl(fd, I_LIST, &modnames) < 0) {
+      fprintf(stderr, "ioctl(%d, I_LIST, %p): %s\n",
+	      fd, &modnames, strerror(errno));
+      free(modnames.sl_modlist);
+      return -1;
+   }
+   fprintf(outfile, "\tSTREAMS: ");
+   for (i = 0; i < modnames.sl_nmods; ++i) {
+      fprintf(outfile, "\"%s\"", modnames.sl_modlist[i].l_name);
+      if (i+1 < modnames.sl_nmods)  fputc(',', outfile);
+   }
+   free(modnames.sl_modlist);
+#endif /* defined(I_LIST) */
+   return 0;
+}
+
+
 /* character device analysis */
 int cdevan(int fd, FILE *outfile) {
    int ret;
 
+#if _WITH_TERMIOS
    if ((ret = Isatty(fd)) < 0) {
       Warn2("isatty(%d): %s", fd, strerror(errno));
       return -1;
@@ -458,11 +516,12 @@ int cdevan(int fd, FILE *outfile) {
 	 }
       }
    }
+#endif /* _WITH_TERMIOS */
    return 0;
 }
 
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
 int sockan(int fd, FILE *outfile) {
 #define FILAN_OPTLEN 256
 #define FILAN_NAMELEN 256
@@ -479,6 +538,9 @@ int sockan(int fd, FILE *outfile) {
       {SO_REUSEADDR, "REUSEADDR"},
       {SO_TYPE, "TYPE"},
       {SO_ERROR, "ERROR"},
+#ifdef SO_PROTOTYPE
+      {SO_PROTOTYPE, "PROTOTYPE"},
+#endif
       {SO_DONTROUTE, "DONTROUTE"},
       {SO_BROADCAST, "BROADCAST"},
       {SO_SNDBUF, "SNDBUF"},
@@ -634,7 +696,7 @@ int sockan(int fd, FILE *outfile) {
 #undef FILAN_OPTLEN
 #undef FILAN_NAMELEN
 }
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 
 
 #if WITH_IP4 || WITH_IP6
@@ -823,7 +885,7 @@ int tcpan(int fd, FILE *outfile) {
 #endif /* WITH_TCP */
 
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
 int sockoptan(int fd, const struct sockopt *optname, int socklay, FILE *outfile) {
 #define FILAN_OPTLEN 256
    char optval[FILAN_OPTLEN];
@@ -859,10 +921,10 @@ int sockoptan(int fd, const struct sockopt *optname, int socklay, FILE *outfile)
    return 0;
 #undef FILAN_OPTLEN
 }
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
 int isasocket(int fd) {
    int retval;
 #if HAVE_STAT64
@@ -883,7 +945,7 @@ int isasocket(int fd) {
    /* note: when S_ISSOCK was undefined, it always gives 0 */
    return S_ISSOCK(props.st_mode);
 }
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 
 
 const char *getfiletypestring(int st_mode) {

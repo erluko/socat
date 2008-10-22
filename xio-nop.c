@@ -1,4 +1,4 @@
-/* $Id: xio-socks.c,v 1.25 2006/02/08 19:46:59 gerhard Exp $ */
+/* source: xio-nop.c */
 /* Copyright Gerhard Rieger 2006-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 

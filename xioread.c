@@ -140,14 +140,27 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
       break;
 #endif /* WITH_OPENSSL */
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
    case XIOREAD_RECV:
      if (pipe->dtype & XIOREAD_RECV_FROM) {
 #if WITH_RAWIP || WITH_UDP || WITH_UNIX
+      struct msghdr msgh = {0};
       union sockaddr_union from = {{0}};
       socklen_t fromlen = sizeof(from);
       char infobuff[256];
+      char ctrlbuff[1024];	/* ancillary messages */
 
+      msgh.msg_name = &from;
+      msgh.msg_namelen = fromlen;
+#if HAVE_STRUCT_MSGHDR_MSGCONTROL
+      msgh.msg_control = ctrlbuff;
+#endif
+#if HAVE_STRUCT_MSGHDR_MSGCONTROLLEN
+      msgh.msg_controllen = sizeof(ctrlbuff);
+#endif
+      if (xiogetpacketsrc(pipe->fd1, &msgh) < 0) {
+	 return -1;
+      }
       do {
 	 bytes = Recvfrom(fd, buff, bufsiz, 0, &from.soa, &fromlen);
       } while (bytes < 0 && errno == EINTR);
@@ -161,6 +174,17 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 	 errno = _errno;
 	 return -1;
       }
+      /* on packet type we also receive outgoing packets, this is not desired
+       */
+#if defined(PF_PACKET) && defined(PACKET_OUTGOING)
+      if (from.soa.sa_family == PF_PACKET) {
+	 if ((((struct sockaddr_ll *)&from.soa)->sll_pkttype & PACKET_OUTGOING)
+	    == 0) {
+	    errno = EAGAIN;  return -1;
+	 }
+      }
+#endif /* defined(PF_PACKET) && defined(PACKET_OUTGOING) */
+	    
       Notice2("received packet with "F_Zu" bytes from %s",
 	      bytes,
 	      sockaddr_info(&from.soa, fromlen, infobuff, sizeof(infobuff)));
@@ -313,12 +337,23 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
      } else /* ~XIOREAD_RECV_FROM */ {
       union sockaddr_union from;  socklen_t fromlen = sizeof(from);
       char infobuff[256];
+      struct msghdr msgh = {0};
+      char ctrlbuff[1024];	/* ancillary messages */
 
       socket_init(pipe->para.socket.la.soa.sa_family, &from);
       /* get source address */
-      if (xiogetpacketsrc(fd, &from, &fromlen) < 0) {
-	 return STAT_RETRYNOW;
+      msgh.msg_name = &from;
+      msgh.msg_namelen = fromlen;
+#if HAVE_STRUCT_MSGHDR_MSGCONTROL
+      msgh.msg_control = ctrlbuff;
+#endif
+#if HAVE_STRUCT_MSGHDR_MSGCONTROLLEN
+      msgh.msg_controllen = sizeof(ctrlbuff);
+#endif
+      if (xiogetpacketsrc(pipe->fd1, &msgh) < 0) {
+	 return -1;
       }
+      xiodopacketinfo(&msgh, true, false);
       if (xiocheckpeer(pipe, &from, &pipe->para.socket.la) < 0) {
 	 Recvfrom(fd, buff, bufsiz, 0, &from.soa, &fromlen);  /* drop */
 	 errno = EAGAIN;  return -1;
@@ -384,7 +419,7 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 
      }
      break;
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 
    default:
       Error("internal: undefined read operation");
@@ -396,8 +431,8 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 
 
 /* this function is intended only for some special address types where the
-   select() call cannot strictly determine if (more) read data is available.
-   currently this is for the OpenSSL based addresses.
+   select()/poll() calls cannot strictly determine if (more) read data is
+   available. currently this is for the OpenSSL based addresses.
 */
 ssize_t xiopending(xiofile_t *file) {
    struct single *pipe;

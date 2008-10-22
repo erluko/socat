@@ -9,6 +9,8 @@
 #define ODESC_DONE ((void *)-1)	/* indicates that option has been applied */
 #define ODESC_ERROR ODESC_DONE	/* maybe later */
 
+#define XIO_OFFSETOF(x) ((size_t)&((xiosingle_t *)0)->x)
+
 /* atomic structure for use in the option search table; keep compatible with
    struct wordent! */
 struct optname {
@@ -22,39 +24,53 @@ enum e_types {
    TYPE_BIN,		/* raw binary data, length determined by data */
    TYPE_BOOL,		/* value is 0 or 1 (no-value is interpreted as 1) */
    TYPE_BYTE,		/* unsigned char */
+
    TYPE_INT,		/* int */
    TYPE_LONG,		/* long */
    TYPE_STRING,		/* char * */
    TYPE_NAME = TYPE_STRING,
    TYPE_FILENAME = TYPE_STRING,
    TYPE_PTRDIFF,	/* ptrdiff_t */
+
    TYPE_SHORT,		/* short */
    TYPE_SIZE_T,		/* size_t */
    TYPE_SOCKADDR,	/* struct sockaddr * */
    TYPE_UINT,		/* unsigned int */
+
    TYPE_ULONG,		/* unsigned long */
    TYPE_USHORT,		/* unsigned short */
+   TYPE_2BYTE = TYPE_USHORT,
    TYPE_MODET,		/* representation of mode_t */
    TYPE_GIDT,		/* representation of gid_t */
+
    TYPE_UIDT,		/* representation of uid_t */
    /*TYPE_FLAG,*/
    TYPE_INT3,		/* int[3] */
    TYPE_TIMEVAL,	/* struct timeval: {long;long;}, seconds and microsec. */
    TYPE_TIMESPEC,	/* struct timespec: {time_t;long;}, seconds and nanosec. */
-#if HAVE_STRUCT_LINGER
-   TYPE_LINGER,		/* struct linger */
-#endif /* HAVE_STRUCT_LINGER */
+
    TYPE_DOUBLE,		/* double */
    TYPE_STRING_NULL,	/* char *; string or NULL */
    TYPE_LONGLONG,	/* long long */
    TYPE_OFF32,		/* off_t */
+
    TYPE_OFF64,		/* off64_t */
+   TYPE_INT_INT,	/* 2 parameters: first is int, second is int */
+   TYPE_INT_INTP,	/* 2 parameters: first is int, second is int* */
+   TYPE_INT_BIN,	/* 2 parameters: first is int, second is binary */
+
+   TYPE_INT_STRING,	/* 2 parameters: first is int, second is req string */
+   TYPE_INT_INT_INT,	/* 3 params: first and second are int, 3rd is int */
+   TYPE_INT_INT_BIN,	/* 3 params: first and second are int, 3rd is binary */
+   TYPE_INT_INT_STRING,	/* 3 params: first and second are int, 3rd is string */
+
+   TYPE_IP4NAME,	/* IPv4 hostname or address */
+#if HAVE_STRUCT_LINGER
+   TYPE_LINGER,		/* struct linger */
+#endif /* HAVE_STRUCT_LINGER */
 #if HAVE_STRUCT_IP_MREQ || HAVE_STRUCT_IP_MREQN
    TYPE_IP_MREQN,	/* for  struct ip_mreq  or  struct ip_mreqn */
 #endif
-   TYPE_IP4NAME,	/* IPv4 hostname or address */
-
-   TYPE_2BYTE = TYPE_USHORT
 } ;
 
 enum e_func {
@@ -64,11 +80,14 @@ enum e_func {
    OFUNC_SEEK32,	/* lseek(): arg1 is whence (SEEK_SET etc.) */
    OFUNC_SEEK64,	/* lseek64(): arg1 is whence (SEEK_SET etc.) */
    OFUNC_FCNTL,		/* fcntl(, ): arg1 is cmd */
-   OFUNC_IOCTL,		/* ioctl(): arg1 is request */
+   OFUNC_IOCTL,		/* ioctl(): arg1 of option description is request, arg2
+			   is int setrequest */
    OFUNC_IOCTL_MASK_LONG,	/* arg1 is getrequest, arg2 is setrequest:
 			   ioctl(arg1, ); |= arg3; ioctl(arg2, ); */
+   OFUNC_IOCTL_GENERIC,	/* generic ioctl() (request on cmdline) */
    OFUNC_SOCKOPT,	/* setsockopt() */
    OFUNC_SOCKOPT_APPEND,/* getsockopt(), append data, setsockopt() */
+   OFUNC_SOCKOPT_GENERIC,/* generic setsockopt() (level, optname on cmdline) */
    OFUNC_FLOCK,		/* flock() */
    OFUNC_TERMIO,	/* termio() ? */
    OFUNC_SPEC,		/* special, i.e. no generalizable function call */
@@ -86,7 +105,10 @@ enum e_func {
    OFUNC_TERMIOS_SPEC,	/* termios combined modes */
    OFUNC_SIGNAL,	/* a signal that should be passed to child process */
    OFUNC_RESOLVER,	/* a bit position used on _res.options */
-   OFUNC_IFFLAG		/* interface flag: locical-or a 1bit mask */
+   OFUNC_IFFLAG,	/* interface flag: locical-or a 1bit mask */
+#  define ENABLE_OFUNC
+#  include "xio-streams.h"	/* push a POSIX STREAMS module */
+#  undef ENABLE_OFUNC
 } ;
 
 /* for simpler handling of option-to-connection-type relations we define
@@ -110,8 +132,9 @@ enum e_func {
 
 #define GROUP_FD	0x00000001	/* everything applyable to a fd */
 #define GROUP_FIFO	0x00000002
-#define GROUP_CHR	0x00000004
+#define GROUP_SOCKS5	0x00000004
 #define GROUP_BLK	0x00000008
+#define GROUP_CHR	0x00000000	/* currently not used */
 #define GROUP_REG	0x00000010
 #define GROUP_FILE GROUP_REG
 #define GROUP_SOCKET	0x00000020
@@ -140,14 +163,14 @@ enum e_func {
 
 #define GROUP_IP_UDP	0x01000000
 #define GROUP_IP_TCP	0x02000000
-#define GROUP_IPAPP	(GROUP_IP_UDP|GROUP_IP_TCP)	/* true: indicates one of UDP, TCP */
+#define GROUP_IPAPP	(GROUP_IP_UDP|GROUP_IP_TCP|GROUP_IP_SCTP)	/* true: indicates one of UDP, TCP, SCTP */
 #define GROUP_IP_SOCKS4	0x04000000
 #define GROUP_OPENSSL	0x08000000
 
 #define GROUP_PROCESS	0x10000000	/* a process related option */
 #define GROUP_APPL	0x20000000	/* option handled by data loop */
 #define GROUP_HTTP	0x40000000	/* any HTTP client */
-#define GROUP_SOCKS5	0x80000000
+#define GROUP_IP_SCTP	0x80000000
 
 #define GROUP_ANY	(GROUP_PROCESS|GROUP_APPL)
 #define GROUP_ALL	0xffffffff
@@ -251,6 +274,7 @@ enum e_optcode {
    OPT_ECHOPRT,		/* termios.c_lflag */
 #endif
    OPT_END_CLOSE,	/* xfd.stream.howtoend = END_CLOSE */
+   OPT_ESCAPE,
    OPT_EXT2_SECRM,
    OPT_EXT2_UNRM,
    OPT_EXT2_COMPR,
@@ -325,11 +349,33 @@ enum e_optcode {
    OPT_INLCR,		/* termios.c_iflag */
    OPT_INPCK,		/* termios.c_iflag */
    OPT_INTERVALL,
+   OPT_IPV6_AUTHHDR,
+   OPT_IPV6_DSTOPTS,
+   OPT_IPV6_FLOWINFO,
+   OPT_IPV6_HOPLIMIT,
+   OPT_IPV6_HOPOPTS,
    OPT_IPV6_JOIN_GROUP,
+   OPT_IPV6_PKTINFO,
+   OPT_IPV6_RECVDSTOPTS,
+   OPT_IPV6_RECVERR,
+   OPT_IPV6_RECVHOPLIMIT,
+   OPT_IPV6_RECVHOPOPTS,
+   OPT_IPV6_RECVPATHMTU,
+   OPT_IPV6_RECVPKTINFO,
+   OPT_IPV6_RECVRTHDR,
+   OPT_IPV6_RECVTCLASS,
+   OPT_IPV6_RTHDR,
+   OPT_IPV6_TCLASS,
+   OPT_IPV6_UNICAST_HOPS,
    OPT_IPV6_V6ONLY,
 #if 0	/* see Linux: man 7 netlink; probably not what we need yet */
    OPT_IO_SIOCGIFNAME,
 #endif
+   OPT_IOCTL_BIN,	/* generic ioctl with binary value (pointed to) */
+   OPT_IOCTL_INT,	/* generic ioctl with integer value */
+   OPT_IOCTL_INTP,	/* generic ioctl with integer value (pointed to) */
+   OPT_IOCTL_STRING,	/* generic ioctl with integer value (pointed to) */
+   OPT_IOCTL_VOID,	/* generic ioctl without value */
    OPT_IP_ADD_MEMBERSHIP,
 #ifdef IP_HDRINCL
    OPT_IP_HDRINCL,
@@ -353,9 +399,11 @@ enum e_optcode {
 #ifdef IP_PKTOPTIONS
    OPT_IP_PKTOPTIONS,
 #endif
+   OPT_IP_RECVDSTADDR,
 #ifdef IP_RECVERR
    OPT_IP_RECVERR,
 #endif
+   OPT_IP_RECVIF,
 #ifdef IP_RECVOPTS
    OPT_IP_RECVOPTS,
 #endif
@@ -500,7 +548,8 @@ enum e_optcode {
    OPT_PIPES,
    /*OPT_PORT,*/
    OPT_PROMPT,		/* readline */
-   OPT_PROTOCOL_FAMILY,
+   OPT_PROTOCOL,	/* 6=TCP, 17=UDP */
+   OPT_PROTOCOL_FAMILY,	/* 1=PF_UNIX, 2=PF_INET, 10=PF_INET6 */
    OPT_PROXYPORT,
    OPT_PROXY_AUTHORIZATION,
    OPT_PROXY_RESOLVE,
@@ -524,6 +573,9 @@ enum e_optcode {
    OPT_RES_USEVC,	/* resolver(3) */
    OPT_RETRY,
    OPT_SANE,		/* termios */
+   OPT_SCTP_MAXSEG,
+   OPT_SCTP_MAXSEG_LATE,
+   OPT_SCTP_NODELAY,
    OPT_SEEK32_CUR,
    OPT_SEEK32_END,
    OPT_SEEK32_SET,
@@ -534,6 +586,9 @@ enum e_optcode {
    OPT_SETGID_EARLY,
    OPT_SETPGID,
    OPT_SETSID,
+   OPT_SETSOCKOPT_BIN,
+   OPT_SETSOCKOPT_INT,
+   OPT_SETSOCKOPT_STRING,
    OPT_SETUID,
    OPT_SETUID_EARLY,
    OPT_SHUT_NONE,
@@ -595,9 +650,7 @@ enum e_optcode {
 #ifdef SO_PRIORITY
    OPT_SO_PRIORITY,
 #endif
-#ifdef SO_PROTOTYPE
    OPT_SO_PROTOTYPE,
-#endif
    OPT_SO_RCVBUF,
    OPT_SO_RCVBUF_LATE,
 #ifdef SO_RCVLOWAT
@@ -627,6 +680,7 @@ enum e_optcode {
 #ifdef SO_SNDTIMEO
    OPT_SO_SNDTIMEO,
 #endif
+   OPT_SO_TIMESTAMP,	/* Linux */
    OPT_SO_TYPE,
 #ifdef SO_USELOOPBACK
    OPT_SO_USELOOPBACK,
@@ -642,6 +696,9 @@ enum e_optcode {
 #endif
    OPT_SOURCEPORT,
    OPT_STDERR,		/* with exec, system */
+#  define ENABLE_OPTCODE
+#  include "xio-streams.h"
+#  undef ENABLE_OPTCODE
    OPT_SUBSTUSER,
    OPT_SUBSTUSER_DELAYED,
    OPT_SYMBOLIC_LINK,	/* with pty */
@@ -775,7 +832,8 @@ enum e_optcode {
 
 /* keep consistent with xiohelp.c:optionphasenames ! */
 enum e_phase {
-   PH_ALL,		/* not for options; use in apply funcs to say "all phases" */
+   PH_ALL,		/* not for option definitions; use in apply funcs to
+			   say "all phases" */
    PH_INIT,		/* retrieving info from original state */
    PH_EARLY,		/* before any other processing */
    PH_PREOPEN,		/* before file descriptor is created/opened */
@@ -851,7 +909,7 @@ extern int retropt_bind(struct opt *opts,
 		 int feats,	/* TCP etc: 1..address allowed,
 				   3..address and port allowed */
 		 unsigned long res_opts0, unsigned long res_opts1);
-extern int applyopts(int fd, struct opt *opts, unsigned int phase);
+extern int applyopts(int fd, struct opt *opts, enum e_phase phase);
 extern int applyopts2(int fd, struct opt *opts, unsigned int from,
 		      unsigned int to);
 extern int applyopts_flags(struct opt *opts, int group, flags_t *result);

@@ -55,11 +55,24 @@ AC_CHECK_HEADERS(pwd.h grp.h stdint.h sys/types.h sys/poll.h sys/socket.h sys/ui
 AC_CHECK_HEADERS(pty.h)
 AC_CHECK_HEADERS(netinet/in.h netinet/in_systm.h netinet/ip.h netinet/tcp.h)
 AC_CHECK_HEADERS(netinet6/in6.h)	# found on OpenBSD, used for IPV6_*
-AC_CHECK_HEADERS(arpa/nameser.h resolv.h)
-AC_CHECK_HEADERS(termios.h net/if.h linux/if_tun.h)
+AC_CHECK_HEADERS(net/if.h, [], [], [AC_INCLUDES_DEFAULT
+	#if HAVE_SYS_SOCKET_H
+	#include <sys/socket.h>
+	#endif])	# Mac OS X requires including sys/socket.h
+AC_CHECK_HEADERS(arpa/nameser.h)
+
+AC_HEADER_RESOLV()
+
+AC_CHECK_HEADERS(termios.h linux/if_tun.h)
+AC_CHECK_HEADERS(net/if_dl.h)
+AC_CHECK_HEADERS(linux/types.h linux/errqueue.h)
 AC_CHECK_HEADERS(sys/utsname.h sys/select.h sys/file.h)
 AC_CHECK_HEADERS(util.h libutil.h sys/stropts.h regex.h)
 AC_CHECK_HEADERS(linux/fs.h linux/ext2_fs.h)
+
+
+dnl Link libresolv if necessary (for Mac OS X)
+AC_SEARCH_LIBS([res_9_init], [resolv])
 
 
 dnl Check for extra socket library (for Solaris)
@@ -201,7 +214,11 @@ AC_ARG_ENABLE(ip6, [  --disable-ip6           disable IPv6 support],
 if test "$WITH_IP6"; then
   AC_CHECK_HEADERS([netinet/ip6.h],
     [AC_DEFINE(HAVE_NETINET_IP6_H) AC_DEFINE(WITH_IP6)],
-    [AC_MSG_WARN([include file netinet/ip6.h not found, disabling IP6])])
+    [AC_MSG_WARN([include file netinet/ip6.h not found, disabling IP6])],
+    [AC_INCLUDES_DEFAULT
+     #ifdef HAVE_NETINET_IN_H
+     # include <netinet/in.h>
+     #endif])
 fi
 
 AC_MSG_CHECKING(whether to include raw IP support)
@@ -211,6 +228,36 @@ AC_ARG_ENABLE(rawip, [  --disable-rawip         disable raw IP support],
 	       *) AC_DEFINE(WITH_RAWIP) AC_MSG_RESULT(yes);;
 	       esac],
 	       [AC_DEFINE(WITH_RAWIP) AC_MSG_RESULT(yes)])
+
+AC_MSG_CHECKING(whether to include generic socket support)
+AC_ARG_ENABLE(rawsocket, [  --disable-genericsocket disable generic socket support],
+	      [case "$enableval" in
+	       no) AC_MSG_RESULT(no);;
+	       *) AC_DEFINE(WITH_GENERICSOCKET) AC_MSG_RESULT(yes);;
+	       esac],
+	       [AC_DEFINE(WITH_GENERICSOCKET) AC_MSG_RESULT(yes)])
+AC_MSG_CHECKING(whether to include raw network interface support)
+AC_ARG_ENABLE(interface, [  --disable-interface  disable network interface support],
+	      [case "$enableval" in
+	       no) AC_MSG_RESULT(no); WITH_INTERFACE= ;;
+	       *) AC_MSG_RESULT(yes); WITH_INTERFACE=1 ;;
+	       esac],
+	       [AC_MSG_RESULT(yes);  WITH_INTERFACE=1 ])
+if test "$WITH_INTERFACE"; then
+  AC_CHECK_HEADER(netpacket/packet.h,
+    AC_DEFINE(HAVE_NETPACKET_PACKET_H),
+    [WITH_INTERFACE=;
+     AC_MSG_WARN([include file netpacket/packet.h not found, disabling interface])])
+fi
+if test "$WITH_INTERFACE"; then
+  AC_CHECK_HEADER(netinet/if_ether.h,
+    AC_DEFINE(HAVE_NETINET_IF_ETHER_H),
+    [WITH_INTERFACE=;
+     AC_MSG_WARN([include file netinet/if_ether.h not found, disabling interface])])
+fi
+if test "$WITH_INTERFACE"; then
+   AC_DEFINE(WITH_INTERFACE)
+fi
 
 AC_MSG_CHECKING(whether to include TCP support)
 AC_ARG_ENABLE(tcp, [  --disable-tcp           disable TCP support],
@@ -227,6 +274,30 @@ AC_ARG_ENABLE(udp, [  --disable-udp           disable UDP support],
 	       *) AC_DEFINE(WITH_UDP) AC_MSG_RESULT(yes);;
 	       esac],
 	       [AC_DEFINE(WITH_UDP) AC_MSG_RESULT(yes)])
+
+AC_MSG_CHECKING(whether to include SCTP support)
+AC_ARG_ENABLE(sctp, [  --disable-sctp           disable SCTP support],
+	      [case "$enableval" in
+	       no) AC_MSG_RESULT(no); WITH_SCTP= ;;
+	       *) AC_MSG_RESULT(yes); WITH_SCTP=1 ;;
+	       esac],
+	       [AC_MSG_RESULT(yes);   WITH_SCTP=1 ])
+
+if test -n "$WITH_SCTP"; then
+AC_MSG_CHECKING(for IPPROTO_SCTP)
+AC_CACHE_VAL(sc_cv_define_ipproto_sctp,
+[AC_TRY_COMPILE([#include <sys/types.h>
+#include <netinet/in.h>],
+[IPPROTO_SCTP;],
+[sc_cv_define_ipproto_sctp=yes],
+[sc_cv_define_ipproto_sctp=no])])
+AC_MSG_RESULT($sc_cv_define_ipproto_sctp)
+if test $sc_cv_define_ipproto_sctp = yes; then
+   AC_DEFINE(WITH_SCTP)
+else
+   AC_MSG_WARN([IPPROTO_SCTP undefined, disabling SCTP support])
+fi
+fi
 
 AC_MSG_CHECKING(whether to include listen support)
 AC_ARG_ENABLE(listen, [  --disable-listen        disable listen support],
@@ -300,93 +371,56 @@ AC_ARG_ENABLE(readline, [  --disable-readline      disable readline support],
 	       esac],
 	       [AC_MSG_RESULT(yes);   WITH_READLINE=1 ])
 
-# check if we find the components of GNU readline
 if test -n "$WITH_READLINE"; then
-  # first, we need to find the include file <readline.h>
-  AC_MSG_NOTICE(checking for components of readline)
-  #AC_CHECK_HEADERS(readline/readline.h readline/history.h)
-  AC_CACHE_VAL(sc_cv_have_readline_h,
-    [AC_TRY_COMPILE([#include <stdio.h>	/* FreeBSD needs "FILE *" */
-#include <readline/readline.h>
-#include <readline/history.h>],[;],
-      [sc_cv_have_readline_h=yes; READLINE_ROOT=""; ],
-      [sc_cv_have_readline_h=no
-       for D in "/sw" "/usr/local" "/opt/freeware" "/usr/sfw"; do
-	I="$D/include"
-        i="$I/readline/readline.h"
-	if test -r "$i"; then
-	  #V_INCL="$V_INCL -I$I/"
-	  CPPFLAGS="$CPPFLAGS -I$I"
-	  AC_MSG_NOTICE(found $i)
-	  sc_cv_have_readline_h=yes; READLINE_ROOT="$D"
-	  break;
-	fi
-      done])
-  ])
-  if test "$sc_cv_have_readline_h" = "yes"; then
-    AC_DEFINE(HAVE_READLINE_READLINE_H)
-    AC_DEFINE(HAVE_READLINE_HISTORY_H)
-  fi
-  AC_MSG_NOTICE(checked for readline.h... $sc_cv_have_readline_h)
-fi	# end checking for readline.h
-#
-if test -n "$WITH_READLINE" -a "$sc_cv_have_readline_h" = yes; then
-  # next, we search for the readline library (libreadline.*)
-  AC_MSG_CHECKING(for libreadline)
-  AC_CACHE_VAL(sc_cv_have_libreadline,
-    [ LIBS0="$LIBS"
-      if test -n "$READLINE_ROOT"; then
-	L="$READLINE_ROOT/lib"; LIBS="$LIBS0 -L$L -lreadline"
-      else
-	LIBS="$LIBS0 -lreadline"
-      fi
-      AC_TRY_LINK([#include <stdio.h>	/* FreeBSD needs FILE * */
-#include <readline/readline.h>
-#include <readline/history.h>],
-	[readline(NULL)],
-	[sc_cv_have_libreadline='yes'],
-	[sc_cv_have_libreadline='no'
-	  LIBS1="$LIBS"
-	  LIBS="$LIBS -lcurses"
-	  AC_TRY_LINK([#include <stdio.h>	/* FreeBSD needs FILE * */
-#include <readline/readline.h>
-#include <readline/history.h>],
-            [readline(NULL)],
-            [sc_cv_have_libreadline='yes'],
-            [sc_cv_have_libreadline='no'
-	      LIBS="$LIBS1 -lncurses"		# eg for SuSE52
-	      AC_TRY_LINK([#include <stdio.h>	/* FreeBSD needs FILE * */
-#include <readline/readline.h>
-#include <readline/history.h>],
-                [readline(NULL)],
-                [sc_cv_have_libreadline='yes'],
-                [sc_cv_have_libreadline='no'])
-      ])]
-      )
-      if test "$sc_cv_have_libreadline" != 'yes'; then
-	LIBS="$LIBS0"
-      fi
-    ]
-#! missing libcurses dependency; missing freeware places
-#    # we test if libcurses is available and if it can be used without further libs
-#    AC_CHECK_LIB(ncurses, main, , AC_CHECK_LIB(curses, main))	# some Linux work with this
-#    # we test if readline can be used without further libs
-#    AC_CHECK_LIB(readline, readline)
-#    # we see if using_history() is already in $LIBS; if not, we try it with curses
-#    AC_CHECK_FUNC(using_history, , AC_CHECK_LIB(history, using_history,,, -lcurses))
-#fi
-  )
-  if test "$sc_cv_have_libreadline" = 'yes'; then
-    AC_DEFINE(HAVE_LIBREADLINE)
-  fi
-  AC_MSG_RESULT($sc_cv_have_libreadline)
-fi
-#
-if test -n "$WITH_READLINE"; then
-  if test "$sc_cv_have_readline_h" = "yes" -a "$sc_cv_have_libreadline" = "yes"; then
-    AC_DEFINE(WITH_READLINE)
-  else
-    AC_MSG_WARN([not all components of readline found, disabling it]);
+  CPPFLAGS_ORIG=$CPPFLAGS
+  CFLAGS_ORIG=$CFLAGS
+  LIBS_ORIG=$LIBS
+  sc_usable_readline_found=
+  
+  for D in "" "/usr/local" "/opt/local" "/sw" "/opt/freeware" "/usr/sfw"; do    
+    if test -n "$D" ; then
+      CPPFLAGS="$CPPFLAGS -I$D/include"
+      CFLAGS="$CFLAGS -L$D/lib"
+      DLOC="in location $D"
+    else
+      DLOC="in default location"
+    fi
+    AC_MSG_CHECKING(for usable readline $DLOC)
+    
+    # Some systems require -lcurses, some require -lncurses.
+    # Mac OS X 10.4 (and others) ships with libedit masquerading as readline,
+    # but it doesn't work well with socat. It can be recognized by the absence
+    # of append_history.
+    
+    for L in "" "-lcurses" "-lncurses"; do
+      LIBS="$LIBS_ORIG -lreadline $L"
+      AC_TRY_LINK(
+        [ #include <stdio.h>
+          #include <readline/readline.h>
+          #include <readline/history.h>],
+        [ readline(NULL);
+          append_history(0, NULL); ],
+        [ sc_usable_readline_found=1
+          break ])
+    done
+    
+    if test -n "$sc_usable_readline_found"; then
+      AC_MSG_RESULT(yes)
+      AC_DEFINE(HAVE_READLINE_READLINE_H,1)
+      AC_DEFINE(HAVE_READLINE_HISTORY_H,1)
+      AC_DEFINE(HAVE_LIBREADLINE,1)
+      AC_DEFINE(WITH_READLINE,1)
+      break
+    else
+      AC_MSG_RESULT(no)
+      CPPFLAGS=$CPPFLAGS_ORIG
+      CFLAGS=$CFLAGS_ORIG
+      LIBS=$LIBS_ORIG
+    fi
+  done
+  
+  if test -z "$sc_usable_readline_found"; then
+    AC_MSG_WARN([no suitable version of readline found; perhaps you need to install a newer version])
   fi
 fi
 
@@ -578,12 +612,13 @@ AC_ARG_ENABLE(tun, [  --disable-tun           disable TUN/TAP support],
 	       [AC_MSG_RESULT(yes);    WITH_TUN=1 ])
 
 #
+if ! test "$ac_cv_header_linux_if_tun_h" = 'yes'; then
+  AC_MSG_WARN(include file linux/if_tun.h not found, disabling TUN)
+  WITH_TUN=
+fi
+#
 if test -n "$WITH_TUN"; then
-  if test `uname` != Linux; then
-    AC_MSG_NOTICE(only on Linux)
-  else
-    AC_DEFINE(WITH_TUN)
-  fi
+  AC_DEFINE(WITH_TUN)
 fi
 
 AC_MSG_CHECKING(whether to include system call tracing)
@@ -654,6 +689,7 @@ AC_FUNC_STRFTIME
 AC_CHECK_FUNCS(putenv select poll socket strdup strerror strstr strtod strtol)
 AC_CHECK_FUNCS(strtoul uname getpgid getsid getaddrinfo)
 AC_CHECK_FUNCS(getipnodebyname setgroups inet_aton memrchr)
+AC_CHECK_FUNCS(if_indextoname)
 
 AC_CHECK_FUNCS(grantpt unlockpt ptsname)
 
@@ -806,6 +842,27 @@ AC_TRY_COMPILE([#include <sys/types.h>
 [fd_set s; s.fds_bits[0]=0;],
 [AC_MSG_RESULT(yes); AC_DEFINE(HAVE_FDS_BITS)],
 [AC_MSG_RESULT(no);])
+
+AC_MSG_CHECKING(for sa_family_t)
+AC_CACHE_VAL(sc_cv_type_sa_family_t,
+[AC_TRY_COMPILE([#include <sys/types.h>
+#include <netinet/in.h>],[sa_family_t s;],
+[sc_cv_type_sa_family_t=yes],
+[sc_cv_type_sa_family_t=no])])
+if test $sc_cv_type_sa_family_t = yes; then
+   AC_DEFINE(HAVE_TYPE_SA_FAMILY_T)
+fi
+AC_MSG_RESULT($sc_cv_type_sa_family_t)
+
+AC_MSG_CHECKING(for struct sigaction.sa_sigaction)
+AC_CACHE_VAL(sc_cv_struct_sigaction_sa_sigaction,
+[AC_TRY_COMPILE([#include <signal.h>],[struct sigaction s;s.sa_sigaction=0;],
+[sc_cv_struct_sigaction_sa_sigaction=yes],
+[sc_cv_struct_sigaction_sa_sigaction=no])])
+if test $sc_cv_struct_sigaction_sa_sigaction = yes; then
+   AC_DEFINE(HAVE_STRUCT_SIGACTION_SA_SIGACTION)
+fi
+AC_MSG_RESULT($sc_cv_struct_sigaction_sa_sigaction)
 
 ### struct termios .c_ispeed
 AC_MSG_CHECKING(for termios.c_ispeed)
@@ -1082,6 +1139,32 @@ if test $sc_cv_struct_msghdr_msgflags = yes; then
 fi
 AC_MSG_RESULT($sc_cv_struct_msghdr_msgflags)
 
+dnl check for struct cmsghdr
+AC_MSG_CHECKING(for struct cmsghdr)
+AC_CACHE_VAL(sc_cv_struct_cmsghdr,
+[AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/socket.h>
+#include <net/if.h>],[struct cmsghdr s;],
+[sc_cv_struct_cmsghdr=yes],
+[sc_cv_struct_cmsghdr=no])])
+if test $sc_cv_struct_cmsghdr = yes; then
+   AC_DEFINE(HAVE_STRUCT_CMSGHDR)
+fi
+AC_MSG_RESULT($sc_cv_struct_cmsghdr)
+
+dnl check for struct in_pktinfo
+AC_MSG_CHECKING(for struct in_pktinfo)
+AC_CACHE_VAL(sc_cv_struct_in_pktinfo,
+[AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>],[struct in_pktinfo s;],
+[sc_cv_struct_in_pktinfo=yes],
+[sc_cv_struct_in_pktinfo=no])])
+if test $sc_cv_struct_in_pktinfo = yes; then
+   AC_DEFINE(HAVE_STRUCT_IN_PKTINFO)
+fi
+AC_MSG_RESULT($sc_cv_struct_in_pktinfo)
+
 dnl check for ip_hl in struct ip
 AC_MSG_CHECKING(for struct ip.ip_hl)
 AC_CACHE_VAL(sc_cv_struct_ip_ip_hl,
@@ -1153,6 +1236,9 @@ dnl Search for setenv()
 AC_CHECK_FUNC(setenv, AC_DEFINE(HAVE_SETENV),
 	AC_CHECK_LIB(isode, setenv, [LIBS="-lisode $LIBS"]))
 
+dnl Search for unsetenv()
+AC_CHECK_FUNC(unsetenv, AC_DEFINE(HAVE_UNSETENV))
+
 
 dnl Run time checks
 
@@ -1196,7 +1282,11 @@ AC_CACHE_CHECK(shift offset of $1, $2,
     if (n==0) {fprintf(stderr,"$1 is 0 (impossible!)\n"); exit(1);}
     i=0; while (!(n&1)) {
        n>>=1; ++i; }
-    fprintf(f, "%u", i);
+    if (3<<i == $1) {
+       fprintf(f, "%u", i);
+    } else {
+       fprintf(f, "-1");	/* anticipate result of xioinitialize assert */
+    }
     exit(0);
  }
  ],
@@ -1317,7 +1407,7 @@ AC_TYPEOF_COMPONENT([#include <sys/stat.h>], struct stat64, st_blksize, HAVE_TYP
 AC_TYPEOF_COMPONENT([#include <sys/stat.h>], struct stat64, st_blocks, HAVE_TYPEOF_ST64_BLOCKS, sc_cv_type_stat64_stblocks_basic)
 fi
 
-AC_TYPEOF_COMPONENT([#include <sys/time.h>], struct timeval, tv_usec, HAVE_TYPEOF_STRUCT_TIMEVAL_TVUSEC, sc_cv_type_struct_timeval_tvusec)
+AC_TYPEOF_COMPONENT([#include <sys/time.h>], struct timeval, tv_usec, HAVE_TYPEOF_STRUCT_TIMEVAL_TV_USEC, sc_cv_type_struct_timeval_tv_usec)
 
 AC_TYPEOF_COMPONENT([#include <sys/types.h>
 #include <sys/time.h>

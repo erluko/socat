@@ -1,5 +1,5 @@
 /* source: sycls.c */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* explicit system call and C library trace function, for those who miss strace
@@ -593,6 +593,16 @@ int Ioctl(int d, int request, void *argp) {
    return retval;
 }
 
+int Ioctl_int(int d, int request, int arg) {
+   int retval, _errno;
+   Debug3("ioctl(%d, 0x%x, %d)", d, request, arg);
+   retval = ioctl(d, request, arg);
+   _errno = errno;
+   Debug1("ioctl() -> %d", retval);
+   errno = _errno;
+   return retval;
+}
+
 int Close(int fd) {
    int retval, _errno;
    Info1("close(%d)", fd);
@@ -677,9 +687,21 @@ int Chmod(const char *path, mode_t mode) {
 /* we only show the first struct pollfd; hope this is enough for most cases. */
 int Poll(struct pollfd *ufds, unsigned int nfds, int timeout) {
    int result;
-   Debug4("poll({%d, 0x%02hx, }, %u, %d)", ufds[0].fd, ufds[0].events, nfds, timeout);
+   if (nfds == 4) {
+      Debug10("poll({%d,0x%02hx,}{%d,0x%02hx,}{%d,0x%02hx,}{%d,0x%02hx,}, %u, %d)",
+	      ufds[0].fd, ufds[0].events, ufds[1].fd, ufds[1].events,
+	      ufds[2].fd, ufds[2].events, ufds[3].fd, ufds[3].events,
+	      nfds, timeout);
+   } else {
+      Debug4("poll({%d,0x%02hx,}, , %u, %d)", ufds[0].fd, ufds[0].events, nfds, timeout);
+   }
    result = poll(ufds, nfds, timeout);
-   Debug2("poll(, {,, 0x%02hx}) -> %d", ufds[0].revents, result);
+   if (nfds == 4) {
+      Debug5("poll(, {,,0x%02hx}{,,0x%02hx}{,,0x%02hx}{,,0x%02hx}) -> %d",
+	     ufds[0].revents, ufds[1].revents, ufds[2].revents, ufds[3].revents, result);
+   } else {
+      Debug2("poll(, {,,0x%02hx}) -> %d", ufds[0].revents, result);
+   }
    return result;
 }
 #endif /* HAVE_POLL */
@@ -1081,12 +1103,28 @@ int Recvfrom(int s, void *buf, size_t len, int flags, struct sockaddr *from,
 int Recvmsg(int s, struct msghdr *msgh, int flags) {
    int retval, _errno;
    char infobuff[256];
-   Debug3("recvmsg(%d, %p, %d)", s, msgh, flags);
+#if defined(HAVE_STRUCT_MSGHDR_MSGCONTROL) && defined(HAVE_STRUCT_MSGHDR_MSGCONTROLLEN) && defined(HAVE_STRUCT_MSGHDR_MSGFLAGS)
+   Debug10("recvmsg(%d, %p{%p,%u,%p,%u,%p,%u,%d}, %d)", s, msgh,
+	  msgh->msg_name, msgh->msg_namelen,  msgh->msg_iov,  msgh->msg_iovlen,
+	  msgh->msg_control,  msgh->msg_controllen,  msgh->msg_flags, flags);
+#else
+   Debug7("recvmsg(%d, %p{%p,%u,%p,%u}, %d)", s, msgh,
+	  msgh->msg_name, msgh->msg_namelen,  msgh->msg_iov,  msgh->msg_iovlen,
+	  flags);
+#endif
    retval = recvmsg(s, msgh, flags);
    _errno = errno;
-   Debug2("recvmsg(, {%s}, ) -> %d",
+#if defined(HAVE_STRUCT_MSGHDR_MSGCONTROLLEN)
+   Debug5("recvmsg(, {%s,%u,,%u,,%u,}, ) -> %d",
 	  msgh->msg_name?sockaddr_info(msgh->msg_name, msgh->msg_namelen, infobuff, sizeof(infobuff)):"NULL",
+	  msgh->msg_namelen, msgh->msg_iovlen, msgh->msg_controllen,
 	  retval);
+#else
+   Debug4("recvmsg(, {%s,%u,,%u,,}, ) -> %d",
+	  msgh->msg_name?sockaddr_info(msgh->msg_name, msgh->msg_namelen, infobuff, sizeof(infobuff)):"NULL",
+	  msgh->msg_namelen, msgh->msg_iovlen,
+	  retval);
+#endif
    errno = _errno;
    return retval;
 }
@@ -1271,6 +1309,7 @@ void *Realloc(void *ptr, size_t size) {
    return result;
 }
 
+#if _WITH_TERMIOS
 int Tcgetattr(int fd, struct termios *termios_p) {
    int i, result, _errno;
    char chars[5*NCCS], *cp = chars;
@@ -1290,7 +1329,9 @@ int Tcgetattr(int fd, struct termios *termios_p) {
    errno = _errno;
    return result;
 }
+#endif /* _WITH_TERMIOS */
 
+#if _WITH_TERMIOS
 int Tcsetattr(int fd, int optional_actions, struct termios *termios_p) {
    int i, result, _errno;
    char chars[5*NCCS], *cp = chars;
@@ -1308,6 +1349,7 @@ int Tcsetattr(int fd, int optional_actions, struct termios *termios_p) {
    errno = _errno;
    return result;
 }
+#endif /* _WITH_TERMIOS */
 
 char *Ttyname(int fd) {
    char *result;
@@ -1465,6 +1507,30 @@ int Mkstemp(char *template) {
    errno = _errno;
    return result;
 }
+
+int Setenv(const char *name, const char *value, int overwrite) {
+   int result, _errno;
+   Debug3("setenv(\"%s\", \"%s\", %d)", name, value, overwrite);
+   result = setenv(name, value, overwrite);
+   _errno = errno;
+   Debug1("setenv() -> %d", result);
+   errno = _errno;
+   return result;
+}
+
+#if HAVE_UNSETENV
+/* on Linux it returns int but on FreeBSD void.
+   we do not expect many errors, so we take void which works on all systems. */
+void Unsetenv(const char *name) {
+   int _errno;
+   Debug1("unsetenv(\"%s\")", name);
+   unsetenv(name);
+   _errno = errno;
+   Debug("unsetenv() ->");
+   errno = _errno;
+   return;
+}
+#endif
 
 #if WITH_READLINE
 

@@ -1,10 +1,15 @@
 /* source: xio-fd.h */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_fd_h_included
 #define __xio_fd_h_included 1
 
+extern const struct optdesc opt_ioctl_void;
+extern const struct optdesc opt_ioctl_int;
+extern const struct optdesc opt_ioctl_intp;
+extern const struct optdesc opt_ioctl_bin;
+extern const struct optdesc opt_ioctl_string;
 extern const struct optdesc opt_append;
 extern const struct optdesc opt_nonblock;
 extern const struct optdesc opt_o_ndelay;
@@ -38,5 +43,6 @@ extern const struct optdesc opt_f_setlkw_wr;
 extern const struct optdesc opt_cool_write;
 extern const struct optdesc opt_end_close;
 extern const struct optdesc opt_shut_none;
+extern const struct optdesc opt_streams_i_push;
 
 #endif /* !defined(__xio_fd_h_included) */

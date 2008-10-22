@@ -180,10 +180,10 @@ struct xioaddr_inter_desc {
 } ;
 
 struct xioaddr_endpoint_desc {
-   int tag;		/* 0: endpoint addr; 1: inter addr */
+   int tag;		/* XIOADDR_ENDPOINT, XIOADDR_INTER */
    const char *defname;	/* main (canonical) name of address */
    int numparams;	/* number of required parameters */
-   int leftdirs;
+   int leftdirs;	/* XIOBIT_* */
    unsigned groups;
    int howtoshut;
    int howtoclose;
@@ -337,6 +337,8 @@ typedef struct single {
       int (*sigchild)(struct single *);	/* callback after sigchild */
    } child;
    pid_t ppid;			/* parent pid, only if we send it signals */
+   int escape;			/* escape character; -1 for no escape */
+   bool actescape;		/* escape character found in input data */
    pthread_t subthread;		/* thread handling next inter-addr in chain */
    union {
 #if 0
@@ -350,7 +352,7 @@ typedef struct single {
 	 union sockaddr_union la;	/* local socket address */
 	 bool emptyiseof;	/* with dgram: empty packet means EOF */
 	 bool dorange;
-	 union xiorange_union range;	/* restrictions for peer address */
+	 struct xiorange range;	/* restrictions for peer address */
 #if _WITH_IP4 || _WITH_IP6
 	 struct {
 	    unsigned int res_opts[2];	/* bits to be set in _res.options are
@@ -532,7 +534,7 @@ union integral {
    } u_ip_mreq;
 #endif
 #if WITH_IP4
-   in_addr_t  u_ip4addr;
+   struct in_addr  u_ip4addr;
 #endif
 } ;
 
@@ -554,6 +556,8 @@ union integral {
 struct opt {
    const struct optdesc *desc;
    union integral value;
+   union integral value2;
+   union integral value3;
 } ;
 
 /* with threading, the arguments indirectly passed to xioengine() */
@@ -578,11 +582,14 @@ extern xiofile_t *sock[XIO_MAXSOCK];
 				   not even by external changes correctable */
 
 extern int xioinitialize(int xioflags);
+extern int xioinitialize2(void);
+extern pid_t xio_fork(bool subchild, int level);
 extern int xio_forked_inchild(void);
 extern int xiosetopt(char what, const char *arg);
 extern int xioinqopt(char what, char *arg, size_t n);
 extern xiofile_t *xioopen(const char *args, int xioflags);
-extern xiofile_t *xioopenx(const char *addr, int xioflags, int infd, int outfd);extern int xiosocketpair(xiofile_t **xfd1p, xiofile_t **xfd2p, int how, ...);
+extern xiofile_t *xioopenx(const char *addr, int xioflags, int infd, int outfd);
+extern int xiosocketpair2(xiofile_t **xfd1p, xiofile_t **xfd2p, int how, ...);
 
 extern int xioopensingle(char *addr, xiosingle_t *fd, int xioflags);
 extern int xioopenhelp(FILE *of, int level);

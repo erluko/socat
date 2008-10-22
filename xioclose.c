@@ -47,15 +47,6 @@ int xioclose1(struct single *pipe) {
       break;
 #endif /* WITH_OPENSSL */
 
-#if WITH_TERMIOS
-   if (pipe->ttyvalid) {
-      if (Tcsetattr(pipe->fd1, 0, &pipe->savetty) < 0) {
-	 Warn2("cannot restore terminal settings on fd %d: %s",
-	       pipe->fd1, strerror(errno));
-      }
-   }
-#endif /* WITH_TERMIOS */
-
    case XIOCLOSE_SIGTERM:
       if (pipe->child.pid > 0) {
 	 if (Kill(pipe->child.pid, SIGTERM) < 0) {
@@ -94,9 +85,18 @@ int xioclose1(struct single *pipe) {
       break;
 
    default:
-      Error2("xioclose(): bad end action 0x%x on 0x%x", pipe->howtoclose, pipe);
+      Error2("xioclose(): bad close action 0x%x on 0x%x", pipe->howtoclose, pipe);
       break;
    }
+
+#if WITH_TERMIOS
+   if (pipe->ttyvalid) {
+      if (Tcsetattr(pipe->fd1, 0, &pipe->savetty) < 0) {
+	 Warn2("cannot restore terminal settings on fd %d: %s",
+	       pipe->fd1, strerror(errno));
+      }
+   }
+#endif /* WITH_TERMIOS */
 
    /* unlock */
    if (pipe->havelock) {

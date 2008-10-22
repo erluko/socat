@@ -1,5 +1,5 @@
 /* source: xioconfig.h */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xioconfig_h_included
@@ -18,6 +18,10 @@
 
 #if WITH_OPEN || WITH_PIPE || WITH_UNIX || WITH_PTY
 #  define WITH_NAMED 1
+#endif
+
+#if WITH_TERMIOS || WITH_PTY || WITH_READLINE
+#  define _WITH_TERMIOS 1
 #endif
 
 #if WITH_SOCKS4A
@@ -54,7 +58,7 @@
 #  define _WITH_UNIX 1
 #endif
 
-#if WITH_IP4 || WITH_IP6 || WITH_SOCKS4 || WITH_RAWIP || _WITH_UNIX
+#if _WITH_UNIX || WITH_IP4 || WITH_IP6 || WITH_SOCKS4 || WITH_RAWIP || WITH_GENERICSOCKET
 #  define WITH_SOCKET 1
 #else
 #  undef WITH_SOCKET
@@ -68,7 +72,7 @@
 #  undef WITH_LIBWRAP
 #endif
 
-#if WITH_SOCKET || WITH_TUN
+#if WITH_GENERICSOCKET || WITH_TUN
 #  define _WITH_SOCKET 1
 #endif
 
@@ -129,6 +133,10 @@
 
 #ifndef HAVE_TYPE_UINT32
    typedef unsigned int uint32_t;
+#endif
+
+#ifndef HAVE_TYPE_SA_FAMILY_T
+   typedef uint16_t sa_family_t;
 #endif
 
 #endif /* !defined(__xioconfig_h_included) */

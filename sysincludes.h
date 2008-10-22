@@ -1,5 +1,5 @@
 /* source: sysincludes.h */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __sysincludes_h_included
@@ -24,7 +24,9 @@
 #endif
 #include <signal.h>	/* signal(), SIGPIPE, SIG_IGN */
 #include <time.h>	/* struct timeval, strftime() */
+#if 0
 #include <sys/timeb.h>	/* struct timeb */
+#endif
 #if HAVE_UNISTD_H
 #include <unistd.h>	/* select(), read(), write(), stat(), fork() */
 #endif
@@ -34,7 +36,7 @@
 #if HAVE_GRP_H
 #include <grp.h>	/* getgrnam() */
 #endif
-#if HAVE_PTY_H
+#if HAVE_PTY_H && _WITH_TERMIOS
 #include <pty.h>
 #endif
 #if HAVE_SYS_PARAM_H
@@ -109,6 +111,9 @@
 #include <arpa/nameser.h>	/* req for resolv.h (esp. on MacOSX) */
 #endif
 #include <net/if.h>
+#if HAVE_NET_IF_DL_H
+#include <net/if_dl.h>	/* FreeBSD: struct sockaddr_dl */
+#endif
 #if HAVE_RESOLV_H
 #include <resolv.h>	/* _res */
 #endif
@@ -117,11 +122,23 @@
 #if HAVE_NET_IF_H
 #include <net/if.h>
 #endif /* HAVE_NET_IF_H */
+#if HAVE_LINUX_TYPES_H
+#include <linux/types.h>	/* __u32  for linux/errqueue.h */
+#endif
+#if HAVE_LINUX_ERRQUEUE_H
+#include <linux/errqueue.h>	/* struct sock_extended_err */
+#endif
+#if HAVE_NETPACKET_PACKET_H
+#include <netpacket/packet.h>
+#endif
+#if HAVE_NETINET_IF_ETHER_H
+#include <netinet/if_ether.h>
+#endif
 #if HAVE_LINUX_IF_TUN_H
 #include <linux/if_tun.h>
 #endif
 
-#if HAVE_TERMIOS_H && WITH_TERMIOS
+#if HAVE_TERMIOS_H && _WITH_TERMIOS
 #include <termios.h>
 #endif
 #if HAVE_SYS_UTSNAME_H

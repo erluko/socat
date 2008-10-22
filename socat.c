@@ -63,12 +63,16 @@ bool havelock;
 
 int main(int argc, const char *argv[]) {
    const char **arg1, *a;
+   char *mainwaitstring;
    char buff[10];
    double rto;
    int i, argc0, result;
    struct utsname ubuf;
    int lockrc;
 
+   if (mainwaitstring = getenv("SOCAT_MAIN_WAIT")) {
+       sleep(atoi(mainwaitstring));
+   }
    diag_set('p', strchr(argv[0], '/') ? strrchr(argv[0], '/')+1 : argv[0]);
 
    /* we must init before applying options because env settings have lower
@@ -249,12 +253,14 @@ int main(int argc, const char *argv[]) {
       Error("-U and -u must not be combined");
    }
 
+   xioinitialize2();
    Info(copyright_socat);
 #if WITH_OPENSSL
    Info(copyright_openssl);
    Info(copyright_ssleay);
 #endif
    Debug2("socat version %s on %s", socatversion, timestamp);
+   xiosetenv("VERSION", socatversion, 1);	/* SOCAT_VERSION */
    uname(&ubuf);	/* ! here we circumvent internal tracing (Uname) */
    Debug4("running on %s version %s, release %s, machine %s\n",
 	   ubuf.sysname, ubuf.version, ubuf.release, ubuf.machine);
@@ -428,6 +434,16 @@ void socat_version(FILE *fd) {
 #else
    fputs("  #undef WITH_RAWIP\n", fd);
 #endif
+#ifdef WITH_GENERICSOCKET
+   fprintf(fd, "  #define WITH_GENERICSOCKET %d\n", WITH_GENERICSOCKET);
+#else
+   fputs("  #undef WITH_GENERICSOCKET\n", fd);
+#endif
+#ifdef WITH_INTERFACE
+   fprintf(fd, "  #define WITH_INTERFACE %d\n", WITH_INTERFACE);
+#else
+   fputs("  #undef WITH_INTERFACE\n", fd);
+#endif
 #ifdef WITH_TCP
    fprintf(fd, "  #define WITH_TCP %d\n", WITH_TCP);
 #else
@@ -437,6 +453,11 @@ void socat_version(FILE *fd) {
    fprintf(fd, "  #define WITH_UDP %d\n", WITH_UDP);
 #else
    fputs("  #undef WITH_UDP\n", fd);
+#endif
+#ifdef WITH_SCTP
+   fprintf(fd, "  #define WITH_SCTP %d\n", WITH_SCTP);
+#else
+   fputs("  #undef WITH_SCTP\n", fd);
 #endif
 #ifdef WITH_LISTEN
    fprintf(fd, "  #define WITH_LISTEN %d\n", WITH_LISTEN);
@@ -590,677 +611,23 @@ int socat(int argc, const char *address1, const char *address2) {
 }
 
 
-#if 0
-/* checks if this is a connection to a child process, and if so, sees if the
-   child already died, leaving some data for us.
-   returns <0 if an error occurred;
-   returns 0 if no child or not yet died or died without data (sets eof);
-   returns >0 if child died and left data
-*/
-int childleftdata(xiofile_t *xfd) {
-   fd_set in, out, expt;
-   int retval;
-   /* have to check if a child process died before, but left read data */
-   if (XIO_READABLE(xfd) &&
-       (/*0 XIO_RDSTREAM(xfd)->howtoclose == END_KILL ||*/
-	XIO_RDSTREAM(xfd)->howtoclose == END_CLOSE_KILL ||
-	XIO_RDSTREAM(xfd)->howtoclose == END_SHUTDOWN_KILL) &&
-       XIO_RDSTREAM(xfd)->child.pid == 0) {
-      struct timeval time0 = { 0,0 };
+/* childleftdata() has been moved to xioengine.c */
 
-      FD_ZERO(&in); FD_ZERO(&out); FD_ZERO(&expt);
-      if (XIO_READABLE(xfd) && !(XIO_RDSTREAM(xfd)->eof >= 2 && !XIO_RDSTREAM(xfd)->ignoreeof)) {
-	 FD_SET(XIO_GETRDFD(xfd), &in);
-	 /*0 FD_SET(XIO_GETRDFD(xfd), &expt);*/
-      }
-      do {
-	 retval = Select(FD_SETSIZE, &in, &out, &expt, &time0);
-      } while (retval < 0 && errno == EINTR);
 
-      if (retval < 0) {
-#if HAVE_FDS_BITS
-	 Error5("select(%d, &0x%lx, &0x%lx, &0x%lx, {0}): %s",
-		FD_SETSIZE, in.fds_bits[0], out.fds_bits[0],
-		expt.fds_bits[0], strerror(errno));
-#else
-	 Error5("select(%d, &0x%lx, &0x%lx, &0x%lx, {0}): %s",
-		FD_SETSIZE, in.__fds_bits[0], out.__fds_bits[0],
-		expt.__fds_bits[0], strerror(errno));
-#endif
-	 return -1;
-      } else if (retval == 0) {
-	 Info("terminated child did not leave data for us");
-	 XIO_RDSTREAM(xfd)->eof = 2;
-	 xfd->stream.eof = 2;
-	 closing = MAX(closing, 1);
-      }
-   }
-   return 0;
-}
-#endif /* 0 */
+/* _socat() has been moved to xioengine.c */
 
-#if 0
 
-bool mayrd1;		/* sock1 has read data or eof, according to select() */
-bool mayrd2;		/* sock2 has read data or eof, according to select() */
-bool maywr1;		/* sock1 can be written to, according to select() */
-bool maywr2;		/* sock2 can be written to, according to select() */
+/* gettimestamp() has been moved to xiotransfer.c */
 
-/* here we come when the sockets are opened (in the meaning of C language),
-   and their options are set/applied
-   returns -1 on error or 0 on success */
-int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
-   fd_set in, out, expt;
-   int retval;
-   unsigned char *buff;
-   ssize_t bytes1, bytes2;
-   int polling = 0;	/* handling ignoreeof */
-   int wasaction = 1;	/* last select was active, do NOT sleep before next */
-   struct timeval total_timeout;	/* the actual total timeout timer */
 
-   sock1 = xfd1;
-   sock2 = xfd2;
+/* xioprintblockheader has been moved to xiotransfer.c */
 
-#if WITH_FILAN
-   if (socat_opts.debug) {
-      int fdi, fdo;
-      int msglevel, exitlevel;
 
-      msglevel = diag_get_int('D');	/* save current message level */
-      diag_set_int('D', E_ERROR);	/* only print errors and fatals in filan */
-      exitlevel = diag_get_int('e');	/* save current exit level */
-      diag_set_int('e', E_FATAL);	/* only exit on fatals */
+/* xiotransfer has been moved to xiotransfer.c */
 
-      fdi = XIO_GETRDFD(sock1);
-      fdo = XIO_GETWRFD(sock1);
-      filan_fd(fdi, stderr);
-      if (fdo != fdi) {
-	 filan_fd(fdo, stderr);
-      }
 
-      fdi = XIO_GETRDFD(sock2);
-      fdo = XIO_GETWRFD(sock2);
-      filan_fd(fdi, stderr);
-      if (fdo != fdi) {
-	 filan_fd(fdo, stderr);
-      }
+/* cv_newline has been moved to xiotransfer.c */
 
-      diag_set_int('e', exitlevel);	/* restore old exit level */
-      diag_set_int('D', msglevel);	/* restore old message level */
-   }
-#endif /* WITH_FILAN */
-
-   /* when converting nl to crnl, size might double */
-   buff = Malloc(2*xioparams->bufsiz+1);
-   if (buff == NULL)  return -1;
-
-   if (socat_opts.logopt == 'm' && xioinqopt('l', NULL, 0) == 'm') {
-      Info("switching to syslog");
-      diag_set('y', xioopts.syslogfac);
-      xiosetopt('l', "\0");
-   }
-   total_timeout = socat_opts.total_timeout;
-
-   Notice4("starting data transfer loop with FDs [%d,%d] and [%d,%d]",
-	   XIO_GETRDFD(sock1), XIO_GETWRFD(sock1),
-	   XIO_GETRDFD(sock2), XIO_GETWRFD(sock2));
-   while (XIO_RDSTREAM(sock1)->eof <= 1 ||
-	  XIO_RDSTREAM(sock2)->eof <= 1) {
-      struct timeval timeout, *to = NULL;
-
-      Debug6("data loop: sock1->eof=%d, sock2->eof=%d, closing=%d, wasaction=%d, total_to={"F_tv_sec"."F_tv_usec"}",
-	     XIO_RDSTREAM(sock1)->eof, XIO_RDSTREAM(sock2)->eof,
-	     closing, wasaction,
-	     total_timeout.tv_sec, total_timeout.tv_usec);
-
-      /* for ignoreeof */
-      if (polling) {
-	 if (!wasaction) {
-	    /* yes we could do it with select but I like readable trace output */
-	    if (socat_opts.pollintv.tv_sec)  Sleep(socat_opts.pollintv.tv_sec);
-	    if (socat_opts.pollintv.tv_usec) Usleep(socat_opts.pollintv.tv_usec);
-
-	    if (socat_opts.total_timeout.tv_sec != 0 ||
-		socat_opts.total_timeout.tv_usec != 0) {
-	       if (total_timeout.tv_usec < socat_opts.pollintv.tv_usec) {
-		  total_timeout.tv_usec += 1000000;
-		  total_timeout.tv_sec  -= 1;
-	       }
-	       total_timeout.tv_sec  -= socat_opts.pollintv.tv_sec;
-	       total_timeout.tv_usec -= socat_opts.pollintv.tv_usec;
-	       if (total_timeout.tv_sec < 0 ||
-		   total_timeout.tv_sec == 0 && total_timeout.tv_usec < 0) {
-		  Notice("inactivity timeout triggered");
-		  return 0;
-	       }
-	    }
-
-	 } else {
-	    wasaction = 0;
-	 }
-      }
-
-      if (polling) {
-	 /* there is a ignoreeof poll timeout, use it */
-	 timeout = socat_opts.pollintv;
-	 to = &timeout;
-      } else if (socat_opts.total_timeout.tv_sec != 0 ||
-		 socat_opts.total_timeout.tv_usec != 0) {
-	 /* there might occur a total inactivity timeout */
-	 timeout = socat_opts.total_timeout;
-	 to = &timeout;
-      } else {
-	 to = NULL;
-      }
-
-      if (closing>=1) {
-	 /* first eof already occurred, start end timer */
-	 timeout = socat_opts.closwait;
-	 to = &timeout;
-	 closing = 2;
-      }
-
-      do {
-	 int _errno;
-	 FD_ZERO(&in); FD_ZERO(&out); FD_ZERO(&expt);
-
-	 childleftdata(sock1);
-	 childleftdata(sock2);
-
-	 if (closing>=1) {
-	    /* first eof already occurred, start end timer */
-	    timeout = socat_opts.closwait;
-	    to = &timeout;
-	    closing = 2;
-	 }
-
-	 if (XIO_READABLE(sock1) &&
-	     !(XIO_RDSTREAM(sock1)->eof > 1 && !XIO_RDSTREAM(sock1)->ignoreeof) &&
-	     !socat_opts.righttoleft) {
-	    Debug3("*** sock1: %p [%d,%d]", sock1, XIO_GETRDFD(sock1), XIO_GETWRFD(sock1));
-	    if (!mayrd1) {
-	       FD_SET(XIO_GETRDFD(sock1), &in);
-	    }
-	    if (!maywr2) {
-	       FD_SET(XIO_GETWRFD(sock2), &out);
-	    }
-	 }
-	 if (XIO_READABLE(sock2) &&
-	     !(XIO_RDSTREAM(sock2)->eof > 1 && !XIO_RDSTREAM(sock2)->ignoreeof) &&
-	     !socat_opts.lefttoright) {
-	    Debug3("*** sock2: %p [%d,%d]", sock2, XIO_GETRDFD(sock2), XIO_GETWRFD(sock2));
-	    if (!mayrd2) {
-	       FD_SET(XIO_GETRDFD(sock2), &in);
-	    }
-	    if (!maywr1) {
-	       FD_SET(XIO_GETWRFD(sock1), &out);
-	    }
-	 }
-	 retval = Select(FD_SETSIZE, &in, &out, &expt, to);
-	 _errno = errno;
-	 if (retval < 0 && errno == EINTR) {
-	    Info1("select(): %s", strerror(errno));
-	 }
-	 errno = _errno;
-      } while (retval < 0 && errno == EINTR);
-
-      /* attention:
-	 when an exec'd process sends data and terminates, it is unpredictable
-	 whether the data or the sigchild arrives first.
-	 */
-
-      if (retval < 0) {
-#if HAVE_FDS_BITS
-	    Error7("select(%d, &0x%lx, &0x%lx, &0x%lx, %s%lu): %s",
-		   FD_SETSIZE, in.fds_bits[0], out.fds_bits[0],
-		   expt.fds_bits[0], to?"&":"NULL/", to?to->tv_sec:0,
-		   strerror(errno));
-#else
-	    Error7("select(%d, &0x%lx, &0x%lx, &0x%lx, %s%lu): %s",
-		   FD_SETSIZE, in.__fds_bits[0], out.__fds_bits[0],
-		   expt.__fds_bits[0], to?"&":"NULL/", to?to->tv_sec:0,
-		   strerror(errno));
-#endif
-	    return -1;
-      } else if (retval == 0) {
-	 Info2("select timed out (no data within %ld.%06ld seconds)",
-	       closing>=1?socat_opts.closwait.tv_sec:socat_opts.total_timeout.tv_sec,
-	       closing>=1?socat_opts.closwait.tv_usec:socat_opts.total_timeout.tv_usec);
-	 if (polling && !wasaction) {
-	    /* there was a ignoreeof poll timeout, use it */
-	    ;
-	 } else if (socat_opts.total_timeout.tv_sec != 0 ||
-		    socat_opts.total_timeout.tv_usec != 0) {
-	    /* there was a total inactivity timeout */
-	    Notice("inactivity timeout triggered");
-	    return 0;
-	 }
-
-	 if (closing) {
-	    break;
-	 }
-	 /* one possibility to come here is ignoreeof on some fd, but no EOF 
-	    and no data on any descriptor - this is no indication for end! */
-	 continue;
-      }
-
-      if (XIO_READABLE(sock1) && XIO_GETRDFD(sock1) >= 0 &&
-	  FD_ISSET(XIO_GETRDFD(sock1), &in)) {
-	 mayrd1 = true;
-      }
-      if (XIO_READABLE(sock2) && XIO_GETRDFD(sock2) >= 0 &&
-	  FD_ISSET(XIO_GETRDFD(sock2), &in)) {
-	 mayrd2 = true;
-      }
-      if (XIO_GETWRFD(sock1) >= 0 && FD_ISSET(XIO_GETWRFD(sock1), &out)) {
-	 maywr1 = true;
-      }
-      if (XIO_GETWRFD(sock2) >= 0 && FD_ISSET(XIO_GETWRFD(sock2), &out)) {
-	 maywr2 = true;
-      }
-
-      if (mayrd1 && maywr2) {
-	 mayrd1 = false;
-	 if ((bytes1 = xiotransfer(sock1, sock2, &buff, xioparams->bufsiz, false))
-	     < 0) {
-	    if (errno != EAGAIN) {
-	       closing = MAX(closing, 1);
-	       Notice("socket 1 to socket 2 is in error");
-	       if (socat_opts.lefttoright) {
-		  break;
-	       }
-	    }
-	 } else if (bytes1 > 0) {
-	    maywr2 = false;
-	    total_timeout = socat_opts.total_timeout;
-	    wasaction = 1;
-	    /* is more data available that has already passed select()? */
-	    mayrd1 = (xiopending(sock1) > 0);
-	    if (XIO_RDSTREAM(sock1)->readbytes != 0 &&
-		XIO_RDSTREAM(sock1)->actbytes == 0) {
-	       /* avoid idle when all readbytes already there */
-	       mayrd1 = true;
-	    }          
-	 } else { /* bytes2 == 0 */
-	    if (XIO_RDSTREAM(sock1)->ignoreeof && !closing) {
-	       ;
-	    } else {
-	       XIO_RDSTREAM(sock1)->eof = 2;
-	       closing = MAX(closing, 1);
-	    }
-	    /* (bytes1 == 0)  handled later */
-	 }
-      } else {
-	 bytes1 = -1;
-      }
-
-      if (mayrd2 && maywr1) {
-	 mayrd2 = false;
-	 if ((bytes2 = xiotransfer(sock2, sock1, &buff, xioparams->bufsiz, true))
-	     < 0) {
-	    if (errno != EAGAIN) {
-	       closing = MAX(closing, 1);
-	       Notice("socket 2 to socket 1 is in error");
-	       if (socat_opts.righttoleft) {
-		  break;
-	       }
-	    }
-	 } else if (bytes2 > 0) {
-	    maywr1 = false;
-	    total_timeout = socat_opts.total_timeout;
-	    wasaction = 1;
-	    /* is more data available that has already passed select()? */
-	    mayrd2 = (xiopending(sock2) > 0);
-	    if (XIO_RDSTREAM(sock2)->readbytes != 0 &&
-		XIO_RDSTREAM(sock2)->actbytes == 0) {
-	       /* avoid idle when all readbytes already there */
-	       mayrd2 = true;
-	    }          
-	 } else { /* bytes == 0 */
-	    if (XIO_RDSTREAM(sock2)->ignoreeof && !closing) {
-	       ;
-	    } else {
-	       XIO_RDSTREAM(sock2)->eof = 2;
-	       closing = MAX(closing, 1);
-	    }
-	    /* (bytes2 == 0)  handled later */
-	 }
-      } else {
-	 bytes2 = -1;
-      }
-
-      /* NOW handle EOFs */
-
-      if (bytes1 == 0 || XIO_RDSTREAM(sock1)->eof >= 2) {
-	 if (XIO_RDSTREAM(sock1)->ignoreeof && !closing) {
-	    Debug1("socket 1 (fd %d) is at EOF, ignoring",
-		   XIO_RDSTREAM(sock1)->fd1);	/*! */
-	    polling = 1;
-	 } else {
-	    Notice1("socket 1 (fd %d) is at EOF", XIO_GETRDFD(sock1));
-	    xioshutdown(sock2, SHUT_WR);
-	    if (socat_opts.lefttoright) {
-	       break;
-	    }
-	 }
-      }
-
-      if (bytes2 == 0 || XIO_RDSTREAM(sock2)->eof >= 2) {
-	 if (XIO_RDSTREAM(sock2)->ignoreeof && !closing) {
-	    Debug1("socket 2 (fd %d) is at EOF, ignoring",
-		   XIO_RDSTREAM(sock2)->fd1);
-	    polling = 1;
-	 } else {
-	    Notice1("socket 2 (fd %d) is at EOF", XIO_GETRDFD(sock2));
-	    xioshutdown(sock1, SHUT_WR);
-	    if (socat_opts.righttoleft) {
-	       break;
-	    }
-	 }
-      }
-   }
-
-   /* close everything that's still open */
-   xioclose(sock1);
-   xioclose(sock2);
-
-   return 0;
-}
-#endif /* 0 */
-
-#if 0
-#define MAXTIMESTAMPLEN 128
-/* prints the timestamp to the buffer and terminates it with '\0'. This buffer
-   should be at least MAXTIMESTAMPLEN bytes long.
-   returns 0 on success or -1 if an error occurred */
-int gettimestamp(char *timestamp) {
-   size_t bytes;
-#if HAVE_GETTIMEOFDAY || 1
-   struct timeval now;
-   int result;
-   time_t nowt;
-#else /* !HAVE_GETTIMEOFDAY */
-   time_t now;
-#endif /* !HAVE_GETTIMEOFDAY */
-
-#if HAVE_GETTIMEOFDAY || 1
-   result = gettimeofday(&now, NULL);
-   if (result < 0) {
-      return result;
-   } else {
-      nowt = now.tv_sec;
-#if HAVE_STRFTIME
-      bytes = strftime(timestamp, 20, "%Y/%m/%d %H:%M:%S", localtime(&nowt));
-      bytes += sprintf(timestamp+19, "."F_tv_usec" ", now.tv_usec);
-#else
-      strcpy(timestamp, ctime(&nowt));
-      bytes = strlen(timestamp);
-#endif
-   }
-#else /* !HAVE_GETTIMEOFDAY */
-   now = time(NULL);  if (now == (time_t)-1) {
-      return -1;
-   } else {
-#if HAVE_STRFTIME
-      bytes = strftime(timestamp, 21, "%Y/%m/%d %H:%M:%S ", localtime(&now));
-#else
-      strcpy(timestamp, ctime(&now));
-      bytes = strlen(timestamp);
-#endif
-   }
-#endif /* !HAVE_GETTIMEOFDAY */
-   return 0;
-}
-#endif
-
-#if 0
-static const char *prefixltor = "> ";
-static const char *prefixrtol = "< ";
-static unsigned long numltor;
-static unsigned long numrtol;
-/* print block header (during verbose or hex dump)
-   returns 0 on success or -1 if an error occurred */
-static int
-   xioprintblockheader(FILE *file, size_t bytes, bool righttoleft) {
-   char timestamp[MAXTIMESTAMPLEN];
-   char buff[128+MAXTIMESTAMPLEN];
-   if (gettimestamp(timestamp) < 0) {
-      return -1;
-   }
-   if (righttoleft) {
-      sprintf(buff, "%s%s length="F_Zu" from=%lu to=%lu\n",
-	      prefixrtol, timestamp, bytes, numrtol, numrtol+bytes-1);
-      numrtol+=bytes;
-   } else {
-      sprintf(buff, "%s%s length="F_Zu" from=%lu to=%lu\n",
-	      prefixltor, timestamp, bytes, numltor, numltor+bytes-1);
-      numltor+=bytes;
-   }
-   fputs(buff, file);
-   return 0;
-}
-#endif /* 0 */
-
-#if 0
-/* inpipe is suspected to have read data available; read at most bufsiz bytes
-   and transfer them to outpipe. Perform required data conversions.
-   buff should be at least twice as large as bufsiz, to allow all standard
-   conversions. Returns the number of bytes written, or 0 on EOF or <0 if an
-   error occurred or when data was read but none written due to conversions
-   (with EAGAIN). EAGAIN also occurs when reading from a nonblocking FD where
-   the file has a mandatory lock.
-   If 0 bytes were read (EOF), it does NOT shutdown or close a channel, and it
-   does NOT write a zero bytes block.
-   */
-/* inpipe, outpipe must be single descriptors (not dual!) */
-int xiotransfer(xiofile_t *inpipe, xiofile_t *outpipe,
-		unsigned char **buff, size_t bufsiz, bool righttoleft) {
-   ssize_t bytes, writt;
-
-	 bytes = xioread(inpipe, *buff, xioparams->bufsiz);
-	 if (bytes < 0) {
-	    if (errno != EAGAIN)
-	       XIO_RDSTREAM(inpipe)->eof = 2;
-	    /*xioshutdown(inpipe, SHUT_RD);*/
-	    return -1;
-	 }
-	 if (bytes == 0 && XIO_RDSTREAM(inpipe)->ignoreeof && !closing) {
-	    writt = 0;
-	 } else if (bytes == 0) {
-	    XIO_RDSTREAM(inpipe)->eof = 2;
-	    closing = MAX(closing, 1);
-	    writt = 0;
-	 }
-
-	 else /* if (bytes > 0)*/ {
-
-	    if (XIO_RDSTREAM(inpipe)->lineterm !=
-		XIO_WRSTREAM(outpipe)->lineterm) {
-	       cv_newline(buff, &bytes,
-			  XIO_RDSTREAM(inpipe)->lineterm,
-			  XIO_WRSTREAM(outpipe)->lineterm);
-	    }
-	    if (bytes == 0) {
-	       errno = EAGAIN;  return -1;
-	    }
-
-	    if (xioparams->verbose && xioparams->verbhex) {
-	       /* Hack-o-rama */
-	       size_t i = 0;
-	       size_t j;
-	       size_t N = 16;
-	       const unsigned char *end, *s, *t;
-	       s = *buff;
-	       end = (*buff)+bytes;
-	       xioprintblockheader(stderr, bytes, righttoleft);
-	       while (s < end) {
-		  /*! prefix? */
-		  j = Min(N, (size_t)(end-s));
-
-		  /* print hex */
-		  t = s;
-		  i = 0;
-		  while (i < j) {
-		     int c = *t++;
-		     fprintf(stderr, " %02x", c);
-		     ++i;
-		     if (c == '\n')  break;
-		  }
-
-		  /* fill hex column */
-		  while (i < N) {
-		     fputs("   ", stderr);
-		     ++i;
-		  }
-		  fputs("  ", stderr);
-
-		  /* print acsii */
-		  t = s;
-		  i = 0;
-		  while (i < j) {
-		     int c = *t++;
-		     if (c == '\n') {
-			fputc('.', stderr);
-			break;
-		     }
-		     if (!isprint(c))
-			c = '.';
-		     fputc(c, stderr);
-		     ++i;
-		  }
-
-		  fputc('\n', stderr);
-		  s = t;
-	       }
-	       fputs("--\n", stderr);
-	    } else if (socat_opts.verbose) {
-	       size_t i = 0;
-	       xioprintblockheader(stderr, bytes, righttoleft);
-	       while (i < (size_t)bytes) {
-		  int c = (*buff)[i];
-		  if (i > 0 && (*buff)[i-1] == '\n')
-		     /*! prefix? */;
-		  switch (c) {
-		  case '\a' : fputs("\\a", stderr); break;
-		  case '\b' : fputs("\\b", stderr); break;
-		  case '\t' : fputs("\t", stderr); break;
-		  case '\n' : fputs("\n", stderr); break;
-		  case '\v' : fputs("\\v", stderr); break;
-		  case '\f' : fputs("\\f", stderr); break;
-		  case '\r' : fputs("\\r", stderr); break;
-		  case '\\' : fputs("\\\\", stderr); break;
-		  default:
-		     if (!isprint(c))
-			c = '.';
-		     fputc(c, stderr);
-		     break;
-		  }
-		  ++i;
-	       }
-	    } else if (xioparams->verbhex) {
-	       int i;
-	       /*! prefix? */
-	       for (i = 0; i < bytes; ++i) {
-		  fprintf(stderr, " %02x", (*buff)[i]);
-	       }
-	       fputc('\n', stderr);
-	    }
-
-	    writt = xiowrite(outpipe, *buff, bytes);
-	    if (writt < 0) {
-	       /* EAGAIN when nonblocking but a mandatory lock is on file.
-		  the problem with EAGAIN is that the read cannot be repeated,
-		  so we need to buffer the data and try to write it later
-		  again. not yet implemented, sorry. */
-#if 0
-	       if (errno == EPIPE) {
-		  return 0;	/* can no longer write; handle like EOF */
-	       }
-#endif
-	       return -1;
-	    } else {
-	       Info3("transferred "F_Zu" bytes from %d to %d",
-		     writt, XIO_GETRDFD(inpipe), XIO_GETWRFD(outpipe));
-	    }
-	 }
-   return writt;
-}
-#endif /* 0 */
-
-#if 0
-
-#define CR '\r'
-#define LF '\n'
-
-int cv_newline(unsigned char **buff, ssize_t *bytes,
-	       int lineterm1, int lineterm2) {
-   /* must perform newline changes */
-   if (lineterm1 <= LINETERM_CR && lineterm2 <= LINETERM_CR) {
-      /* no change in data length */
-      unsigned char from, to,  *p, *z;
-      if (lineterm1 == LINETERM_RAW) {
-	 from = '\n'; to = '\r';
-      } else {
-	 from = '\r'; to = '\n';
-      }
-      z = *buff + *bytes;
-      p = *buff;
-      while (p < z) {
-	 if (*p == from)  *p = to;
-	 ++p;
-      }
-
-   } else if (lineterm1 == LINETERM_CRNL) {
-      /* buffer becomes shorter */
-      unsigned char to,  *s, *t, *z;
-      if (lineterm2 == LINETERM_RAW) {
-	 to = '\n';
-      } else {
-	 to = '\r';
-      }
-      z = *buff + *bytes;
-      s = t = *buff;
-      while (s < z) {
-	 if (*s == '\r') {
-	    ++s;
-	    continue;
-	 }
-	 if (*s == '\n') {
-	    *t++ = to; ++s;
-	 } else {
-	    *t++ = *s++;
-	 }
-      }
-      *bytes = t - *buff;
-   } else {
-      /* buffer becomes longer, must alloc another space */
-      unsigned char *buf2;
-      unsigned char from;  unsigned char *s, *t, *z;
-      if (lineterm1 == LINETERM_RAW) {
-	 from = '\n';
-      } else {
-	 from = '\r';
-      }
-      if ((buf2 = Malloc(2*xioparams->bufsiz+1)) == NULL) {
-	 return -1;
-      }
-      s = *buff;  t = buf2;  z = *buff + *bytes;
-      while (s < z) {
-	 if (*s == from) {
-	    *t++ = '\r'; *t++ = '\n';
-	    ++s;
-	    continue;
-	 } else {
-	    *t++ = *s++;
-	 }
-      }
-      free(*buff);
-      *buff = buf2;
-      *bytes = t - buf2;;
-   }
-   return 0;
-}
-#endif /* 0 */
 
 void socat_signal(int signum) {
    switch (signum) {

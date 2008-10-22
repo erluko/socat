@@ -1,4 +1,4 @@
-/* $Id$ */
+/* source: xio-socks5.c */
 /* Copyright Gerhard Rieger 2004-2007 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 

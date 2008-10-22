@@ -1,5 +1,5 @@
 /* source: xio-exec.c */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of exec type */
@@ -42,6 +42,7 @@ static int xioopen_exec1end(int argc, const char *argv[], struct opt *opts,
 		) {
    int status;
    bool dash = false;
+   int duptostderr;
 
    if (argc != 2) {
       Error3("\"%s:%s\": wrong number of parameters (%d instead of 1)", argv[0], argv[1], argc-1);
@@ -49,7 +50,7 @@ static int xioopen_exec1end(int argc, const char *argv[], struct opt *opts,
       
    retropt_bool(opts, OPT_DASH, &dash);
 
-   status = _xioopen_foxec_end(xioflags, &fd->stream, groups, &opts);
+   status = _xioopen_foxec_end(xioflags, &fd->stream, groups, &opts, &duptostderr);
    if (status < 0)  return status;
    if (status == 0) {	/* child */
       const char *ends[] = { " ", NULL };
@@ -92,11 +93,11 @@ static int xioopen_exec1end(int argc, const char *argv[], struct opt *opts,
       if (pargv[0] == NULL)  pargv[0] = token;  else  ++pargv[0];
       pargc = 1;
       while (*strp == ' ') {
+	 while (*++strp == ' ')  ;
 	 if ((pargc & 0x07) == 0) {
 	    pargv = Realloc(pargv, (pargc+8)*sizeof(char *));
 	    if (pargv == NULL)  return STAT_RETRYLATER;
 	 }
-	 ++strp;
 	 pargv[pargc++] = tokp;
 	 if (nestlex(&strp, &tokp, &len, ends, hquotes, squotes, nests,
 		     false, true, true, false) < 0) {
@@ -128,6 +129,11 @@ static int xioopen_exec1end(int argc, const char *argv[], struct opt *opts,
 	 return STAT_NORETRY;
       }
 
+      /* only now redirect stderr */
+      if (duptostderr >= 0) {
+	 diag_dup();
+	 Dup2(duptostderr, 2);
+      }
       Notice1("execvp'ing \"%s\"", token);
       result = Execvp(token, pargv);
       /* here we come only if execvp() failed */

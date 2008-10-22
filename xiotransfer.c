@@ -1,5 +1,5 @@
-/* $Id$ */
-/* Copyright Gerhard Rieger 2007 */
+/* source: xiotransfer.c */
+/* Copyright Gerhard Rieger 2007-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source file of the data transfer function */
@@ -90,8 +90,9 @@ static int
 
 /* inpipe is suspected to have read data available; read at most bufsiz bytes
    and transfer them to outpipe. Perform required data conversions.
-   buff should be at least twice as large as bufsiz, to allow all standard
-   conversions. Returns the number of bytes written, or 0 on EOF or <0 if an
+   buff must be a malloc()'ed storage and might be realloc()'ed in this
+   function if more space is required after conversions. 
+   Returns the number of bytes written, or 0 on EOF or <0 if an
    error occurred or when data was read but none written due to conversions
    (with EAGAIN). EAGAIN also occurs when reading from a nonblocking FD where
    the file has a mandatory lock.
@@ -101,7 +102,7 @@ static int
 /* inpipe, outpipe must be single descriptors (not dual!) */
 int xiotransfer(xiofile_t *inpipe, xiofile_t *outpipe,
 		unsigned char **buff, size_t bufsiz, bool righttoleft) {
-   ssize_t bytes, writt;
+   ssize_t bytes, writt = 0;
 
 	 bytes = xioread(inpipe, *buff, bufsiz);
 	 if (bytes < 0) {
@@ -110,11 +111,35 @@ int xiotransfer(xiofile_t *inpipe, xiofile_t *outpipe,
 	    /*xioshutdown(inpipe, SHUT_RD);*/
 	    return -1;
 	 }
-	 if (bytes == 0) {
-	    writt = 0;
+	 if (bytes == 0 && XIO_RDSTREAM(inpipe)->ignoreeof &&
+	     !inpipe->stream.closing) {
+	    ;
+	 } else if (bytes == 0) {
+	    XIO_RDSTREAM(inpipe)->eof = 2;
+	    inpipe->stream.closing = MAX(inpipe->stream.closing, 1);
 	 }
 
-	 else /* if (bytes > 0)*/ {
+      if (bytes > 0) {
+	 /* handle escape char */
+	 if (XIO_RDSTREAM(inpipe)->escape != -1) {
+	    /* check input data for escape char */
+	    unsigned char *ptr = *buff;
+	    size_t ctr = 0;
+	    while (ctr < bytes) {
+	       if (*ptr == XIO_RDSTREAM(inpipe)->escape) {
+		  /* found: set flag, truncate input data */
+		  XIO_RDSTREAM(inpipe)->actescape = true;
+		  bytes = ctr;
+		  Info("escape char found in input");
+		  break;
+	       }
+	       ++ptr; ++ctr;
+	    }
+	    if (ctr != bytes) {
+	       XIO_RDSTREAM(inpipe)->eof = 2;
+	    }
+	 }
+      }
 
 	    if (XIO_RDSTREAM(inpipe)->lineterm !=
 		XIO_WRSTREAM(outpipe)->lineterm) {
@@ -123,7 +148,8 @@ int xiotransfer(xiofile_t *inpipe, xiofile_t *outpipe,
 			  XIO_WRSTREAM(outpipe)->lineterm);
 	    }
 	    if (bytes == 0) {
-	       errno = EAGAIN;  return -1;
+	       /*errno = EAGAIN;  return -1;*/
+	       return bytes;
 	    }
 
 	    if (xioparams->verbose && xioparams->verbhex) {
@@ -224,7 +250,6 @@ int xiotransfer(xiofile_t *inpipe, xiofile_t *outpipe,
 	       Info3("transferred "F_Zu" bytes from %d to %d",
 		     writt, XIO_GETRDFD(inpipe), XIO_GETWRFD(outpipe));
 	    }
-	 }
    return writt;
 }
 

@@ -25,6 +25,13 @@ const struct optdesc opt_range   = { "range",     NULL, OPT_RANGE,       GROUP_R
 #endif
 
 
+/*
+   applies and consumes the following option:
+   PH_INIT, PH_PASTSOCKET, PH_PREBIND, PH_BIND, PH_PASTBIND, PH_EARLY,
+   PH_PREOPEN, PH_FD, PH_CONNECTED, PH_LATE, PH_LATE2
+   OPT_FORK, OPT_SO_TYPE, OPT_SO_PROTOTYPE, OPT_BACKLOG, OPT_RANGE, tcpwrap,
+   OPT_SOURCEPORT, OPT_LOWPORT, cloexec
+ */
 int
    xioopen_listen(struct single *xfd, int xioflags,
 		  struct sockaddr *us, socklen_t uslen,
@@ -81,15 +88,24 @@ int
 }
 
 
-/* waits for incoming connection, checks its source address and port. Depending
-   on fork option, it may fork a subprocess.
+/* creates the listening socket, bind, applies options; waits for incoming
+   connection, checks its source address and port. Depending on fork option, it
+   may fork a subprocess.
+   pf specifies the syntax expected for range option. In the case of generic
+   socket it is 0 (expecting raw binary data), and the real pf can be obtained
+   from us->af_family; for other socket types pf == us->af_family
    Returns 0 if a connection was accepted; with fork option, this is always in
    a subprocess!
    Other return values indicate a problem; this can happen in the master
    process or in a subprocess.
-   This function does not retry. If you need retries, handle this is a
-   loop in the calling function.
-   after fork, we set the forever/retry of the child process to 0
+   This function does not retry. If you need retries, handle this in a
+   loop in the calling function (and always provide the options...)
+   After fork, we set the forever/retry of the child process to 0
+   applies and consumes the following option:
+   PH_INIT, PH_PASTSOCKET, PH_PREBIND, PH_BIND, PH_PASTBIND, PH_EARLY,
+   PH_PREOPEN, PH_FD, PH_CONNECTED, PH_LATE, PH_LATE2
+   OPT_FORK, OPT_SO_TYPE, OPT_SO_PROTOTYPE, OPT_BACKLOG, OPT_RANGE, tcpwrap,
+   OPT_SOURCEPORT, OPT_LOWPORT, cloexec
  */
 int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, socklen_t uslen,
 		 struct opt *opts, int pf, int socktype, int proto, int level) {
@@ -98,9 +114,14 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
    int backlog = 5;	/* why? 1 seems to cause problems under some load */
    char *rangename;
    bool dofork = false;
-   pid_t pid;	/* mostly int; only used with fork */
    char infobuff[256];
    char lisname[256];
+   union sockaddr_union _peername;
+   union sockaddr_union _sockname;
+   union sockaddr_union *pa = &_peername;	/* peer address */
+   union sockaddr_union *la = &_sockname;	/* local address */
+   socklen_t pas = sizeof(_peername);	/* peer address size */
+   socklen_t las = sizeof(_sockname);	/* local address size */
    int result;
 
    retropt_bool(opts, OPT_FORK, &dofork);
@@ -119,9 +140,7 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
       xiosetchilddied();	/* set SIGCHLD handler */
    }
 
-   if ((xfd->fd1 = Socket(pf, socktype, proto)) < 0) {
-      Msg4(level,
-	   "socket(%d, %d, %d): %s", pf, socktype, proto, strerror(errno));
+   if ((xfd->fd1 = xiosocket(opts, us->sa_family, socktype, proto, level)) < 0) {
       return STAT_RETRYLATER;
    }
    xfd->fdtype = FDTYPE_SINGLE;
@@ -170,7 +189,8 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 
 #if WITH_IP4 /*|| WITH_IP6*/
    if (retropt_string(opts, OPT_RANGE, &rangename) >= 0) {
-      if (parserange(rangename, us->sa_family, &xfd->para.socket.range) < 0) {
+      if (xioparserange(rangename, pf, &xfd->para.socket.range)
+	  < 0) {
 	 free(rangename);
 	 return STAT_NORETRY;
       }
@@ -190,6 +210,12 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
    retropt_bool(opts, OPT_LOWPORT, &xfd->para.socket.ip.lowport);
 #endif /* WITH_TCP || WITH_UDP */
 
+   retropt_int(opts, OPT_BACKLOG, &backlog);
+   if (Listen(xfd->fd1, backlog) < 0) {
+      Error3("listen(%d, %d): %s", xfd->fd1, backlog, strerror(errno));
+      return STAT_RETRYLATER;
+   }
+
    if (xioopts.logopt == 'm') {
       Info("starting accept loop, switching to syslog");
       diag_set('y', xioopts.syslogfac);  xioopts.logopt = 'y';
@@ -200,12 +226,6 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
       char peername[256];
       char sockname[256];
       int ps;		/* peer socket */
-      union sockaddr_union _peername;
-      union sockaddr_union _sockname;
-      union sockaddr_union *pa = &_peername;	/* peer address */
-      union sockaddr_union *la = &_sockname;	/* local address */
-      socklen_t pas = sizeof(_peername);	/* peer address size */
-      socklen_t las = sizeof(_sockname);	/* local address size */
       salen = sizeof(struct sockaddr);
 
       do {
@@ -233,16 +253,18 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
       if (Getpeername(ps, &pa->soa, &pas) < 0) {
 	 Warn4("getpeername(%d, %p, {"F_socklen"}): %s",
 	       ps, pa, pas, strerror(errno));
+	 pa = NULL;
       }
       if (Getsockname(ps, &la->soa, &las) < 0) {
 	 Warn4("getsockname(%d, %p, {"F_socklen"}): %s",
-	       ps, pa, pas, strerror(errno));
+	       ps, la, las, strerror(errno));
+	 la = NULL;
       }
       Notice2("accepting connection from %s on %s",
-	      sockaddr_info(&pa->soa, pas, peername, sizeof(peername)),
-	      sockaddr_info(&la->soa, las, sockname, sizeof(sockname)));
+	      sockaddr_info(pa?&pa->soa:NULL, pas, peername, sizeof(peername)),
+	      sockaddr_info(pa?&la->soa:NULL, las, sockname, sizeof(sockname)));
 
-      if (xiocheckpeer(xfd, pa, la) < 0) {
+      if (pa != NULL && la != NULL && xiocheckpeer(xfd, pa, la) < 0) {
 	 if (Shutdown(ps, 2) < 0) {
 	    Info2("shutdown(%d, 2): %s", ps, strerror(errno));
 	 }
@@ -254,16 +276,20 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 			  infobuff, sizeof(infobuff)));
 
       applyopts(xfd->fd1, opts, PH_FD);
-
       applyopts(xfd->fd1, opts, PH_CONNECTED);
 
       if (dofork) {
-	 if ((pid = Fork()) < 0) {
-	    Msg1(level, "fork(): %s", strerror(errno));
+	 pid_t pid;	/* mostly int; only used with fork */
+	 if ((pid = xio_fork(false, level==E_ERROR?level:E_WARN)) < 0) {
 	    Close(xfd->fd1);
 	    return STAT_RETRYLATER;
 	 }
 	 if (pid == 0) {	/* child */
+	    pid_t cpid = Getpid();
+
+	    Info1("just born: client process "F_pid, cpid);
+	    xiosetenvulong("PID", cpid, 1);
+
 	    if (Close(xfd->fd1) < 0) {
 	       Info2("close(%d): %s", xfd->fd1, strerror(errno));
 	    }
@@ -271,15 +297,9 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 
 #if WITH_RETRY
 	    /* !? */
-	    xfd->retry = 0;
-	    xfd->forever = 0;
+	    xfd->forever = false;  xfd->retry = 0;
 	    level = E_ERROR;
 #endif /* WITH_RETRY */
-
-	    /* drop parents locks, reset FIPS... */
-	    if (xio_forked_inchild() != 0) {
-	       Exit(1);
-	    }
 
 #if WITH_UNIX
 	    /* with UNIX sockets: only listening parent is allowed to remove
@@ -296,7 +316,6 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 	 if (Close(ps) < 0) {
 	    Info2("close(%d): %s", ps, strerror(errno));
 	 }
-	 Notice1("forked off child process "F_pid, pid);
 	 Info("still listening");
       } else {
 	 if (Close(xfd->fd1) < 0) {
@@ -308,6 +327,10 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
    }
    if ((result = _xio_openlate(xfd, opts)) < 0)
       return result;
+
+   /* set the env vars describing the local and remote sockets */
+   xiosetsockaddrenv("SOCK", la, las, proto);
+   xiosetsockaddrenv("PEER", pa, pas, proto);
 
    return 0;
 }

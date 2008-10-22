@@ -1,5 +1,5 @@
 /* source: xio-tun.c */
-/* Copyright Gerhard Rieger 2007 */
+/* Copyright Gerhard Rieger 2007-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of tun/tap type */
@@ -16,8 +16,6 @@
 
 
 static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3);
-
-#define XIO_OFFSETOF(x) ((size_t)&((xiosingle_t *)0)->x)
 
 /****** TUN addresses ******/
 const struct optdesc opt_tun_device    = { "tun-device",     NULL,      OPT_TUN_DEVICE,      GROUP_TUN,       PH_OPEN, TYPE_FILENAME, OFUNC_SPEC };
@@ -46,20 +44,20 @@ const struct optdesc opt_iff_automedia   = { "iff-automedia",   "automedia",   O
 const struct optdesc opt_route           = { "route",           NULL,          OPT_ROUTE,           GROUP_INTERFACE, PH_INIT, TYPE_STRING,   OFUNC_SPEC };
 #endif
 
-static const struct xioaddr_endpoint_desc xioendpoint_tun1    = { XIOADDR_SYS, "tun",   1, XIOBIT_ALL, GROUP_FD|GROUP_CHR|GROUP_NAMED|GROUP_OPEN|GROUP_TUN, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_tun, 0, 0, 0 HELP(":<ip-addr>/<bits>") };
+static const struct xioaddr_endpoint_desc xioendpoint_tun1    = { XIOADDR_SYS, "tun",   1, XIOBIT_ALL, GROUP_FD|GROUP_NAMED|GROUP_OPEN|GROUP_TUN, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_tun, 0, 0, 0 HELP(":<ip-addr>/<bits>") };
 
 const union xioaddr_desc *xioaddrs_tun[] = {
    (union xioaddr_desc *)&xioendpoint_tun1,
    NULL
 };
-
-// "if-name"=tun3
+/* "if-name"=tun3
 // "route"=address/netmask
 // "ip6-route"=address/netmask
 // "iff-broadcast"
 // "iff-debug"
 // "iff-promisc"
 // see .../linux/if.h
+*/
 
 
 #if LATER
@@ -75,7 +73,7 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
    char *tundevice = NULL;
    char *tunname = NULL, *tuntype = NULL;
    int pf = /*! PF_UNSPEC*/ PF_INET;
-   union xiorange_union network;
+   struct xiorange network;
    bool no_pi = false;
    const char *namedargv[] = { "tun", NULL, NULL };
    int rw = (xioflags & XIO_ACCMODE);
@@ -162,12 +160,14 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
       return result;
    }
    socket_init(pf, (union sockaddr_union *)&ifr.ifr_addr);
-   ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr = network.ip4.netaddr;
+   ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr =
+      network.netaddr.ip4.sin_addr;
    if (Ioctl(sockfd, SIOCSIFADDR, &ifr) < 0) {
       Error4("ioctl(%d, SIOCSIFADDR, {\"%s\", \"%s\"}: %s",
 	     sockfd, ifr.ifr_name, ifaddr, strerror(errno));
    }
-   ((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr = network.ip4.netmask;
+   ((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr =
+      network.netmask.ip4.sin_addr;
    if (Ioctl(sockfd, SIOCSIFNETMASK, &ifr) < 0) {
       Error4("ioctl(%d, SIOCSIFNETMASK, {\"0x%08u\", \"%s\"}, %s",
 	     sockfd, ((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr,

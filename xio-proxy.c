@@ -201,7 +201,7 @@ static int xioopen_proxy_connect3(int argc, const char *argv[], struct opt *opts
 			     xfd->para.socket.ip.res_opts[1],
 			     xfd->para.socket.ip.res_opts[0],
 			     them, &themlen, us, &uslen,
-			     &needbind, &lowport, &socktype);
+			     &needbind, &lowport, socktype);
    if (result != STAT_OK)  return result;
    Notice4("opening connection to %s:%u via proxy %s:%s",
 	   proxyvars->targetaddr, proxyvars->targetport, proxyname, proxyport);
@@ -262,28 +262,22 @@ static int xioopen_proxy_connect3(int argc, const char *argv[], struct opt *opts
 #if WITH_RETRY
       if (dofork) {
 	 pid_t pid;
-	 while ((pid = Fork()) < 0) {
-	    int level = E_ERROR;
-	    if (xfd->forever || xfd->retry) {
-	       level = E_WARN;
-	    }
-	    Msg1(level, "fork(): %s", strerror(errno));
-	    if (xfd->forever || xfd->retry--) {
-	       Nanosleep(&xfd->intervall, NULL);
-	       continue;
+	 int level = E_ERROR;
+	 if (xfd->forever || xfd->retry) {
+	    level = E_WARN;
+	 }
+	 while ((pid = xio_fork(false, level)) < 0) {
+	    if (xfd->forever || --xfd->retry) {
+	       Nanosleep(&xfd->intervall, NULL); continue;
 	    }
 	    return STAT_RETRYLATER;
 	 }
-	 if (pid == 0) {	/* child process */
-	    Info1("just born: proxy client process "F_pid, Getpid());
 
-	    /* drop parents locks, reset FIPS... */
-	    if (xio_forked_inchild() != 0) {
-	       Exit(1);
-	    }
+	 if (pid == 0) {	/* child process */
 	    xfd->forever = false;  xfd->retry = 0;
 	    break;
 	 }
+
 	 /* parent process */
 	 Notice1("forked off child process "F_pid, pid);
 	 Close(xfd->fd1);
@@ -321,9 +315,11 @@ int _xioopen_proxy_prepare(struct proxyvars *proxyvars, struct opt *opts,
       host = Gethostbyname(targetname);
       if (host == NULL) {
 	 int level = E_WARN;
+	 /* note: cast is req on AIX: */
 	 Msg2(level, "gethostbyname(\"%s\"): %s", targetname,
-	       h_errno == NETDB_INTERNAL ? strerror(errno) :
-	       hstrerror(h_errno)/*0 h_messages[h_errno-1]*/);
+	      h_errno == NETDB_INTERNAL ? strerror(errno) :
+	      (char *)hstrerror(h_errno)/*0 h_messages[h_errno-1]*/);
+
 	 proxyvars->targetaddr = strdup(targetname);
       } else {
 #define LEN 16	/* www.xxx.yyy.zzz\0 */

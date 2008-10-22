@@ -40,7 +40,7 @@ bool xioopts_ignoregroups;
 #  define IF_EXEC(a,b) 
 #endif
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
 #  define IF_SOCKET(a,b) {a,b},
 #else
 #  define IF_SOCKET(a,b) 
@@ -80,6 +80,12 @@ bool xioopts_ignoregroups;
 #  define IF_TCP(a,b) {a,b},
 #else
 #  define IF_TCP(a,b) 
+#endif
+
+#if WITH_SCTP
+#  define IF_SCTP(a,b) {a,b},
+#else
+#  define IF_SCTP(a,b) 
 #endif
 
 #if WITH_SOCKS4
@@ -171,6 +177,9 @@ const struct optname optionnames[] = {
 #ifdef SO_AUDIT	/* AIX 4.3.3 */
 	IF_SOCKET ("audit",	&opt_so_audit)
 #endif /* SO_AUDIT */
+#ifdef IPV6_AUTHHDR
+	IF_IP6    ("authhdr",	&opt_ipv6_authhdr)
+#endif
 	IF_TUN    ("automedia",	&opt_iff_automedia)
 #ifdef CBAUD
 	IF_TERMIOS("b0",	&opt_b0)
@@ -313,7 +322,9 @@ const struct optname optionnames[] = {
 #  ifdef CR3
 	IF_TERMIOS("cr3",	&opt_cr3)
 #  endif
+#  if CRDLY_SHIFT >= 0
 	IF_TERMIOS("crdly",	&opt_crdly)
+#  endif
 #endif /* defined(CRDLY) */
 	IF_TERMIOS("cread",	&opt_cread)
 	IF_OPEN   ("creat",	&opt_o_create)
@@ -329,7 +340,9 @@ const struct optname optionnames[] = {
 	IF_TERMIOS("cs6",	&opt_cs6)
 	IF_TERMIOS("cs7",	&opt_cs7)
 	IF_TERMIOS("cs8",	&opt_cs8)
+#if CSIZE_SHIFT >= 0
 	IF_TERMIOS("csize",	&opt_csize)
+#endif
 	IF_TERMIOS("cstopb",	&opt_cstopb)
 	IF_TERMIOS("ctlecho",	&opt_echoctl)
 	IF_TERMIOS("ctty",	&opt_tiocsctty)
@@ -381,6 +394,7 @@ const struct optname optionnames[] = {
 	IF_SOCKET ("dontlinger",	&opt_so_dontlinger)
 #endif
 	IF_SOCKET ("dontroute",	&opt_so_dontroute)
+	IF_IP6    ("dstopts",	&opt_ipv6_dstopts)
 #ifdef VDSUSP	/* HP-UX */
 	IF_TERMIOS("dsusp",	&opt_vdsusp)
 #endif
@@ -403,6 +417,7 @@ const struct optname optionnames[] = {
 	IF_TERMIOS("eol2",	&opt_veol2)
 	IF_TERMIOS("erase",	&opt_verase)
 	IF_SOCKET ("error",	&opt_so_error)
+	IF_ANY    ("escape",	&opt_escape)
 	IF_OPEN   ("excl",	&opt_o_excl)
 #if WITH_EXT2 && defined(EXT2_APPEND_FL)
 	IF_ANY    ("ext2-append",	&opt_ext2_append)
@@ -507,6 +522,9 @@ const struct optname optionnames[] = {
 	IF_ANY    ("flock-sh",	&opt_flock_sh)
 	IF_ANY    ("flock-sh-nb",	&opt_flock_sh_nb)
 #endif
+#ifdef IPV4_FLOWINFO
+	IF_IP6    ("flowinfo",	&opt_ipv6_flowinfo)
+#endif
 	IF_TERMIOS("flusho",	&opt_flusho)
 	IF_RETRY  ("forever",	&opt_forever)
 	IF_LISTEN ("fork",	&opt_fork)
@@ -533,6 +551,8 @@ const struct optname optionnames[] = {
 #endif
 	IF_READLINE("history",	&opt_history_file)
 	IF_READLINE("history-file",	&opt_history_file)
+	IF_IP6    ("hoplimit",	&opt_ipv6_hoplimit)
+	IF_IP6    ("hopopts",	&opt_ipv6_hopopts)
 #if WITH_LIBWRAP && defined(HAVE_HOSTS_ALLOW_TABLE)
 	IF_IPAPP  ("hosts-allow",	&opt_tcpwrap_hosts_allow_table)
 #endif
@@ -541,6 +561,12 @@ const struct optname optionnames[] = {
 #endif
 	IF_TERMIOS("hup",	&opt_hupcl)
 	IF_TERMIOS("hupcl",	&opt_hupcl)
+#ifdef I_POP
+	IF_ANY    ("i-pop-all",	&opt_streams_i_pop_all)
+#endif
+#ifdef I_PUSH
+	IF_ANY    ("i-push",	&opt_streams_i_push)
+#endif
 	IF_TERMIOS("icanon",	&opt_icanon)
 	IF_TERMIOS("icrnl",	&opt_icrnl)
 	IF_TERMIOS("iexten",	&opt_iexten)
@@ -589,6 +615,12 @@ const struct optname optionnames[] = {
 	IF_RETRY  ("interval",	&opt_intervall)
 	IF_RETRY  ("intervall",	&opt_intervall)
 	IF_TERMIOS("intr",	&opt_vintr)
+	IF_ANY    ("ioctl",	&opt_ioctl_void)
+	IF_ANY    ("ioctl-bin",	&opt_ioctl_bin)
+	IF_ANY    ("ioctl-int",	&opt_ioctl_int)
+	IF_ANY    ("ioctl-intp",	&opt_ioctl_intp)
+	IF_ANY    ("ioctl-string",	&opt_ioctl_string)
+	IF_ANY    ("ioctl-void",	&opt_ioctl_void)
 #ifdef IP_ADD_MEMBERSHIP
 	IF_IP     ("ip-add-membership",	&opt_ip_add_membership)
 #endif
@@ -619,8 +651,14 @@ const struct optname optionnames[] = {
 #ifdef IP_PKTOPTIONS
 	IF_IP     ("ip-pktoptions",	&opt_ip_pktoptions)
 #endif
+#ifdef IP_RECVDSTADDR
+	IF_IP     ("ip-recvdstaddr",	&opt_ip_recvdstaddr)
+#endif
 #ifdef IP_RECVERR
 	IF_IP     ("ip-recverr",	&opt_ip_recverr)
+#endif
+#ifdef IP_RECVIF
+	IF_IP     ("ip-recvif",		&opt_ip_recvif)
 #endif
 #ifdef IP_RECVOPTS
 	IF_IP     ("ip-recvopts",	&opt_ip_recvopts)
@@ -662,6 +700,9 @@ const struct optname optionnames[] = {
 #ifdef IP_PKTOPTIONS
 	IF_IP     ("ippktoptions",	&opt_ip_pktoptions)
 #endif
+#ifdef IP_RECVDSTADDR
+	IF_IP     ("iprecvdstaddr",	&opt_ip_recvdstaddr)
+#endif
 #ifdef IP_RECVERR
 	IF_IP     ("iprecverr",	&opt_ip_recverr)
 #endif
@@ -683,7 +724,46 @@ const struct optname optionnames[] = {
 	IF_IP     ("iptos",	&opt_ip_tos)
 	IF_IP     ("ipttl",	&opt_ip_ttl)
 	IF_IP6    ("ipv6-add-membership",	&opt_ipv6_join_group)
+#ifdef IPV6_AUTHHDR
+	IF_IP6    ("ipv6-authhdr",	&opt_ipv6_authhdr)
+#endif
+	IF_IP6    ("ipv6-dstopts",	&opt_ipv6_dstopts)
+#ifdef IPV4_FLOWINFO
+	IF_IP6    ("ipv6-flowinfo",	&opt_ipv6_flowinfo)
+#endif
+	IF_IP6    ("ipv6-hoplimit",	&opt_ipv6_hoplimit)
+	IF_IP6    ("ipv6-hopopts",	&opt_ipv6_hopopts)
 	IF_IP6    ("ipv6-join-group",	&opt_ipv6_join_group)
+	IF_IP6    ("ipv6-pktinfo",	&opt_ipv6_pktinfo)
+#ifdef IPV6_RECVDSTOPTS
+	IF_IP6    ("ipv6-recvdstopts",	&opt_ipv6_recvdstopts)
+#endif
+#ifdef IPV6_RECVERR
+	IF_IP6    ("ipv6-recverr",	&opt_ipv6_recverr)
+#endif
+#ifdef IPV6_RECVHOPLIMIT
+	IF_IP6    ("ipv6-recvhoplimit",	&opt_ipv6_recvhoplimit)
+#endif
+#ifdef IPV6_RECVHOPOPTS
+	IF_IP6    ("ipv6-recvhopopts",	&opt_ipv6_recvhopopts)
+#endif
+#ifdef IPV6_PATHMTU
+	IF_IP6    ("ipv6-recvpathmtu",	&opt_ipv6_recvpathmtu)
+#endif
+#ifdef IPV6_RECVPKTINFO
+	IF_IP6    ("ipv6-recvpktinfo",	&opt_ipv6_recvpktinfo)
+#endif
+#ifdef IPV6_RECVRTHDR
+	IF_IP6    ("ipv6-recvrthdr",	&opt_ipv6_recvrthdr)
+#endif
+#ifdef IPV6_RECVTCLASS
+	IF_IP6    ("ipv6-recvtclass",	&opt_ipv6_recvtclass)
+#endif
+	IF_IP6    ("ipv6-rthdr",	&opt_ipv6_rthdr)
+#ifdef IPV6_TCLASS
+	IF_IP6    ("ipv6-tclass",	&opt_ipv6_tclass)
+#endif
+	IF_IP6    ("ipv6-unicast-hops",	&opt_ipv6_unicast_hops)
 #ifdef IPV6_V6ONLY
 	IF_IP6    ("ipv6-v6only",	&opt_ipv6_v6only)
 	IF_IP6    ("ipv6only",	&opt_ipv6_v6only)
@@ -917,53 +997,6 @@ const struct optname optionnames[] = {
 #endif
 	IF_OPEN   ("o-trunc",	&opt_o_trunc)
 	IF_OPEN   ("o-wronly",	&opt_o_wronly)
-	IF_OPEN   ("o_create",	&opt_o_create)
-#ifdef O_DEFER
-	IF_OPEN   ("o_defer",	&opt_o_defer)
-#endif
-#ifdef O_DELAY
-	IF_OPEN   ("o_delay",	&opt_o_delay)
-#endif
-#ifdef O_DIRECT
-	IF_OPEN   ("o_direct",	&opt_o_direct)
-#endif
-#ifdef O_DIRECTORY
-	IF_OPEN   ("o_directory",	&opt_o_directory)
-#endif
-#ifdef O_DSYNC
-	IF_OPEN   ("o_dsync",	&opt_o_dsync)
-#endif
-	IF_OPEN   ("o_excl",	&opt_o_excl)
-#ifdef O_LARGEFILE
-	IF_OPEN   ("o_largefile",	&opt_o_largefile)
-#endif
-#if defined(O_NDELAY) && (!defined(O_NONBLOCK) || O_NDELAY != O_NONBLOCK)
-	IF_ANY    ("o_ndelay",	&opt_o_ndelay)
-#else
-	IF_ANY    ("o_ndelay",	&opt_nonblock)
-#endif
-	IF_OPEN   ("o_noctty",	&opt_o_noctty)
-#ifdef O_NOFOLLOW
-	IF_OPEN   ("o_nofollow",	&opt_o_nofollow)
-#endif
-#ifdef O_NSHARE
-	IF_OPEN   ("o_nshare",	&opt_o_nshare)
-#endif
-#ifdef O_PRIV
-	IF_OPEN   ("o_priv",	&opt_o_priv)
-#endif
-	IF_OPEN   ("o_rdonly",	&opt_o_rdonly)
-	IF_OPEN   ("o_rdwr",	&opt_o_rdwr)
-#ifdef O_RSHARE
-	IF_OPEN   ("o_rshare",	&opt_o_rshare)
-#endif
-#ifdef O_RSYNC
-	IF_OPEN   ("o_rsync",	&opt_o_rsync)
-#endif
-#ifdef O_SYNC
-	IF_OPEN   ("o_sync",	&opt_o_sync)
-#endif
-	IF_OPEN   ("o_wronly",	&opt_o_wronly)
 #ifdef OCRNL
 	IF_TERMIOS("ocrnl",	&opt_ocrnl)
 #endif
@@ -1035,6 +1068,9 @@ const struct optname optionnames[] = {
 	IF_IP     ("pktopts",	&opt_ip_pktoptions)
 #endif
 	IF_TUN    ("pointopoint",	&opt_iff_pointopoint)
+#ifdef I_POP
+	IF_ANY    ("pop-all",	&opt_streams_i_pop_all)
+#endif
 	/*IF_IPAPP("port",	&opt_port)*/
 	IF_TUN    ("portsel",	&opt_iff_portsel)
 #if HAVE_RESOLV_H
@@ -1048,12 +1084,15 @@ const struct optname optionnames[] = {
 #endif
 	IF_TUN    ("promisc",	&opt_iff_promisc)
 	IF_READLINE("prompt",	&opt_prompt)
+#ifdef SO_PROTOTYPE
+	IF_SOCKET ("protocol",	&opt_so_prototype)
+#endif
 	IF_SOCKET ("protocol-family",	&opt_protocol_family)
 #ifdef SO_PROTOTYPE
 	IF_SOCKET ("prototype",	&opt_so_prototype)
 #endif
-	IF_PROXY  ("proxy-authorization",	&opt_proxy_authorization)
 	IF_PROXY  ("proxy-auth",	&opt_proxy_authorization)
+	IF_PROXY  ("proxy-authorization",	&opt_proxy_authorization)
 	IF_PROXY  ("proxy-resolve",	&opt_proxy_resolve)
 	IF_PROXY  ("proxyauth",	&opt_proxy_authorization)
 	IF_PROXY  ("proxyport",	&opt_proxyport)
@@ -1072,6 +1111,9 @@ const struct optname optionnames[] = {
 	IF_PTY    ("pty-intervall",	&opt_pty_intervall)
 	IF_PTY    ("pty-wait-slave",	&opt_pty_wait_slave)
 #endif /* HAVE_PTY && HAVE_POLL */
+#ifdef I_PUSH
+	IF_ANY    ("push",	&opt_streams_i_push)
+#endif
 #ifdef TCP_QUICKACK
 	IF_TCP    ("quickack",	&opt_tcp_quickack)
 #endif
@@ -1092,11 +1134,32 @@ const struct optname optionnames[] = {
 #if HAVE_RESOLV_H
 	IF_IP     ("recurse",	&opt_res_recurse)
 #endif /* HAVE_RESOLV_H */
+#ifdef IP_RECVDSTADDR
+	IF_IP     ("recvdstaddr",	&opt_ip_recvdstaddr)
+#endif
+#ifdef IPV6_RECVDSTOPTS
+	IF_IP6    ("recvdstopts",	&opt_ipv6_recvdstopts)
+#endif
 #ifdef IP_RECVERR
 	IF_IP     ("recverr",	&opt_ip_recverr)
 #endif
+#ifdef IPV6_RECVHOPLIMIT
+	IF_IP6    ("recvhoplimit",	&opt_ipv6_recvhoplimit)
+#endif
+#ifdef IPV6_RECVHOPOPTS
+	IF_IP6    ("recvhopopts",	&opt_ipv6_recvhopopts)
+#endif
+#ifdef IP_RECVIF
+	IF_IP     ("recvif",		&opt_ip_recvif)
+#endif
 #ifdef IP_RECVOPTS
 	IF_IP     ("recvopts",	&opt_ip_recvopts)
+#endif
+#ifdef IPV6_RECVPKTINFO
+	IF_IP6    ("recvpktinfo",	&opt_ipv6_recvpktinfo)
+#endif
+#ifdef IPV6_RECVRTHDR
+	IF_IP6    ("recvrthdr",	&opt_ipv6_recvrthdr)
 #endif
 #ifdef IP_RECVTOS
 	IF_IP     ("recvtos",	&opt_ip_recvtos)
@@ -1144,6 +1207,7 @@ const struct optname optionnames[] = {
 #ifdef O_RSYNC
 	IF_OPEN   ("rsync",	&opt_o_rsync)
 #endif
+	IF_IP6    ("rthdr",	&opt_ipv6_rthdr)
 	IF_TUN    ("running",	&opt_iff_running)
 #ifdef TCP_SACK_DISABLE
 	IF_TCP    ("sack-disable",	&opt_tcp_sack_disable)
@@ -1152,6 +1216,13 @@ const struct optname optionnames[] = {
 	IF_TCP    ("sackena",	&opt_tcp_sackena)
 #endif
 	IF_TERMIOS("sane",	&opt_sane)
+#ifdef SCTP_MAXSEG
+	IF_SCTP   ("sctp-maxseg",	&opt_sctp_maxseg)
+	IF_SCTP   ("sctp-maxseg-late",	&opt_sctp_maxseg_late)
+#endif
+#ifdef SCTP_NODELAY
+	IF_SCTP   ("sctp-nodelay",	&opt_sctp_nodelay)
+#endif
 #if WITH_EXT2 && defined(EXT2_SECRM_FL)
 	IF_ANY    ("secrm",	&opt_ext2_secrm)
 #endif
@@ -1196,6 +1267,9 @@ const struct optname optionnames[] = {
 #if WITH_EXEC || WITH_SYSTEM
 	IF_EXEC   ("setsid",	&opt_setsid)
 #endif
+	IF_SOCKET ("setsockopt-bin",	&opt_setsockopt_bin)
+	IF_SOCKET ("setsockopt-int",	&opt_setsockopt_int)
+	IF_SOCKET ("setsockopt-string",	&opt_setsockopt_string)
 	IF_ANY    ("setuid",	&opt_setuid)
 	IF_ANY    ("setuid-early",	&opt_setuid_early)
 	IF_ANY    ("shut-none",	&opt_shut_none)
@@ -1304,6 +1378,9 @@ const struct optname optionnames[] = {
 #ifdef SO_SNDTIMEO
 	IF_SOCKET ("so-sndtimeo",	&opt_so_sndtimeo)
 #endif
+#ifdef SO_TIMESTAMP
+	IF_SOCKET ("so-timestamp",	&opt_so_timestamp)
+#endif
 	IF_SOCKET ("so-type",	&opt_so_type)
 #ifdef SO_USE_IFBUFS
 	IF_SOCKET ("so-use-ifbufs",	&opt_so_use_ifbufs)
@@ -1311,10 +1388,14 @@ const struct optname optionnames[] = {
 #ifdef SO_USELOOPBACK /* AIX433, Solaris */
 	IF_SOCKET ("so-useloopback",	&opt_so_useloopback)
 #endif /* SO_USELOOPBACK */
+	IF_SOCKET ("sockopt-bin",	&opt_setsockopt_bin)
+	IF_SOCKET ("sockopt-int",	&opt_setsockopt_int)
+	IF_SOCKET ("sockopt-string",	&opt_setsockopt_string)
 	IF_SOCKS5 ("socks5-password",	&opt_socks5_password)
 	IF_SOCKS5 ("socks5-username",	&opt_socks5_username)
  	IF_SOCKS4 ("socksport",	&opt_socksport)
 	IF_SOCKS4 ("socksuser",	&opt_socksuser)
+	IF_SOCKET ("socktype",	&opt_so_type)
 	IF_IPAPP  ("sourceport",	&opt_sourceport)
 	IF_IPAPP  ("sp",	&opt_sourceport)
 	IF_TERMIOS("start",	&opt_vstart)
@@ -1326,6 +1407,12 @@ const struct optname optionnames[] = {
 	IF_TCP    ("stdurg",	&opt_tcp_stdurg)
 #endif
 	IF_TERMIOS("stop",	&opt_vstop)
+#ifdef I_POP
+	IF_ANY    ("streams-i-pop-all",	&opt_streams_i_pop_all)
+#endif
+#ifdef I_PUSH
+	IF_ANY    ("streams-i-push",	&opt_streams_i_push)
+#endif
 	IF_ANY    ("su",	&opt_substuser)
 	IF_ANY    ("su-d",	&opt_substuser_delayed)
 	IF_ANY    ("substuser",	&opt_substuser)
@@ -1357,7 +1444,9 @@ const struct optname optionnames[] = {
 #  ifdef TAB3
 	IF_TERMIOS("tab3",	&opt_tab3)
 #  endif
+#  if TABDLY_SHIFT >= 0
 	IF_TERMIOS("tabdly",	&opt_tabdly)
+#  endif
 #endif
 	IF_TERMIOS("tandem",	&opt_ixoff)
 #ifdef TCP_ABORT_THRESHOLD  /* HP_UX */
@@ -1452,8 +1541,11 @@ const struct optname optionnames[] = {
 #ifdef O_TEXT
 	IF_ANY    ("text",	&opt_o_text)
 #endif
-	IF_UNIX   ("tightsocklen",	&opt_unix_tightsocklen)
+	IF_UNIX   ("tightsocklen",	&xioopt_unix_tightsocklen)
 	IF_TERMIOS("time",	&opt_vtime)
+#ifdef SO_TIMESTAMP
+	IF_SOCKET ("timestamp",	&opt_so_timestamp)
+#endif
 	IF_TERMIOS("tiocsctty",	&opt_tiocsctty)
 #if WITH_EXT2 && defined(EXT2_TOPDIR_FL)
 	IF_ANY    ("topdir",	&opt_ext2_topdir)
@@ -1479,7 +1571,8 @@ const struct optname optionnames[] = {
 	IF_NAMED  ("uid-e",	&opt_user_early)
 	IF_ANY    ("uid-l",	&opt_user_late)
 	IF_NAMED  ("umask",	&opt_umask)
-	IF_UNIX   ("unix-tightsocklen",	&opt_unix_tightsocklen)
+	IF_IP6    ("unicast-hops",	&opt_ipv6_unicast_hops)
+	IF_UNIX   ("unix-tightsocklen",	&xioopt_unix_tightsocklen)
 	IF_NAMED  ("unlink",	&opt_unlink)
 	IF_NAMED  ("unlink-close",	&opt_unlink_close)
 	IF_NAMED  ("unlink-early",	&opt_unlink_early)
@@ -1723,24 +1816,22 @@ int parseopts_table(const char **a, struct opt **opts,
 	 (*opts)[i].value.u_bin.b_len = optlen;
 	 break;
       case TYPE_BYTE:
-	 {
+	 if (assign) {
 	  unsigned long ul;
-	  if (token) {
-	     char *rest;
-	     ul = strtoul(token, &rest/*!*/, 0);
-	  } else {
-	    ul = 1;
-	  }
+	  char *rest;
+	  ul = strtoul(token, &rest/*!*/, 0);
 	  if (ul > UCHAR_MAX) {
 	    Error3("parseopts(%s): byte value exceeds limit (%lu vs. %u), using max",
 		   a0, ul, UCHAR_MAX);
 	    (*opts)[i].value.u_byte = UCHAR_MAX;
 	  } else {
-	    Info2("setting option \"%s\" to %d", ent->desc->defname,
-		  (*opts)[i].value.u_byte);
 	    (*opts)[i].value.u_byte = ul;
 	  }
+	 } else {
+	    (*opts)[i].value.u_byte = 1;
 	 }
+	 Info2("setting option \"%s\" to %d", ent->desc->defname,
+	       (*opts)[i].value.u_byte);
 	 break;
       case TYPE_INT:
 	 if (assign) {
@@ -1982,6 +2073,155 @@ int parseopts_table(const char **a, struct opt **opts,
 	       (*opts)[i].value.u_linger.l_linger);
 	 break;
 #endif /* HAVE_STRUCT_LINGER */
+      case TYPE_INT_INT:
+	 if (!assign) {
+	    Error1("option \"%s\": values required", a0);
+	    continue;
+	 }
+	 {
+	    char *rest;
+	    (*opts)[i].value.u_int = strtoul(token, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 2 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    (*opts)[i].value2.u_int = strtoul(rest, &rest, 0);
+	 }
+	 Info3("setting option \"%s\" to %d:%d", ent->desc->defname,
+	       (*opts)[i].value.u_int, (*opts)[i].value2.u_int);
+	 break;
+      case TYPE_INT_BIN:
+	 if (!assign) {
+	    Error1("option \"%s\": values required", a0);
+	    continue;
+	 }
+	 {
+	    char *rest;
+	    (*opts)[i].value.u_int = strtoul(token, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 2 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    optlen = 0;
+	    if ((result = dalan(rest, optbuf, &optlen, sizeof(optbuf))) != 0) {
+	       Error1("parseopts(): problem with \"%s\" data", rest);
+	       continue;
+	    }
+	    if (((*opts)[i].value2.u_bin.b_data = memdup(optbuf, optlen)) == NULL) {
+	       Error1("memdup(, "F_Zu"): out of memory", optlen);
+	       return -1;
+	    }
+	    (*opts)[i].value2.u_bin.b_len = optlen;
+	 }
+	 Info2("setting option \"%s\" to %d:..."/*!!!*/, ent->desc->defname,
+	       (*opts)[i].value.u_int);
+	 break;
+      case TYPE_INT_STRING:
+	 if (!assign) {
+	    Error1("option \"%s\": values required", a0);
+	    continue;
+	 }
+	 {
+	    char *rest;
+	    (*opts)[i].value.u_int = strtoul(token, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 2 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    if (((*opts)[i].value2.u_string = strdup(rest)) == NULL) {
+	       Error("out of memory"); return -1;
+	    }
+	 }
+	 Info3("setting option \"%s\" to %d:\"%s\"", ent->desc->defname,
+	       (*opts)[i].value.u_int, (*opts)[i].value2.u_string);
+	 break;
+      case TYPE_INT_INT_INT:
+	 if (!assign) {
+	    Error1("option \"%s\": values required", a0);
+	    continue;
+	 }
+	 {
+	    char *rest;
+	    (*opts)[i].value.u_int = strtoul(token, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 3 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    (*opts)[i].value2.u_int = strtoul(rest, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 3 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    (*opts)[i].value3.u_int = strtoul(rest, &rest, 0);
+	 }
+	 Info4("setting option \"%s\" to %d:%d:%d", ent->desc->defname,
+	       (*opts)[i].value.u_int, (*opts)[i].value2.u_int, (*opts)[i].value3.u_int);
+	 break;
+      case TYPE_INT_INT_BIN:
+	 if (!assign) {
+	    Error1("option \"%s\": values required", a0);
+	    continue;
+	 }
+	 {
+	    char *rest;
+	    (*opts)[i].value.u_int = strtoul(token, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 3 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    (*opts)[i].value2.u_int = strtoul(rest, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 3 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    optlen = 0;
+	    if ((result = dalan(rest, optbuf, &optlen, sizeof(optbuf))) != 0) {
+	       Error1("parseopts(): problem with \"%s\" data", rest);
+	       continue;
+	    }
+	    if (((*opts)[i].value3.u_bin.b_data = memdup(optbuf, optlen)) == NULL) {
+	       Error1("memdup(, "F_Zu"): out of memory", optlen);
+	       return -1;
+	    }
+	    (*opts)[i].value3.u_bin.b_len = optlen;
+	 }
+	 Info3("setting option \"%s\" to %d:%d:..."/*!!!*/, ent->desc->defname,
+	       (*opts)[i].value.u_int, (*opts)[i].value2.u_int);
+	 break;
+      case TYPE_INT_INT_STRING:
+	 if (!assign) {
+	    Error1("option \"%s\": values required", a0);
+	    continue;
+	 }
+	 {
+	    char *rest;
+	    (*opts)[i].value.u_int = strtoul(token, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 3 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    (*opts)[i].value2.u_int = strtoul(rest, &rest, 0);
+	    if (*rest != ':') {
+	       Error1("option \"%s\": 3 arguments required",
+		      ent->desc->defname);
+	    }
+	    ++rest;
+	    if (((*opts)[i].value3.u_string = strdup(rest)) == NULL) {
+	       Error("out of memory"); return -1;
+	    }
+	 }
+	 Info4("setting option \"%s\" to %d:%d:\"%s\"", ent->desc->defname,
+	       (*opts)[i].value.u_int, (*opts)[i].value2.u_int,
+	       (*opts)[i].value3.u_string);
+	 break;
 #if defined(HAVE_STRUCT_IP_MREQ) || defined (HAVE_STRUCT_IP_MREQN)
       case TYPE_IP_MREQN:
 	 {
@@ -2041,7 +2281,7 @@ int parseopts_table(const char **a, struct opt **opts,
 #if WITH_IP4
       case TYPE_IP4NAME:
 	 {
-	    struct sockaddr_in sa;  size_t salen = sizeof(sa);
+	    struct sockaddr_in sa;  socklen_t salen = sizeof(sa);
 	    const char *ends[] = { NULL };
 	    const char *nests[] = { "[","]", NULL };
 	    char buff[512], *buffp=buff; size_t bufspc = sizeof(buff)-1;
@@ -2059,7 +2299,7 @@ int parseopts_table(const char **a, struct opt **opts,
 			       0, 0/*!!!*/) != STAT_OK) {
 	       opt->desc = ODESC_ERROR; continue;
 	    }
-	    opt->value.u_ip4addr = sa.sin_addr.s_addr;
+	    opt->value.u_ip4addr = sa.sin_addr;
 	 }
 	 break;
 #endif /* defined(WITH_IP4) */
@@ -2219,7 +2459,7 @@ int _groupbits(mode_t mode) {
    case (S_IFIFO>>12):	/* 1, FIFO */
       result = GROUP_FIFO;   break;
    case (S_IFCHR>>12):	/* 2, character device */
-      result = GROUP_CHR|GROUP_TERMIOS;    break;
+      result = GROUP_TERMIOS;    break;
    case (S_IFDIR>>12):	/* 4, directory !!! not supported */
       result = GROUP_NONE;   break;
    case (S_IFBLK>>12):	/* 6, block device */
@@ -2261,11 +2501,6 @@ int groupbits(int fd) {
       return -1;
    }
    result = _groupbits(buf.st_mode&S_IFMT);
-   if (result == GROUP_CHR) {
-      if (Isatty(fd) > 0) {
-	 result |= GROUP_TERMIOS;
-      }
-   }
    return result;
 }
 
@@ -2374,7 +2609,15 @@ int retropt_int(struct opt *opts, int optcode, int *result) {
 
    while (opt->desc != ODESC_END) {
       if (opt->desc != ODESC_DONE && opt->desc->optcode == optcode) {
-	 *result = opt->value.u_int;
+	 switch (opt->desc->type) {
+	 case TYPE_INT: *result = opt->value.u_int; break;
+	 case TYPE_STRING: *result = strtol(opt->value.u_string, NULL, 0);
+	    break;
+	 default: Error2("cannot convert type %d of option %s to int",
+			 opt->desc->type, opt->desc->defname);
+	    opt->desc = ODESC_ERROR;
+	    return -1;
+	 }
 	 opt->desc = ODESC_DONE;
 	 return 0;
       }
@@ -2488,13 +2731,13 @@ int retropt_string(struct opt *opts, int optcode, char **result) {
 }
 
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
 /* looks for an bind option and, if found, overwrites the complete contents of
    sa with the appropriate value(s).
    returns STAT_OK if option exists and could be resolved,
    STAT_NORETRY if option exists but had error,
    or STAT_NOACTION if it does not exist */
-/* currently only for IP (v4, v6) */
+/* currently only for IP (v4, v6) and raw (PF_UNSPEC) */
 int retropt_bind(struct opt *opts,
 		 int af,
 		 int socktype,
@@ -2516,22 +2759,26 @@ int retropt_bind(struct opt *opts,
    if (retropt_string(opts, OPT_BIND, &bindname) < 0) {
       return STAT_NOACTION;
    }
-   addrallowed = true;
-   portallowed = (feats>=2);
    bindp = bindname;
-   nestlex((const char **)&bindp, &hostp, &hostlen, ends, NULL, NULL, nests,
-	   true, true, false, false);
-   *hostp++ = '\0';
-   if (!strncmp(bindp, portsep, strlen(portsep))) {
-      if (!portallowed) {
-	 Error("port specification not allowed in this bind option");
-	 return STAT_NORETRY;
-      } else {
-	 portp = bindp + strlen(portsep);
-      }
-   }
 
    switch (af) {
+
+   case AF_UNSPEC:
+      {
+	 size_t p = 0;
+	 dalan(bindname, (char *)sa->sa_data, &p, *salen-sizeof(sa->sa_family));
+	 *salen = p + sizeof(sa->sa_family);
+	 *salen = p +
+#if HAVE_STRUCT_SOCKADDR_SALEN
+	    sizeof(sa->sa_len) +
+#endif
+	    sizeof(sa->sa_family);
+#if HAVE_STRUCT_SOCKADDR_SALEN
+	 sa->sa_len = *salen;
+#endif
+      }
+      break;
+
 #if WITH_IP4 || WITH_IP6
 #if WITH_IP4
    case AF_INET:
@@ -2539,6 +2786,19 @@ int retropt_bind(struct opt *opts,
 #if WITH_IP6
    case AF_INET6:
 #endif /*WITH_IP6 */
+      addrallowed = true;
+      portallowed = (feats>=2);
+      nestlex((const char **)&bindp, &hostp, &hostlen, ends, NULL, NULL, nests,
+	      true, false, false, false);
+      *hostp++ = '\0';
+      if (!strncmp(bindp, portsep, strlen(portsep))) {
+	 if (!portallowed) {
+	    Error("port specification not allowed in this bind option");
+	    return STAT_NORETRY;
+	 } else {
+	    portp = bindp + strlen(portsep);
+	 }
+      }
       if ((result =
 	   xiogetaddrinfo(hostname[0]!='\0'?hostname:NULL, portp,
 			  af, socktype, ipproto,
@@ -2556,7 +2816,7 @@ int retropt_bind(struct opt *opts,
       {
 	 bool tight = false;
 	 struct sockaddr_un *s_un = (struct sockaddr_un *)sa;
-	 *salen = xiosetunix(s_un, bindname, false, tight);
+	 *salen = xiosetunix(af, s_un, bindname, false, tight);
       }
       break;
 #endif /* WITH_UNIX */
@@ -2567,14 +2827,14 @@ int retropt_bind(struct opt *opts,
    }
    return STAT_OK;
 }
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 
 
 /* applies to fd all options belonging to phase */
 /* note: not all options can be applied this way (e.g. OFUNC_SPEC with PH_OPEN)
    implemented are: OFUNC_FCNTL, OFUNC_SOCKOPT (probably not all types),
    OFUNC_TERMIOS_FLAG, OFUNC_TERMIOS_PATTERN, and some OFUNC_SPEC */
-int applyopts(int fd, struct opt *opts, unsigned int phase) {
+int applyopts(int fd, struct opt *opts, enum e_phase phase) {
    struct opt *opt;
 
    opt = opts; while (opt && opt->desc != ODESC_END) {
@@ -2645,7 +2905,49 @@ int applyopts(int fd, struct opt *opts, unsigned int phase) {
 	    opt->desc = ODESC_ERROR; ++opt; continue;
 	 }
 
-#if WITH_SOCKET
+      } else if (opt->desc->func == OFUNC_IOCTL_GENERIC) {
+	 switch (opt->desc->type) {
+	 case TYPE_INT:
+	    if (Ioctl(fd, opt->value.u_int, NULL) < 0) {
+	       Error3("ioctl(%d, 0x%x, NULL): %s",
+		      fd, opt->value.u_int, strerror(errno));
+	       opt->desc = ODESC_ERROR; ++opt; continue;
+	    }
+	    break;
+	 case TYPE_INT_INT:
+	    if (Ioctl_int(fd, opt->value.u_int, opt->value2.u_int) < 0) {
+	       Error4("ioctl(%d, 0x%x, 0x%x): %s",
+		      fd, opt->value.u_int, opt->value2.u_int, strerror(errno));
+	       opt->desc = ODESC_ERROR; ++opt; continue;
+	    }
+	    break;
+	 case TYPE_INT_INTP:
+	    if (Ioctl(fd, opt->value.u_int, (void *)&opt->value2.u_int) < 0) {
+	       Error4("ioctl(%d, 0x%x, %p): %s",
+		      fd, opt->value.u_int, (void *)&opt->value2.u_int, strerror(errno));
+	       opt->desc = ODESC_ERROR; ++opt; continue;
+	    }
+	    break;
+	 case TYPE_INT_BIN:
+	    if (Ioctl(fd, opt->value.u_int, (void *)opt->value2.u_bin.b_data) < 0) {
+	       Error4("ioctl(%d, 0x%x, %p): %s",
+		      fd, opt->value.u_int, (void *)opt->value2.u_bin.b_data, strerror(errno));
+	       opt->desc = ODESC_ERROR; ++opt; continue;
+	    }
+	    break;
+	 case TYPE_INT_STRING:
+	    if (Ioctl(fd, opt->value.u_int, (void *)opt->value2.u_string) < 0) {
+	       Error4("ioctl(%d, 0x%x, %p): %s",
+		      fd, opt->value.u_int, (void *)opt->value2.u_string, strerror(errno));
+	       opt->desc = ODESC_ERROR; ++opt; continue;
+	    }
+	    break;
+	 default:
+	    Error1("ioctl() data type %d not implemented",
+		   opt->desc->type);
+	 }
+
+#if _WITH_SOCKET
       } else if (opt->desc->func == OFUNC_SOCKOPT) {
 	 if (0) {
 	    ;
@@ -2774,7 +3076,7 @@ int applyopts(int fd, struct opt *opts, unsigned int phase) {
 			      &opt->value.u_ip4addr, sizeof(opt->value.u_ip4addr)) < 0) {
 		  Error6("setsockopt(%d, %d, %d, {0x%x}, "F_Zu"): %s",
 			 fd, opt->desc->major, opt->desc->minor,
-			 opt->value.u_ip4addr, sizeof(opt->value.u_ip4addr),
+			 *(uint32_t *)&opt->value.u_ip4addr, sizeof(opt->value.u_ip4addr),
 			 strerror(errno));
 	       }
 	       break;
@@ -2822,7 +3124,39 @@ int applyopts(int fd, struct opt *opts, unsigned int phase) {
 		   opt->desc->defname, opt->desc->type);
 	    break;
 	 }
-#endif /* WITH_SOCKET */
+      } else if (opt->desc->func == OFUNC_SOCKOPT_GENERIC) {
+	 switch (opt->desc->type) {
+	 case TYPE_INT_INT_INT:
+	    if (Setsockopt(fd, opt->value.u_int, opt->value2.u_int,
+			   &opt->value3.u_int, sizeof(int)) < 0) {
+	       Error6("setsockopt(%d, %d, %d, {%d}, "F_Zu"): %s",
+		      fd, opt->value.u_int, opt->value2.u_int,
+		      opt->value3.u_int, sizeof(int), strerror(errno));
+	    }
+	    break;
+	 case TYPE_INT_INT_BIN:
+	    if (Setsockopt(fd, opt->value.u_int, opt->value2.u_int,
+			   opt->value3.u_bin.b_data, opt->value3.u_bin.b_len) < 0) {
+	       Error5("setsockopt(%d, %d, %d, {...}, "F_Zu"): %s",
+		      fd, opt->value.u_int, opt->value2.u_int,
+		      opt->value3.u_bin.b_len, strerror(errno));
+	    }
+	    break;
+	 case TYPE_INT_INT_STRING:
+	    if (Setsockopt(fd, opt->value.u_int, opt->value2.u_int,
+			   opt->value3.u_string,
+			   strlen(opt->value3.u_string)+1) < 0) {
+	       Error6("setsockopt(%d, %d, %d, \"%s\", "F_Zu"): %s",
+		      fd, opt->value.u_int, opt->value2.u_int,
+		      opt->value3.u_string, strlen(opt->value3.u_string)+1,
+		      strerror(errno));
+	    }
+	    break;
+	 default:
+	    Error1("setsockopt() data type %d not implemented",
+		   opt->desc->type);
+	 }
+#endif /* _WITH_SOCKET */
 	 
 #if HAVE_FLOCK
       } else if (opt->desc->func == OFUNC_FLOCK) {
@@ -3040,6 +3374,7 @@ int applyopts(int fd, struct opt *opts, unsigned int phase) {
 	       }
 	    }
 	    break;
+
 	 default: Error1("applyopts(): option \"%s\" not implemented",
 			 opt->desc->defname);
 	    opt->desc = ODESC_ERROR; ++opt; continue;
@@ -3277,6 +3612,12 @@ int applyopts(int fd, struct opt *opts, unsigned int phase) {
 
 #endif /* WITH_TERMIOS */
 
+#if WITH_STREAMS
+#define ENABLE_APPLYOPT
+#include "xio-streams.c"
+#undef ENABLE_APPLYOPT
+#endif /* WITH_STREAMS */
+
       } else {
 	/*Error1("applyopts(): function %d not implemented",
 	  opt->desc->func);*/
@@ -3381,6 +3722,8 @@ static int applyopt_offset(struct single *xfd, struct opt *opt) {
    switch (opt->desc->type) {
    case TYPE_BOOL:
       *(bool *)ptr = opt->value.u_bool;  break;
+   case TYPE_INT:
+      *(int *)ptr = opt->value.u_int;  break;
    case TYPE_UINT:
       *(unsigned int *)ptr = opt->value.u_uint;  break;
    case TYPE_DOUBLE:
@@ -3492,7 +3835,7 @@ int applyopts_single(struct single *xfd, struct opt *opts, enum e_phase phase) {
 	 xfd->lock.intervall.tv_sec  = 1;
 	 xfd->lock.intervall.tv_nsec = 0;
 
-	 /*! this should be integrated into central select loop */
+	 /*! this should be integrated into central select()/poll() loop */
 	 if (xiolock(&xfd->lock) < 0) {
 	    return -1;
 	 }
@@ -3538,7 +3881,7 @@ int applyopts_single(struct single *xfd, struct opt *opts, enum e_phase phase) {
 	}
 	break;
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
      case OFUNC_SOCKOPT:
 	 switch (opt->desc->optcode) {
 #if WITH_IP4 && (defined(HAVE_STRUCT_IP_MREQ) || defined (HAVE_STRUCT_IP_MREQN))
@@ -3557,9 +3900,9 @@ mc:ifname|ifind
 mc:addr
 */
 	       union sockaddr_union sockaddr1;
-	       size_t socklen1 = sizeof(sockaddr1.ip4);
+	       socklen_t socklen1 = sizeof(sockaddr1.ip4);
 	       union sockaddr_union sockaddr2;
-	       size_t socklen2 = sizeof(sockaddr2.ip4);
+	       socklen_t socklen2 = sizeof(sockaddr2.ip4);
 
 	       /* first parameter is alway multicast address */
 	       /*! result */
@@ -3581,7 +3924,7 @@ mc:addr
 		  ip4_mreqn.mreq.imr_interface = sockaddr2.ip4.sin_addr;
 		  /* third parameter is interface */
 		  if (ifindex(opt->value.u_ip_mreq.ifindex,
-			      (unsigned int *)&ip4_mreqn.mreqn.imr_ifindex)
+			      (unsigned int *)&ip4_mreqn.mreqn.imr_ifindex, -1)
 		      < 0) {
 		     Error1("cannot resolve interface \"%s\"", 
 			    opt->value.u_ip_mreq.ifindex);
@@ -3594,7 +3937,8 @@ mc:addr
 #if HAVE_STRUCT_IP_MREQN
 		  /* there is a form with two parameters that uses mreqn */
 		  } else if (ifindex(opt->value.u_ip_mreq.param2,
-				     (unsigned int *)&ip4_mreqn.mreqn.imr_ifindex)
+				     (unsigned int *)&ip4_mreqn.mreqn.imr_ifindex,
+				     -1)
 			     >= 0) {
 		     /* yes, second param converts to interface */
 		     ip4_mreqn.mreq.imr_interface.s_addr = htonl(0);
@@ -3655,7 +3999,7 @@ mc:addr
 	    {
 	       struct ipv6_mreq ip6_mreq = {{{{0}}}};
 	       union sockaddr_union sockaddr1;
-	       size_t socklen1 = sizeof(sockaddr1.ip6);
+	       socklen_t socklen1 = sizeof(sockaddr1.ip6);
 
 	       /* always two parameters */
 	       /* first parameter is multicast address */
@@ -3666,7 +4010,8 @@ mc:addr
 			      &sockaddr1, &socklen1, 0, 0);
 	       ip6_mreq.ipv6mr_multiaddr = sockaddr1.ip6.sin6_addr;
 	       if (ifindex(opt->value.u_ip_mreq.param2,
-			   &ip6_mreq.ipv6mr_interface) < 0) {
+			   &ip6_mreq.ipv6mr_interface, -1)
+		   < 0) {
 		  Error1("interface \"%s\" not found",
 			 opt->value.u_ip_mreq.param2);
 		  ip6_mreq.ipv6mr_interface = htonl(0);
@@ -3689,7 +4034,7 @@ mc:addr
 	   ++opt; continue;
 	}
 	break;
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 
      default:
 	++opt;

@@ -23,7 +23,7 @@
    how==2: var args (int)useptmx
    returns -1 on error or 0 on success */
 
-int xiosocketpair(xiofile_t **xfd1p, xiofile_t **xfd2p, int how, ...) {
+int xiosocketpair2(xiofile_t **xfd1p, xiofile_t **xfd2p, int how, ...) {
    va_list ap;
    xiofile_t *xfd1, *xfd2;
    int result = 0;

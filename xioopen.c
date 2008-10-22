@@ -1,5 +1,5 @@
 /* source: xioopen.c */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source file of the extended open function */
@@ -55,6 +55,10 @@ const struct xioaddrname address_names[] = {
    { "creat",		xioaddrs_creat },
    { "create",		xioaddrs_creat },
 #endif
+#if WITH_GENERICSOCKET
+   { "datagram",		xioaddrs_socket_datagram },
+   { "dgram",			xioaddrs_socket_datagram },
+#endif
 #if WITH_PIPE
    { "echo",		xioaddrs_pipe },
 #endif
@@ -72,6 +76,9 @@ const struct xioaddrname address_names[] = {
 #endif
 #if WITH_GOPEN
    { "gopen",		xioaddrs_gopen },
+#endif
+#if WITH_INTERFACE
+   { "if",		xioaddrs_interface },
 #endif
 #if (WITH_IP4 || WITH_IP6) && WITH_TCP
    { "inet",		xioaddrs_tcp_connect },
@@ -93,6 +100,9 @@ const struct xioaddrname address_names[] = {
 #if WITH_IP6 && WITH_TCP && WITH_LISTEN
    { "inet6-l",		xioaddrs_tcp6_listen },
    { "inet6-listen",	xioaddrs_tcp6_listen },
+#endif
+#if WITH_INTERFACE
+   { "interface",	xioaddrs_interface },
 #endif
 #if WITH_RAWIP
 #if (WITH_IP4 || WITH_IP6)
@@ -153,6 +163,43 @@ const struct xioaddrname address_names[] = {
 #endif
 #if WITH_READLINE
    { "readline",	xioaddrs_readline },
+#endif
+#if (WITH_IP4 || WITH_IP6) && WITH_SCTP
+   { "sctp",		xioaddrs_sctp_connect },
+   { "sctp-connect",	xioaddrs_sctp_connect },
+#if WITH_LISTEN
+   { "sctp-l",		xioaddrs_sctp_listen },
+   { "sctp-listen",	xioaddrs_sctp_listen },
+#endif
+#if WITH_IP4
+   { "sctp4",		xioaddrs_sctp4_connect },
+   { "sctp4-connect",	xioaddrs_sctp4_connect },
+#if WITH_LISTEN
+   { "sctp4-l",		xioaddrs_sctp4_listen },
+   { "sctp4-listen",	xioaddrs_sctp4_listen },
+#endif
+#endif /* WITH_IP4 */
+#if WITH_IP6
+   { "sctp6",		xioaddrs_sctp6_connect },
+   { "sctp6-connect",	xioaddrs_sctp6_connect },
+#if WITH_LISTEN
+   { "sctp6-l",		xioaddrs_sctp6_listen },
+   { "sctp6-listen",	xioaddrs_sctp6_listen },
+#endif
+#endif /* WITH_IP6 */
+#endif /* (WITH_IP4 || WITH_IP6) && WITH_SCTP */
+#if WITH_GENERICSOCKET
+   { "sendto",			xioaddrs_socket_sendto },
+#endif
+#if WITH_GENERICSOCKET
+   { "socket-connect",		xioaddrs_socket_connect },
+   { "socket-datagram",		xioaddrs_socket_datagram },
+#if WITH_LISTEN
+   { "socket-listen",		xioaddrs_socket_listen },
+#endif /* WITH_LISTEN */
+   { "socket-recv",		xioaddrs_socket_recv },
+   { "socket-recvfrom",		xioaddrs_socket_recvfrom },
+   { "socket-sendto",		xioaddrs_socket_sendto },
 #endif
 #if WITH_SOCKS4
    { "socks",		xioaddrs_socks4_connect },
@@ -333,12 +380,13 @@ xiofile_t *xioallocfd(void) {
    fd->stream.fd2       = -1;
    fd->stream.fdtype    = FDTYPE_SINGLE;
    fd->stream.dtype     = XIODATA_STREAM;
-#if WITH_SOCKET
+#if _WITH_SOCKET
 /* fd->stream.salen     = 0; */
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 /* fd->stream.howtoshut = XIOSHUT_UNSPEC;*/
 /* fd->stream.howtoclose  = XIOCLOSE_UNSPEC;*/
 /* fd->stream.name      = NULL; */
+   fd->stream.escape	= -1;
 /* fd->stream.para.exec.pid = 0; */
    fd->stream.lineterm  = LINETERM_RAW;
 

@@ -1,5 +1,5 @@
 /* source: sycls.h */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __sycls_h_included
@@ -64,6 +64,7 @@ int Ftruncate64(int fd, off64_t length);
 #endif /* HAVE_FTRUNCATE64 */
 int Flock(int fd, int operation);
 int Ioctl(int d, int request, void *argp);
+int Ioctl_int(int d, int request, int arg);
 int Close(int fd);
 int Fchown(int fd, uid_t owner, gid_t group);
 int Fchmod(int fd, mode_t mode);
@@ -143,6 +144,8 @@ int Pthread_create(pthread_t *thread, const pthread_attr_t *attr,
 		   void *(*start_routine)(void *), void *arg);
 int Pthread_join(pthread_t thread, void **value_ptr);
 int Mkstemp(char *template);
+int Setenv(const char *name, const char *value, int overwrite);
+void Unsetenv(const char *name);
 
 char *Readline(const char *prompt);
 void Using_history(void);
@@ -207,6 +210,7 @@ int Gzclose(gzFile file) {
 #define Ftruncate64(f,l) ftruncate64(f,l)
 #define Flock(f,o) flock(f,o)
 #define Ioctl(d,r,a) ioctl(d,r,a)
+#define Ioctl_int(d,r,a) ioctl(d,r,a)
 #define Close(f) close(f)
 #define Fchown(f,o,g) fchown(f,o,g)
 #define Fchmod(f,m) fchmod(f,m)
@@ -272,6 +276,8 @@ int Gzclose(gzFile file) {
 #define Pthread_create(t,attr,s,arg) pthread_create(t,attr,s,arg)
 #define Pthread_join(t,ptr) pthread_join(t,ptr)
 #define Mkstemp(t) mkstemp(t)
+#define Setenv(n,v,o) setenv(n,v,o)
+#define Unsetenv(n) unsetenv(n)
 
 #define Readline(p) readline(p)
 #define Using_history() using_history()

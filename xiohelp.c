@@ -29,19 +29,21 @@ static const char *optiontypenames[] = {
 					"STRUCT-IP_MREQ",
 #endif
 							"IP4NAME",
+	"INT:INT",	"INT:INTP",	"INT:BIN",	"INT:STRING",
+	"INT:INT:INT",	"INT:INT:BIN",	"INT:INT:STRING",
 } ;
 
 
 /* keep consistent with xioopts.h:#define GROUP_* ! */
 static const char *addressgroupnames[] = {
-	"FD",		"FIFO",		"CHR",		"BLK",
+	"FD",		"FIFO",		"SOCKS5",		"BLK",
 	"REG",		"SOCKET",	"READLINE",	"undef",
 	"NAMED",	"OPEN",		"EXEC",		"FORK",
 	"LISTEN",	"DEVICE",	"CHILD",	"RETRY",
 	"TERMIOS",	"RANGE",	"PTY",		"PARENT",
 	"UNIX",		"IP4",		"IP6",		"INTERFACE",
 	"UDP",		"TCP",		"SOCKS4",	"OPENSSL",
-	"PROCESS",	"APPL",		"HTTP",		"SOCKS5"
+	"PROCESS",	"APPL",		"HTTP",		"SCTP"
 } ;
 
 

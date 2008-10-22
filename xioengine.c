@@ -1,5 +1,5 @@
-/* $Id$ */
-/* Copyright Gerhard Rieger 2007 */
+/* source: xioengine.c */
+/* Copyright Gerhard Rieger 2007-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source file of the socat transfer loop/engine */
@@ -17,8 +17,9 @@
    returns >0 if child died and left data
 */
 int childleftdata(xiofile_t *xfd) {
-   fd_set in, out, expt;
+   struct pollfd in;
    int retval;
+
    /* have to check if a child process died before, but left read data */
    if (XIO_READABLE(xfd) &&
        (XIO_RDSTREAM(xfd)->howtoclose == XIOCLOSE_SIGTERM ||
@@ -26,35 +27,29 @@ int childleftdata(xiofile_t *xfd) {
 	XIO_RDSTREAM(xfd)->howtoclose == XIOCLOSE_CLOSE_SIGTERM ||
 	XIO_RDSTREAM(xfd)->howtoclose == XIOCLOSE_CLOSE_SIGKILL) &&
        XIO_RDSTREAM(xfd)->child.pid == 0) {
-      struct timeval time0 = { 0,0 };
+      struct timeval timeout = { 0,0 };
 
-      FD_ZERO(&in); FD_ZERO(&out); FD_ZERO(&expt);
       if (XIO_READABLE(xfd) && !(XIO_RDSTREAM(xfd)->eof >= 2 && !XIO_RDSTREAM(xfd)->ignoreeof)) {
-	 FD_SET(XIO_GETRDFD(xfd), &in);
-	 /*0 FD_SET(XIO_GETRDFD(xfd), &expt);*/
+	 in.fd = XIO_GETRDFD(xfd);
+	 in.events = POLLIN/*|POLLRDBAND*/;
+	 in.revents = 0;
       }
       do {
-	 retval = Select(FD_SETSIZE, &in, &out, &expt, &time0);
+	 retval = xiopoll(&in, 1, &timeout);
       } while (retval < 0 && errno == EINTR);
 
       if (retval < 0) {
-#if HAVE_FDS_BITS
-	 Error5("select(%d, &0x%lx, &0x%lx, &0x%lx, {0}): %s",
-		FD_SETSIZE, in.fds_bits[0], out.fds_bits[0],
-		expt.fds_bits[0], strerror(errno));
-#else
-	 Error5("select(%d, &0x%lx, &0x%lx, &0x%lx, {0}): %s",
-		FD_SETSIZE, in.__fds_bits[0], out.__fds_bits[0],
-		expt.__fds_bits[0], strerror(errno));
-#endif
-	 return -1;
-      } else if (retval == 0) {
-	 Info("terminated child did not leave data for us");
-	 XIO_RDSTREAM(xfd)->eof = 2;
-	 xfd->stream.eof = 2;
-	 /*0 closing = MAX(closing, 1);*/
+         Error5("xiopoll({%d,%0o}, 1, {"F_tv_sec"."F_tv_usec"}): %s",
+                in.fd, in.events, timeout.tv_sec, timeout.tv_usec,
+                strerror(errno));
+         return -1;
       }
-      return 1;
+      if (retval == 0) {
+         Info("terminated child did not leave data for us");
+         XIO_RDSTREAM(xfd)->eof = 2;
+         xfd->stream.eof = 2;
+         xfd->stream.closing = MAX(xfd->stream.closing, 1);
+      }
    }
    return 0;
 }
@@ -72,7 +67,11 @@ void *xioengine(void *thread_arg) {
    returns -1 on error or 0 on success */
 int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
    xiofile_t *sock1, *sock2;
-   fd_set in, out, expt;
+   struct pollfd fds[4],
+       *fd1in  = &fds[0],
+       *fd1out = &fds[1],
+       *fd2in  = &fds[2],
+       *fd2out = &fds[3];
    int retval;
    unsigned char *buff;
    ssize_t bytes1, bytes2;
@@ -134,19 +133,17 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	  XIO_RDSTREAM(sock2)->eof <= 1) {
       struct timeval timeout, *to = NULL;
 
-      Debug4("data loop: sock1->eof=%d, sock2->eof=%d, 1->closing=%d, 2->closing=%d",
+      Debug4("data loop: sock1->eof=%d, sock2->eof=%d, 1->closing=%d, 2->closing=%d, wasaction=%d, total_to={"F_tv_sec"."F_tv_usec"}",
 	     XIO_RDSTREAM(sock1)->eof, XIO_RDSTREAM(sock2)->eof,
 	     sock1->stream.closing, sock2->stream.closing);
-      Debug3("wasaction=%d, total_to={"F_tv_sec"."F_tv_usec"}",
-	     wasaction, total_timeout.tv_sec, total_timeout.tv_usec);
+      Debug6("wasaction=%d, total_to={"F_tv_sec"."F_tv_usec"}",
+	     wasaction, total_timeout.tv_sec, total_timeout.tv_usec, wasaction,
+             total_timeout.tv_sec, total_timeout.tv_usec);
 
       /* for ignoreeof */
       if (polling) {
 	 if (!wasaction) {
 	    /* yes we could do it with select but I like readable trace output */
-	    if (xioparams->pollintv.tv_sec)  Sleep(xioparams->pollintv.tv_sec);
-	    if (xioparams->pollintv.tv_usec) Usleep(xioparams->pollintv.tv_usec);
-
 	    if (xioparams->total_timeout.tv_sec != 0 ||
 		xioparams->total_timeout.tv_usec != 0) {
 	       if (total_timeout.tv_usec < xioparams->pollintv.tv_usec) {
@@ -185,12 +182,13 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	 /* first eof already occurred, start end timer */
 	 timeout = xioparams->closwait;
 	 to = &timeout;
+	 /*0 closing = 2;*/
       }
 #endif
 
+      /* frame 1: set the poll parameters and loop over poll() EINTR) */
       do {
 	 int _errno;
-	 FD_ZERO(&in); FD_ZERO(&out); FD_ZERO(&expt);
 
 	 childleftdata(sock1);
 	 childleftdata(sock2);
@@ -216,35 +214,66 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	 }
 #endif
 
+	 /* use the ignoreeof timeout if appropriate */
+	 if (polling) {
+	    if ((sock1->stream.closing == 0 && sock2->stream.closing == 0) ||
+		(xioparams->pollintv.tv_sec < timeout.tv_sec) ||
+		((xioparams->pollintv.tv_sec == timeout.tv_sec) &&
+		 xioparams->pollintv.tv_usec < timeout.tv_usec)) {
+	       timeout = xioparams->pollintv;
+	    }
+	 }
+
+	 /* now the fds will be assigned */
 	 if (XIO_READABLE(sock1) &&
 	     !(XIO_RDSTREAM(sock1)->eof > 1 && !XIO_RDSTREAM(sock1)->ignoreeof)
 	     /*0 && !xioparams->righttoleft*/) {
 	    Debug3("*** sock1: %p [%d,%d]", sock1, XIO_GETRDFD(sock1), XIO_GETWRFD(sock1));
-	    if (!mayrd1) {
-	       FD_SET(XIO_GETRDFD(sock1), &in);
+	    if (!mayrd1 && !(XIO_RDSTREAM(sock1)->eof > 1)) {
+	       fd1in->fd = XIO_GETRDFD(sock1);
+	       fd1in->events = POLLIN;
+	    } else {
+	       fd1in->fd = -1;
 	    }
 	    if (!maywr2) {
-	       FD_SET(XIO_GETWRFD(sock2), &out);
+	       fd2out->fd = XIO_GETWRFD(sock2);
+	       fd2out->events = POLLOUT;
+	    } else {
+	       fd2out->fd = -1;
 	    }
-	 }
+	 } else {
+	    fd1in->fd = -1;
+	    fd2out->fd = -1;
+         }
 	 if (XIO_READABLE(sock2) &&
 	     !(XIO_RDSTREAM(sock2)->eof > 1 && !XIO_RDSTREAM(sock2)->ignoreeof)
 	     /*0 && !xioparams->lefttoright*/) {
 	    Debug3("*** sock2: %p [%d,%d]", sock2, XIO_GETRDFD(sock2), XIO_GETWRFD(sock2));
-	    if (!mayrd2) {
-	       FD_SET(XIO_GETRDFD(sock2), &in);
+	    if (!mayrd2 && !(XIO_RDSTREAM(sock2)->eof > 1)) {
+	       fd2in->fd = XIO_GETRDFD(sock2);
+	       fd2in->events = POLLIN;
+	    } else {
+	       fd2in->fd = -1;
 	    }
 	    if (!maywr1) {
-	       FD_SET(XIO_GETWRFD(sock1), &out);
+	       fd1out->fd = XIO_GETWRFD(sock1);
+	       fd1out->events = POLLOUT;
+	    } else {
+	       fd1out->fd = -1;
 	    }
+	 } else {
+	    fd1out->fd = -1;
+	    fd2in->fd = -1;
 	 }
-	 retval = Select(FD_SETSIZE, &in, &out, &expt, to);
+         /* frame 0: innermost part of the transfer loop: check FD status */
+	 retval = xiopoll(fds, 4, to);
+	 if (retval >= 0 || errno != EINTR) {
+	    break;
+	 }
 	 _errno = errno;
-	 if (retval < 0 && errno == EINTR) {
-	    Info1("select(): %s", strerror(errno));
-	 }
+	 Info1("xiopoll(): %s", strerror(errno));
 	 errno = _errno;
-      } while (retval < 0 && errno == EINTR);
+      } while (true);
 
       /* attention:
 	 when an exec'd process sends data and terminates, it is unpredictable
@@ -252,27 +281,26 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	 */
 
       if (retval < 0) {
-#if HAVE_FDS_BITS
-	    Error7("select(%d, &0x%lx, &0x%lx, &0x%lx, %s%lu): %s",
-		   FD_SETSIZE, in.fds_bits[0], out.fds_bits[0],
-		   expt.fds_bits[0], to?"&":"NULL/", to?to->tv_sec:0,
-		   strerror(errno));
-#else
-	    Error7("select(%d, &0x%lx, &0x%lx, &0x%lx, %s%lu): %s",
-		   FD_SETSIZE, in.__fds_bits[0], out.__fds_bits[0],
-		   expt.__fds_bits[0], to?"&":"NULL/", to?to->tv_sec:0,
-		   strerror(errno));
-#endif
+	 Error11("xiopoll({%d,%0o}{%d,%0o}{%d,%0o}{%d,%0o}, 4, {"F_tv_sec"."F_tv_usec"}): %s",
+		 fds[0].fd, fds[0].events, fds[1].fd, fds[1].events,
+		 fds[2].fd, fds[2].events, fds[3].fd, fds[3].events,
+		 timeout.tv_sec, timeout.tv_usec, strerror(errno));
 	    return -1;
       } else if (retval == 0) {
-	 Info2("select timed out (no data within %ld.%06ld seconds)",
+	 Info2("poll timed out (no data within %ld.%06ld seconds)",
 	       (sock1->stream.closing>=1||sock2->stream.closing>=1)?
 	       xioparams->closwait.tv_sec:xioparams->total_timeout.tv_sec,
 	       (sock1->stream.closing>=1||sock2->stream.closing>=1)?
 	       xioparams->closwait.tv_usec:xioparams->total_timeout.tv_usec);
 	 if (polling && !wasaction) {
 	    /* there was a ignoreeof poll timeout, use it */
-	    ;
+	    polling = 0;        /*%%%*/
+	    if (XIO_RDSTREAM(sock1)->ignoreeof) {
+	       mayrd1 = 0;
+	    }
+         } else if (polling && wasaction) {
+            wasaction = 0;
+
 	 } else if (xioparams->total_timeout.tv_sec != 0 ||
 		    xioparams->total_timeout.tv_usec != 0) {
 	    /* there was a total inactivity timeout */
@@ -291,21 +319,40 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
       /*0 Debug1("XIO_READABLE(sock1) = %d", XIO_READABLE(sock1));*/
       /*0 Debug1("XIO_GETRDFD(sock1) = %d", XIO_GETRDFD(sock1));*/
       if (XIO_READABLE(sock1) && XIO_GETRDFD(sock1) >= 0 &&
-	  FD_ISSET(XIO_GETRDFD(sock1), &in)) {
-	 mayrd1 = true;
+	  (fd1in->revents /*&(POLLIN|POLLHUP|POLLERR)*/)) {
+         if (fd1in->revents & POLLNVAL) {
+            /* this is what we find on Mac OS X when poll()'ing on a device or
+               named pipe. a read() might imm. return with 0 bytes, resulting
+               in a loop? */ 
+            Error1("poll(...[%d]: invalid request", fd1in->fd);
+            return -1;
+         }
+ 	 mayrd1 = true;
       }
       /*0 Debug1("XIO_READABLE(sock2) = %d", XIO_READABLE(sock2));*/
       /*0 Debug1("XIO_GETRDFD(sock2) = %d", XIO_GETRDFD(sock2));*/
       /*0 Debug1("FD_ISSET(XIO_GETRDFD(sock2), &in) = %d", FD_ISSET(XIO_GETRDFD(sock2), &in));*/
       if (XIO_READABLE(sock2) && XIO_GETRDFD(sock2) >= 0 &&
-	  FD_ISSET(XIO_GETRDFD(sock2), &in)) {
+	  (fd2in->revents)) {
+	 if (fd2in->revents & POLLNVAL) {
+	    Error1("poll(...[%d]: invalid request", fd2in->fd);
+	    return -1;
+	 }
 	 mayrd2 = true;
       }
       /*0 Debug2("mayrd2 = %d, maywr1 = %d", mayrd2, maywr1);*/
-      if (XIO_GETWRFD(sock1) >= 0 && FD_ISSET(XIO_GETWRFD(sock1), &out)) {
+      if (XIO_GETWRFD(sock1) >= 0 && fd1out->fd >= 0 && fd1out->revents) {
+	 if (fd1out->revents & POLLNVAL) {
+	    Error1("poll(...[%d]: invalid request", fd1out->fd);
+	    return -1;
+	 }
 	 maywr1 = true;
       }
-      if (XIO_GETWRFD(sock2) >= 0 && FD_ISSET(XIO_GETWRFD(sock2), &out)) {
+      if (XIO_GETWRFD(sock2) >= 0 && fd2out->fd >= 0 && fd2out->revents) {
+	 if (fd2out->revents & POLLNVAL) {
+	    Error1("poll(...[%d]: invalid request", fd2out->fd);
+	    return -1;
+	 }
 	 maywr2 = true;
       }
 
@@ -331,7 +378,12 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	       /* avoid idle when all readbytes already there */
 	       mayrd1 = true;
 	    }          
-	 } else { /* bytes1 == 0 */
+	    /* escape char occurred? */
+	    if (XIO_RDSTREAM(sock1)->actescape) {
+	       bytes1 = 0;      /* indicate EOF */
+	    }
+	 }
+	 if (bytes1 == 0) {
 	    if (XIO_RDSTREAM(sock1)->ignoreeof && !sock1->stream.closing) {
 	       ;
 	    } else {
@@ -365,7 +417,12 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	       /* avoid idle when all readbytes already there */
 	       mayrd2 = true;
 	    }          
-	 } else { /* bytes == 0 */
+	    /* escape char occurred? */
+	    if (XIO_RDSTREAM(sock2)->actescape) {
+	       bytes2 = 0;      /* indicate EOF */
+	    }
+	 }
+	 if (bytes2 == 0) {
 	    if (XIO_RDSTREAM(sock2)->ignoreeof && !sock2->stream.closing) {
 	       ;
 	    } else {
@@ -380,33 +437,45 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
       /* NOW handle EOFs */
 
       if (bytes1 == 0 || XIO_RDSTREAM(sock1)->eof >= 2) {
-	 if (XIO_RDSTREAM(sock1)->ignoreeof && !sock1->stream.closing) {
+	 if (XIO_RDSTREAM(sock1)->ignoreeof &&
+	     !XIO_RDSTREAM(sock1)->actescape && !sock1->stream.closing) {
 	    Debug1("socket 1 (fd %d) is at EOF, ignoring",
 		   XIO_RDSTREAM(sock1)->fd1);	/*! */
-	    polling = 1;
+            mayrd1 = true;
+	    polling = 1;       /* do not hook this eof fd to poll for pollintv*/
 	 } else {
 	    Notice1("socket 1 (fd %d) is at EOF", XIO_GETRDFD(sock1));
 	    xioshutdown(sock2, SHUT_WR);
+	    XIO_RDSTREAM(sock1)->eof = 2;
+	    XIO_RDSTREAM(sock1)->ignoreeof = false;
 	    sock2->stream.closing = MAX(sock2->stream.closing, 1);
 	    if (/*0 xioparams->lefttoright*/ !XIO_READABLE(sock2)) {
 	       break;
 	    }
 	 }
+      } else if (polling && XIO_RDSTREAM(sock1)->ignoreeof) {
+         polling = 0;
       }
 
       if (bytes2 == 0 || XIO_RDSTREAM(sock2)->eof >= 2) {
-	 if (XIO_RDSTREAM(sock2)->ignoreeof && !sock2->stream.closing) {
+	 if (XIO_RDSTREAM(sock2)->ignoreeof &&
+	     !XIO_RDSTREAM(sock2)->actescape && !sock2->stream.closing) {
 	    Debug1("socket 2 (fd %d) is at EOF, ignoring",
 		   XIO_RDSTREAM(sock2)->fd1);
-	    polling = 1;
+	    mayrd2 = true;
+	    polling = 1;       /* do not hook this eof fd to poll for pollintv*/
 	 } else {
 	    Notice1("socket 2 (fd %d) is at EOF", XIO_GETRDFD(sock2));
 	    xioshutdown(sock1, SHUT_WR);
+	    XIO_RDSTREAM(sock2)->eof = 2;
+	    XIO_RDSTREAM(sock2)->ignoreeof = false;
 	    sock1->stream.closing = MAX(sock1->stream.closing, 1);
 	    if (/*0 xioparams->righttoleft*/ !XIO_READABLE(sock1)) {
 	       break;
 	    }
 	 }
+      } else if (polling && XIO_RDSTREAM(sock2)->ignoreeof) {
+         polling = 0;
       }
    }
 

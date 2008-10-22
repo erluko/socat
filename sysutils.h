@@ -1,5 +1,5 @@
 /* source: sysutils.h */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __sysutils_h_included
@@ -15,6 +15,7 @@ union xioin6_u {
 } ;
 #endif /* WITH_IP6 */
 
+#if _WITH_SOCKET
 union sockaddr_union {
    struct sockaddr soa;
 #if _WITH_UNIX
@@ -27,29 +28,12 @@ union sockaddr_union {
    struct sockaddr_in6 ip6;
 #endif /* _WITH_IP6 */
 } ;
-
-#if _WITH_IP4
-struct xiorange_ip4 {
-   struct in_addr netaddr;	/* network byte order */
-   struct in_addr netmask;	/* network byte order */
-} ;
-#endif /* _WITH_IP4 */
-
-#if _WITH_IP6
-struct xiorange_ip6 {
-   struct in6_addr addr;
-   struct in6_addr mask;
-} ;
-#endif /* _WITH_IP4 */
+#endif /* _WITH_SOCKET */
 
 #if _WITH_SOCKET
-union xiorange_union {
-#if _WITH_IP4
-   struct xiorange_ip4 ip4;
-#endif /* _WITH_IP4 */
-#if _WITH_IP6
-   struct xiorange_ip6 ip6;
-#endif /* _WITH_IP6 */
+struct xiorange {
+   union sockaddr_union netaddr;
+   union sockaddr_union netmask;
 } ;
 #endif /* _WITH_SOCKET */
 
@@ -90,9 +74,20 @@ extern int getusergroups(const char *user, gid_t *list, size_t *ngroups);
 extern const char *hstrerror(int err);
 #endif
 
+extern int xiopoll(struct pollfd fds[], unsigned long nfds, struct timeval *timeout);
+
 extern int parseport(const char *portname, int proto);
 
-extern int ifindexbyname(const char *ifname);
-extern int ifindex(const char *ifname, unsigned int *ifindex);
+extern int ifindexbyname(const char *ifname, int anysock);
+extern int ifindex(const char *ifname, unsigned int *ifindex, int anysock);
+
+extern int xiosetenv(const char *varname, const char *value, int overwrite);
+extern int
+xiosetenv2(const char *varname, const char *varname2, const char *value,
+	   int overwrite);
+extern int xiosetenvulong(const char *varname, unsigned long value,
+			  int overwrite);
+extern int xiosetenvushort(const char *varname, unsigned short value,
+			   int overwrite);
 
 #endif /* !defined(__sysutils_h_included) */

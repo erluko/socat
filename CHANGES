@@ -27,6 +27,130 @@ new features:
 
 	new form of FD address with output/input fd numbers
 
+####################### V 1.7.0.0:
+
+new features:
+	new address types SCTP-CONNECT and SCTP-LISTEN implement SCTP stream
+	mode for IPv4 and IPv6; new address options sctp-maxseg and
+	sctp-nodelay (suggested by David A. Madore; thanks to Jonathan Brannan
+	for providing an initial patch)
+
+	new address "INTERFACE" for transparent network interface handling
+	(suggested by Stuart Nicholson)
+
+	added generic socket addresses: SOCKET-CONNECT, SOCKET-LISTEN,
+	SOCKET-SENDTO, SOCKET-RECVFROM, SOCKET-RECV, SOCKET-DATAGRAM allow
+	protocol independent socket handling; all parameters are explicitely
+	specified as numbers or hex data
+
+	added address options ioctl-void, ioctl-int, ioctl-intp, ioctl-string,
+	ioctl-bin for generic ioctl() calls.
+
+	added address options setsockopt-int, setsockopt-bin, and
+	setsockopt-string for generic setsockopt() calls
+
+	option so-type now only affects the socket() and socketpair() calls,
+	not the name resolution. so-type and so-prototype can now be applied to
+	all socket based addresses.
+
+	new address option "escape" allows to break a socat instance even when
+	raw terminal mode prevents ^C etc. (feature suggested by Guido Trotter)
+
+	socat sets environment variables SOCAT_VERSION, SOCAT_PID, SOCAT_PPID
+	for use in executed scripts
+
+	socat sets environment variables SOCAT_SOCKADDR, SOCAT_SOCKPORT,
+	SOCAT_PEERADDR, SOCAT_PEERPORT in LISTEN type addresses (feature
+	suggested by Ed Sawicki)
+
+	socat receives all ancillary messages with each received packet on
+	datagram related addresses. The messages are logged in raw form with
+	debug level, and broken down with info level. note: each type of
+	ancillary message must be enabled by appropriate address options. 
+
+	socat provides the contents of ancillary messages received on RECVFROM
+	addresses in appropriate environment variables:
+	SOCAT_TIMESTAMP, SOCAT_IP_DSTADDR, SOCAT_IP_IF, SOCAT_IP_LOCADDR,
+	SOCAT_IP_OPTIONS, SOCAT_IP_TOS, SOCAT_IP_TTL, SOCAT_IPV6_DSTADDR,
+	SOCAT_IPV6_HOPLIMIT, SOCAT_IPV6_TCLASS
+
+	the following address options were added to enable ancillary messages:
+	so-timestamp, ip-pktinfo (not BSD), ip-recvdstaddr (BSD), ip-recverr,
+	ip-recvif (BSD), ip-recvopts, ip-recvtos, ip-recvttl, ipv6-recvdstopts,
+	ipv6-recverr, ipv6-recvhoplimit, ipv6-recvhopopts, ipv6-recvpathmtu,
+	ipv6-recvpktinfo, ipv6-recvrthdr, ipv6-recvtclass
+
+	new address options ipv6-tclass and ipv6-unicast-hops set the related
+	socket options.
+
+	STREAMS (UNIX System V STREAMS) can be configured with the new address
+	options i-pop-all and i-push (thanks to Michal Rysavy for providing a
+	patch)
+
+corrections:
+	some raw IP and UNIX datagram modes failed on BSD systems
+
+	when UDP-LISTEN continued to listen after packet dropped by, e.g.,
+	range option, the old listen socket would not be closed but a new one
+	created. open sockets could accumulate.
+
+	there was a bug in ip*-recv with bind option: it did not bind, and
+	with the first received packet an error occurred:
+	socket_init(): unknown address family 0
+	test: RAWIP4RECVBIND
+
+	RECVFROM addresses with FORK option hung after processing the first
+	packet. test: UDP4RECVFROM_FORK
+
+	corrected a few mistakes that caused compiler warnings on 64bit hosts
+	(thanks to Jonathan Brannan e.a. for providing a patch)
+
+	EXEC and SYSTEM with stderr injected socat messages into the data
+	stream. test: EXECSTDERRLOG
+
+	when the EXEC address got a string with consecutive spaces it created
+	additional empty arguments (thanks to Olivier Hervieu for reporting
+	this bug). test: EXECSPACES
+
+	in ignoreeof polling mode socat also blocked data transfer in the other
+	direction during the 1s wait intervalls (thanks to Jorgen Cederlof for
+	reporting this bug)
+
+	corrected alphabetical order of options (proxy-auth)
+
+	some minor corrections
+
+	improved test.sh script: more stable timing, corrections for BSD
+
+	replaced the select() calls by poll() to cleanly fix the problems with
+	many file descriptors already open
+
+	socat option -lf did not log to file but to stderr
+
+	socat did not compile on Solaris when configured without termios
+	feature (thanks to Pavan Gadi for reporting this bug)
+
+porting:
+	socat compiles and runs on AIX with gcc (thanks to Andi Mather for his
+	help)
+
+	socat compiles and runs on Cygwin (thanks to Jan Just Keijser for his
+	help)
+
+	socat compiles and runs on HP-UX with gcc (thanks to Michal Rysavy for
+	his help)
+
+	socat compiles and runs on MacOS X (thanks to Camillo Lugaresi for his
+	help)
+
+further changes:
+	filan -s prefixes output with FD number if more than one FD
+
+	Makefile now supports datarootdir (thanks to Camillo Lugaresi for
+	providing the patch)
+
+	cleanup in xio-unix.c
+
 ####################### V 1.6.0.1:
 
 new features:

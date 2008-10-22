@@ -1,5 +1,5 @@
 /* source: error.h */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __error_h_included
@@ -50,6 +50,9 @@
 #define Error6(m,a1,a2,a3,a4,a5,a6) msg(E_ERROR,m,a1,a2,a3,a4,a5,a6)
 #define Error7(m,a1,a2,a3,a4,a5,a6,a7) msg(E_ERROR,m,a1,a2,a3,a4,a5,a6,a7)
 #define Error8(m,a1,a2,a3,a4,a5,a6,a7,a8) msg(E_ERROR,m,a1,a2,a3,a4,a5,a6,a7,a8)
+#define Error9(m,a1,a2,a3,a4,a5,a6,a7,a8,a9) msg(E_ERROR,m,a1,a2,a3,a4,a5,a6,a7,a8,a9)
+#define Error10(m,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10) msg(E_ERROR,m,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10)
+#define Error11(m,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11) msg(E_ERROR,m,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11)
 #else /* !(WITH_MSGLEVEL >= E_ERROR) */
 #define Error(m)
 #define Error1(m,a1)
@@ -60,6 +63,9 @@
 #define Error6(m,a1,a2,a3,a4,a5,a6)
 #define Error7(m,a1,a2,a3,a4,a5,a6,a7)
 #define Error8(m,a1,a2,a3,a4,a5,a6,a7,a8)
+#define Error9(m,a1,a2,a3,a4,a5,a6,a7,a8,a9)
+#define Error10(m,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10)
+#define Error11(m,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11)
 #endif /* !(WITH_MSGLEVEL <= E_ERROR) */
 
 #if WITH_MSGLEVEL <= E_WARN
@@ -202,7 +208,8 @@ extern void diag_set(char what, const char *arg);
 extern void diag_set_int(char what, int arg);
 extern int diag_get_int(char what);
 extern const char *diag_get_string(char what);
-
+extern int diag_dup(void);
+extern int diag_dup2(int newfd);
 extern void msg(int level, const char *format, ...);
 
 #endif /* !defined(__error_h_included) */

@@ -1,5 +1,5 @@
 /* source: config.h.in */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __config_h_included
@@ -106,6 +106,9 @@
 
 /* Define if you have the memrchr function. */
 #undef HAVE_MEMRCHR
+
+/* Define if you have the if_indextoname function. */
+#undef HAVE_IF_INDEXTONAME
 
 /* Define if you have the sigaction function */
 #undef HAVE_SIGACTION
@@ -224,8 +227,23 @@
 /* Define if you have the <net/if.h> header file.  */
 #undef HAVE_NET_IF_H
 
+/* Define if you have the <net/if_dl.h> header file.  */
+#undef HAVE_NET_IF_DL_H
+
+/* Define if you have the <linux/types.h> header file.  */
+#undef HAVE_LINUX_TYPES_H
+
+/* Define if you have the <linux/errqueue.h> header file.  */
+#undef HAVE_LINUX_ERRQUEUE_H
+
 /* Define if you have the <linux/if_tun.h> header file.  */
 #undef HAVE_LINUX_IF_TUN_H
+
+/* Define if you have the <netpacket/packet.h> header file.  */
+#undef HAVE_NETPACKET_PACKET_H
+
+/* Define if you have the <netinet/if_ether.h> header file.  */
+#undef HAVE_NETINET_IF_ETHER_H
 
 /* Define if you have the <sys/utsname.h> header file.  */
 #undef HAVE_SYS_UTSNAME_H
@@ -275,6 +293,12 @@
 /* fdset may have component fds_bits or __fds_bits */
 #undef HAVE_FDS_BITS
 
+/* Define if you have the sa_family_t */
+#undef HAVE_TYPE_SA_FAMILY_T
+
+/* define if your struct sigaction has sa_sigaction */
+#undef HAVE_STRUCT_SIGACTION_SA_SIGACTION
+
 /* Define if your struct termios has component c_ispeed */
 #undef HAVE_TERMIOS_ISPEED
 
@@ -313,7 +337,7 @@
 /* Define if you have struct ifreq.ifr_index */
 #undef HAVE_STRUCT_IFREQ_IFR_INDEX
 
-/* Define if you have struct ifreq.ifr_ifindex */
+/* Define if you have struct ifreq.ifr_ifindex; not on HPUX */
 #undef HAVE_STRUCT_IFREQ_IFR_IFINDEX
 
 /* Define if your struct sockaddr has sa_len */
@@ -334,11 +358,20 @@
 /* define if your struct msghdr has msg_flag */
 #undef HAVE_STRUCT_MSGHDR_MSGFLAGS
 
+/* define if you have struct cmsghdr */
+#undef HAVE_STRUCT_CMSGHDR
+
+/* define if you have struct in_pktinfo */
+#undef HAVE_STRUCT_IN_PKTINFO
+
 /* define if your struct ip has ip_hl; otherwise assume ip_vhl */
 #undef HAVE_STRUCT_IP_IP_HL
 
 /* Define if you have the setenv function */
 #undef HAVE_SETENV
+
+/* Define if you have the unsetenv function. not on HP-UX */
+#undef HAVE_UNSETENV
 
 /* Define if you have the flock function */
 #undef HAVE_FLOCK
@@ -458,8 +491,11 @@
 #undef WITH_IP4
 #undef WITH_IP6
 #undef WITH_RAWIP
+#undef WITH_GENERICSOCKET
+#undef WITH_INTERFACE
 #undef WITH_TCP
 #undef WITH_UDP
+#undef WITH_SCTP
 #undef WITH_LISTEN
 #undef WITH_SOCKS4
 #undef WITH_SOCKS4A
@@ -473,6 +509,7 @@
 #undef WITH_PTY
 #undef WITH_EXT2
 #undef WITH_OPENSSL
+#define WITH_STREAMS 1
 #undef WITH_FIPS
 #undef OPENSSL_FIPS
 #undef WITH_LIBWRAP

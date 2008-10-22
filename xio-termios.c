@@ -1,5 +1,5 @@
 /* source: xio-termios.c */
-/* Copyright Gerhard Rieger 2001-2006 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for terminal I/O options */
@@ -10,6 +10,7 @@
 #include "xio-termios.h"
 
 /****** TERMIOS addresses ******/
+#if _WITH_TERMIOS
 #if WITH_TERMIOS
 const struct optdesc opt_tiocsctty={ "tiocsctty", "ctty",OPT_TIOCSCTTY,  GROUP_TERMIOS,   PH_LATE2, TYPE_BOOL,     OFUNC_SPEC };
 
@@ -42,8 +43,10 @@ const struct optdesc opt_cr2     = { "cr2",     NULL, OPT_CR2,     GROUP_TERMIOS
 #  endif
 #  ifdef CR3
 const struct optdesc opt_cr3     = { "cr3",     NULL, OPT_CR3,     GROUP_TERMIOS, PH_FD, TYPE_CONST, OFUNC_TERMIOS_PATTERN, 1, CR3, CRDLY };
-#endif
+#  endif
+#  if CRDLY_SHIFT >= 0
 const struct optdesc opt_crdly   = { "crdly",   NULL, OPT_CRDLY,   GROUP_TERMIOS, PH_FD, TYPE_UINT,  OFUNC_TERMIOS_VALUE,   1, CRDLY, CRDLY_SHIFT };
+#  endif
 #endif /* defined(CRDLY) */
 #ifdef NLDLY
 #  ifdef NL0
@@ -90,8 +93,10 @@ const struct optdesc opt_tab3    = { "tab3",    NULL, OPT_TAB3,    GROUP_TERMIOS
 #  ifdef XTABS
 const struct optdesc opt_xtabs   = { "xtabs",   NULL, OPT_XTABS,   GROUP_TERMIOS, PH_FD, TYPE_CONST, OFUNC_TERMIOS_FLAG, 1, XTABS, TABDLY };
 #  endif
+#  if TABDLY_SHIFT >= 0
 const struct optdesc opt_tabdly  = { "tabdly",  NULL, OPT_TABDLY,  GROUP_TERMIOS, PH_FD, TYPE_UINT, OFUNC_TERMIOS_VALUE, 1, TABDLY, TABDLY_SHIFT };
-#endif
+#  endif
+#endif /* defined(TABDLY) */
 #ifdef BSDLY
 #  ifdef BS0
 const struct optdesc opt_bs0     = { "bs0",     NULL, OPT_BS0,     GROUP_TERMIOS, PH_FD, TYPE_CONST, OFUNC_TERMIOS_PATTERN, 1, BS0, BSDLY };
@@ -196,7 +201,9 @@ const struct optdesc opt_cs5     = { "cs5",     NULL, OPT_CS5,     GROUP_TERMIOS
 const struct optdesc opt_cs6     = { "cs6",     NULL, OPT_CS6,     GROUP_TERMIOS, PH_FD, TYPE_CONST, OFUNC_TERMIOS_PATTERN, 2, CS6, CSIZE };
 const struct optdesc opt_cs7     = { "cs7",     NULL, OPT_CS7,     GROUP_TERMIOS, PH_FD, TYPE_CONST, OFUNC_TERMIOS_PATTERN, 2, CS7, CSIZE };
 const struct optdesc opt_cs8     = { "cs8",     NULL, OPT_CS8,     GROUP_TERMIOS, PH_FD, TYPE_CONST, OFUNC_TERMIOS_PATTERN, 2, CS8, CSIZE };
+#if CSIZE_SHIFT >= 0
 const struct optdesc opt_csize   = { "csize",   NULL, OPT_CSIZE,   GROUP_TERMIOS, PH_FD, TYPE_UINT,  OFUNC_TERMIOS_VALUE,   2, CSIZE, CSIZE_SHIFT };
+#endif
 const struct optdesc opt_cstopb  = { "cstopb",  NULL, OPT_CSTOPB,  GROUP_TERMIOS, PH_FD, TYPE_BOOL,  OFUNC_TERMIOS_FLAG,    2, CSTOPB };
 const struct optdesc opt_cread   = { "cread",   NULL, OPT_CREAD,   GROUP_TERMIOS, PH_FD, TYPE_BOOL,  OFUNC_TERMIOS_FLAG,    2, CREAD };
 const struct optdesc opt_parenb  = { "parenb",  NULL, OPT_PARENB,  GROUP_TERMIOS, PH_FD, TYPE_BOOL,  OFUNC_TERMIOS_FLAG,    2, PARENB };
@@ -323,4 +330,6 @@ int xiotermios_clrflag(int fd, int word, tcflag_t mask) {
    }
    return 0;
 }
+
+#endif /* _WITH_TERMIOS */
 

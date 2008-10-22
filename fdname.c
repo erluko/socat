@@ -1,5 +1,5 @@
 /* source: fdname.c */
-/* Copyright Gerhard Rieger 2003-2007 */
+/* Copyright Gerhard Rieger 2003-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* the subroutine sockname prints the basic info about the address of a socket
@@ -32,7 +32,7 @@ int unixame(int fd, FILE *outfile);
 int tcpname(int fd, FILE *outfile);
 
 
-int fdname(const char *file, int fd, FILE *outfile) {
+int fdname(const char *file, int fd, FILE *outfile, const char *numform) {
    struct stat buf = {0};
    int filetype;
    Debug1("checking file descriptor %u", fd);
@@ -46,6 +46,9 @@ int fdname(const char *file, int fd, FILE *outfile) {
 	 }
       }
       filetype = (buf.st_mode&S_IFMT)>>12;
+      if (numform != NULL) {
+	 fprintf(outfile, numform, fd);
+      }
       return statname(file, fd, filetype, outfile);
    } else {
       if (Stat(file, &buf) < 0) {
@@ -139,7 +142,7 @@ int statname(const char *file, int fd, int filetype, FILE *outfile) {
       if (file) fprintf(outfile, " %s", file);
       break;
    case (S_IFSOCK>>12): /* 12, socket */
-#if WITH_SOCKET
+#if _WITH_SOCKET
       if (fd >= 0) {
 	 result = sockname(fd, outfile);
       } else if (file) {
@@ -150,7 +153,7 @@ int statname(const char *file, int fd, int filetype, FILE *outfile) {
 #else
       Error("SOCKET support not compiled in");
       return -1;
-#endif /* !WITH_SOCKET */
+#endif /* !_WITH_SOCKET */
       break;
    }
    /* ioctl() */
@@ -185,7 +188,7 @@ int cdevname(int fd, FILE *outfile) {
 }
 
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
 int sockname(int fd, FILE *outfile) {
 #define FDNAME_OPTLEN 256
 #define FDNAME_NAMELEN 256
@@ -320,7 +323,7 @@ int sockname(int fd, FILE *outfile) {
 #undef FDNAME_OPTLEN
 #undef FDNAME_NAMELEN
 }
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 
 
 

@@ -101,7 +101,7 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
    union sockaddr_union themunion;
    union sockaddr_union *them = &themunion;
    int socktype = SOCK_DGRAM;
-   fd_set in, out, expt;
+   struct pollfd readfd;
    bool dofork = false;
    pid_t pid;
    char *rangename;
@@ -133,7 +133,6 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
    fd->stream.fdtype = FDTYPE_SINGLE;
 
    uslen = socket_init(pf, &us);
-   retropt_int(opts, OPT_SO_TYPE, &socktype);
    retropt_bind(opts, pf, socktype, IPPROTO_UDP,
 		(struct sockaddr *)&us, &uslen, 1,
 		fd->stream.para.socket.ip.res_opts[1],
@@ -164,7 +163,7 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 
 #if WITH_IP4 /*|| WITH_IP6*/
    if (retropt_string(opts, OPT_RANGE, &rangename) >= 0) {
-      if (parserange(rangename, pf, &fd->stream.para.socket.range) < 0) {
+      if (xioparserange(rangename, pf, &fd->stream.para.socket.range) < 0) {
 	 free(rangename);
 	 return STAT_NORETRY;
       }
@@ -195,8 +194,7 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
       union sockaddr_union _sockname;
       union sockaddr_union *la = &_sockname;	/* local address */
 
-      if ((fd->stream.fd1 = Socket(pf, socktype, ipproto)) < 0) {
-	 Error4("socket(%d, %d, %d): %s", pf, socktype, ipproto, strerror(errno));
+      if ((fd->stream.fd1 = xiosocket(opts, pf, socktype, ipproto, E_ERROR)) < 0) {
 	 return STAT_RETRYLATER;
       }
       /*0 Info4("socket(%d, %d, %d) -> %d", pf, socktype, ipproto, fd->stream.fd);*/
@@ -225,9 +223,9 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 
       Notice1("listening on UDP %s",
 	      sockaddr_info(&us.soa, uslen, infobuff, sizeof(infobuff)));
-      FD_ZERO(&in); FD_ZERO(&out); FD_ZERO(&expt);
-      FD_SET(fd->stream.fd1, &in);
-      while (Select(fd->stream.fd1+1, &in, &out, &expt, NULL) < 0) {
+      readfd.fd = fd->stream.fd1;
+      readfd.events = POLLIN|POLLERR;
+      while (xiopoll(&readfd, 1, NULL) < 0) {
 	 if (errno != EINTR)  break;
       }
 
@@ -249,33 +247,29 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
       if (xiocheckpeer(&fd->stream, them, la) < 0) {
 	 /* drop packet */
 	 char buff[512];
-	 Recv(fd->stream.fd1, buff, sizeof(buff), 0);
+	 Recv(fd->stream.fd1, buff, sizeof(buff), 0);	/* drop packet */
+	 Close(fd->stream.fd1);
 	 continue;
       }
       Info1("permitting UDP connection from %s",
 	    sockaddr_info(&them->soa, themlen, infobuff, sizeof(infobuff)));
 
       if (dofork) {
-	 pid = Fork();
+	 pid = xio_fork(false, E_ERROR);
 	 if (pid < 0) {
-	    Error1("fork(): %s", strerror(errno));
 	    return STAT_RETRYLATER;
 	 }
-	 if (pid == 0) {	/* child */
 
-	    /* drop parents locks, reset FIPS... */
-	    if (xio_forked_inchild() != 0) {
-	       Exit(1);
-	    }
+	 if (pid == 0) {	/* child */
 	    break;
 	 }
-	 /* server: continue loop with select */
+
+	 /* server: continue loop with socket()+recvfrom() */
 	 /* when we dont close this we get awkward behaviour on Linux 2.4:
 	    recvfrom gives 0 bytes with invalid socket address */
 	 if (Close(fd->stream.fd1) < 0) {
 	    Info2("close(%d): %s", fd->stream.fd1, strerror(errno));
 	 }
-	 Notice1("forked off child process "F_pid, pid);
 	 Sleep(1);	/*! give child a chance to consume the old packet */
 
 	 continue;
@@ -291,6 +285,14 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 	     themlen, strerror(errno));
       return STAT_RETRYLATER;
    }
+
+   /* set the env vars describing the local and remote sockets */
+   if (Getsockname(fd->stream.fd1, &us.soa, &uslen) < 0) {
+      Warn4("getsockname(%d, %p, {%d}): %s",
+	    fd->stream.fd1, &us.soa, uslen, strerror(errno));
+   }
+   xiosetsockaddrenv("SOCK", &us,  uslen,   IPPROTO_UDP);
+   xiosetsockaddrenv("PEER", them, themlen, IPPROTO_UDP);
 
    applyopts_fchown(fd->stream.fd1, opts);
    applyopts(fd->stream.fd1, opts, PH_LATE);
@@ -313,6 +315,8 @@ int xioopen_udp_sendto(int argc, const char *argv[], struct opt *opts,
 	     argv[0], argc-1);
       return STAT_NORETRY;
    }
+
+   retropt_socket_pf(opts, &pf);
    if ((result = _xioopen_udp_sendto(argv[1], argv[2], opts, xioflags, xxfd,
 				     groups, pf, socktype, ipproto))
        != STAT_OK) {
@@ -322,6 +326,12 @@ int xioopen_udp_sendto(int argc, const char *argv[], struct opt *opts,
    return STAT_OK;
 }
 
+/*
+   applies and consumes the following option:
+   PH_INIT, PH_PASTSOCKET, PH_FD, PH_PREBIND, PH_BIND, PH_PASTBIND, PH_CONNECTED, PH_LATE
+   OFUNC_OFFSET
+   OPT_BIND, OPT_SOURCEPORT, OPT_LOWPORT, OPT_SO_TYPE, OPT_SO_PROTOTYPE, OPT_USER, OPT_GROUP, OPT_CLOEXEC
+ */
 static
 int _xioopen_udp_sendto(const char *hostname, const char *servname,
 			struct opt *opts,
@@ -421,6 +431,7 @@ int xioopen_udp_datagram(int argc, const char *argv[], struct opt *opts,
       return STAT_RETRYLATER;
    }
 
+   retropt_socket_pf(opts, &pf);
    result =
       _xioopen_udp_sendto(hostname, argv[2], opts, xioflags, xxfd, groups,
 			 pf, socktype, ipproto);
@@ -440,7 +451,7 @@ int xioopen_udp_datagram(int argc, const char *argv[], struct opt *opts,
    /* which reply packets will be accepted - determine by range option */
    if (retropt_string(opts, OPT_RANGE, &rangename)
        >= 0) {
-      if (parserange(rangename, pf, &xfd->para.socket.range) < 0) {
+      if (xioparserange(rangename, pf, &xfd->para.socket.range) < 0) {
 	 free(rangename);
 	 return STAT_NORETRY;
       }
@@ -597,7 +608,7 @@ int xioopen_udp_recv(int argc, const char *argv[], struct opt *opts,
 
 #if WITH_IP4 /*|| WITH_IP6*/
    if (retropt_string(opts, OPT_RANGE, &rangename) >= 0) {
-      if (parserange(rangename, pf, &xfd->stream.para.socket.range) < 0) {
+      if (xioparserange(rangename, pf, &xfd->stream.para.socket.range) < 0) {
 	 return STAT_NORETRY;
       }
       xfd->stream.para.socket.dorange = true;

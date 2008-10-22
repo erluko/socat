@@ -1,5 +1,5 @@
 /* source: xioshutdown.c */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2008 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source of the extended shutdown function */
@@ -61,29 +61,27 @@ int xioshutdown(xiofile_t *sock, int how) {
    default: break;
    }
 
+#if 0
   if (how == SHUT_RDWR) {
      /* in this branch we handle only shutdown actions where read and write
 	shutdown are not independent */
 
    switch (sock->stream.howtoshut) {
-#if 0
-   case XIODATA_STREAM:
-     switch (sock->stream.howtoclose) {
-#if WITH_SOCKET
-     case END_SHUTDOWN:
+#if _WITH_SOCKET
+     case XIOSHUT_DOWN:
       if ((result = Shutdown(sock->stream.fd1, how)) < 0) {
 	 Info3("shutdown(%d, %d): %s",
 	       sock->stream.fd1, how, strerror(errno));
       }
       break;
-     case END_SHUTDOWN_KILL:
+     case XIOSHUT_KILL:
       if ((result = Shutdown(sock->stream.fd1, how)) < 0) {
 	 Info3("shutdown(%d, %d): %s",
 	       sock->stream.fd1, how, strerror(errno));
       }
       break;
-#endif /* WITH_SOCKET */
-     case END_CLOSE:
+#endif /* _WITH_SOCKET */
+     case XIOSHUT_CLOSE:
 	Close(sock->stream.fd1);
 #if WITH_TERMIOS
 	if (sock->stream.ttyvalid) {
@@ -94,13 +92,14 @@ int xioshutdown(xiofile_t *sock, int how) {
 	}
 #endif /* WITH_TERMIOS */
 	/*PASSTHROUGH*/
-     case END_NONE:
+     case XIOSHUT_NONE:
 	break;
      default:
-	Error1("xioshutdown(): bad end action 0x%x", sock->stream.howtoclose);
+	Error1("xioshutdown(): bad shutdown action 0x%x", sock->stream.howtoshut);
 	return -1;
      }
-#if WITH_SOCKET
+
+#if 0 && _WITH_SOCKET
    case XIODATA_RECVFROM:
       if (how >= 1) {
 	 if (Close(sock->stream.fd1) < 0) {
@@ -111,13 +110,9 @@ int xioshutdown(xiofile_t *sock, int how) {
 	 sock->stream.fd1 = -1;
       }
       break;
-#endif /* WITH_SOCKET */
-#endif /* 0 */
-   default:
-      Error1("xioshutdown(): bad data type specification 0x%x", sock->stream.dtype);
-      return -1;
-   }
+#endif /* _WITH_SOCKET */
   }
+#endif
 
    if ((how+1) & 1) {	/* contains SHUT_RD */
       switch (sock->stream.dtype & XIODATA_READMASK) {
@@ -153,19 +148,20 @@ int xioshutdown(xiofile_t *sock, int how) {
       case XIOSHUTWR_NONE:
 	 break;
 
-#if WITH_SOCKET
+#if _WITH_SOCKET
       case XIOSHUTWR_DOWN:
 	 if (Shutdown(fd, SHUT_WR) < 0) {
 	    Info2("shutdown(%d, SHUT_WR): %s", fd, strerror(errno));
 	 }
 	 break;
-#endif /* WITH_SOCKET */
+#endif /* _WITH_SOCKET */
 
 #if 0
       case XIOSHUTWR_DOWN_KILL:
 	 if (Shutdown(fd, SHUT_WR) < 0) {
 	    Info2("shutdown(%d, SHUT_WR): %s", fd, strerror(errno));
 	 }
+	 /*!!!*/
 #endif
       case XIOSHUTWR_SIGHUP:
 	 /* the child process might want to flush some data before
@@ -185,7 +181,7 @@ int xioshutdown(xiofile_t *sock, int how) {
 
       default:
 	 Error1("xioshutdown(): unhandled howtoshut=0x%x during SHUT_WR",
-		sock->stream.howtoshut);
+		sock->stream.howtoshut&XIOSHUTWR_MASK);
       }
    }
 
