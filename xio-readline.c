@@ -31,7 +31,7 @@ static int xioopen_readline(int argc, const char *argv[], struct opt *opts,
 
 
 static const struct xioaddr_endpoint_desc xioendpoint_readline0 = {
-   XIOADDR_SYS, "readline", 0, XIOBIT_WRONLY|XIOBIT_RDWR, GROUP_FD|GROUP_TERMIOS|GROUP_READLINE, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_readline, 0, 0, 0 HELP(NULL) };
+   XIOADDR_SYS, "readline", 0, XIOBIT_RDONLY|XIOBIT_RDWR, GROUP_FD|GROUP_TERMIOS|GROUP_READLINE, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_readline, 0, 0, 0 HELP(NULL) };
 
 const union xioaddr_desc *xioaddrs_readline[] = {
    (union xioaddr_desc *)&xioendpoint_readline0,
@@ -75,9 +75,12 @@ static int xioopen_readline(int argc, const char *argv[], struct opt *opts,
    Notice(msgbuf);
 
    xfd->stream.fd1      = 0;	/* stdin */
+   if ((rw+1) & 2) {
+      xfd->stream.fd2      = 1;	/* stdout */
+   }
    xfd->stream.howtoclose = XIOCLOSE_READLINE;
    xfd->stream.dtype    = XIODATA_READLINE;
-   xfd->stream.fdtype   = FDTYPE_SINGLE;
+   xfd->stream.fdtype   = FDTYPE_DOUBLE;
 
 #if WITH_TERMIOS
    if (Isatty(xfd->stream.fd1)) {
