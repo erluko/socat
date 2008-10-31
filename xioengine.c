@@ -436,7 +436,7 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 
       /* NOW handle EOFs */
 
-      if (bytes1 == 0) {
+      if (bytes1 == 0 || XIO_RDSTREAM(sock1)->eof >= 2) {
 	 if (XIO_RDSTREAM(sock1)->ignoreeof &&
 	     !XIO_RDSTREAM(sock1)->actescape && !sock1->stream.closing) {
 	    Debug1("socket 1 (fd %d) is at EOF, ignoring",
@@ -459,7 +459,7 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	 }
       }
 
-      if (bytes2 == 0) {
+      if (bytes2 == 0 || XIO_RDSTREAM(sock2)->eof >= 2) {
 	 if (XIO_RDSTREAM(sock2)->ignoreeof &&
 	     !XIO_RDSTREAM(sock2)->actescape && !sock2->stream.closing) {
 	    Debug1("socket 2 (fd %d) is at EOF, ignoring",

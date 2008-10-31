@@ -4592,7 +4592,7 @@ N=$((N+1))
 
 NAME=PROXY2SPACES
 case "$TESTS" in
-*%functions%*|*%$NAME%*)
+*%functions%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: proxy connect accepts status with multiple spaces"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs proxy >/dev/null; then
@@ -4888,7 +4888,7 @@ N=$((N+1))
 #!
 NAME=OUTBOUNDIN
 case "$TESTS" in
-*%functions%*|*%$NAME%*)
+*%functions%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: gender changer via SSL through HTTP proxy, oneshot"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl proxy); then
@@ -4975,7 +4975,7 @@ PORT=$((RANDOM+16184))
 #!
 NAME=INTRANETRIPPER
 case "$TESTS" in
-*%functions%*|*%$NAME%*)
+*%functions%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: gender changer via SSL through HTTP proxy, daemons"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl proxy); then
@@ -7902,7 +7902,7 @@ NAME=IP4BROADCAST
 # because we receive - in addition to the regular reply - our own broadcast,
 # we use a token XXXX that is changed to YYYY in the regular reply packet.
 case "$TESTS" in
-*%functions%*|*%rawip%*|*%rawip4%*|*%ip4%*|*%dgram%*|*%broadcast%*|*%root%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%rawip%*|*%rawip4%*|*%ip4%*|*%dgram%*|*%broadcast%*|*%root%*|*%$NAME%*)
 TEST="$NAME: raw IPv4 broadcast"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs ip4 rawip) || ! runsip4 >/dev/null; then
