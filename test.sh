@@ -2207,7 +2207,7 @@ N=$((N+1))
 
 NAME=FILE
 case "$TESTS" in
-*%functions%*|*%file%*|*%ignoreeof%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%file%*|*%ignoreeof%*|*%$NAME%*)
 TEST="$NAME: simple echo via file"
 tf="$td/file$N"
 testecho "$N" "$TEST" "" "$tf%$tf,ignoreeof" "$opts"
@@ -3244,7 +3244,7 @@ N=$((N+1))
 
 NAME=GOPENFILE
 case "$TESTS" in
-*%functions%*|*%gopen%*|*%file%*|*%ignoreeof%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%gopen%*|*%file%*|*%ignoreeof%*|*%$NAME%*)
 TEST="$NAME: file opening with gopen"
 if ! eval $NUMCOND; then :; else
 tf1="$td/test$N.1.stdout"
@@ -3277,7 +3277,7 @@ N=$((N+1))
 
 NAME=GOPENPIPE
 case "$TESTS" in
-*%functions%*|*%gopen%*|*%pipe%*|*%ignoreeof%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%gopen%*|*%pipe%*|*%ignoreeof%*|*%$NAME%*)
 TEST="$NAME: pipe opening with gopen for reading"
 if ! eval $NUMCOND; then :; else
 tp="$td/pipe$N"
@@ -3423,7 +3423,7 @@ N=$((N+1))
 #set -vx
 NAME=IGNOREEOF
 case "$TESTS" in
-*%functions%*|*%ignoreeof%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%ignoreeof%*|*%$NAME%*)
 TEST="$NAME: ignoreeof on file"
 if ! eval $NUMCOND; then :; else
 ti="$td/test$N.file"
@@ -3458,7 +3458,7 @@ set +vx
 
 NAME=EXECIGNOREEOF
 case "$TESTS" in
-*%functions%*|*%ignoreeof%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%ignoreeof%*|*%$NAME%*)
 TEST="$NAME: exec against address with ignoreeof"
 if ! eval $NUMCOND; then :; else
 tf="$td/test$N.stdout"
@@ -4514,7 +4514,7 @@ N=$((N+1))
 
 NAME=TOTALTIMEOUT
 case "$TESTS" in
-*%functions%*|*%timeout%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%timeout%*|*%$NAME%*)
 TEST="$NAME: socat inactivity timeout"
 if ! eval $NUMCOND; then :; else
 #set -vx
@@ -4553,7 +4553,7 @@ N=$((N+1))
 
 NAME=IGNOREEOF+TOTALTIMEOUT
 case "$TESTS" in
-*%functions%*|*%timeout%*|*%ignoreeof%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%timeout%*|*%ignoreeof%*|*%$NAME%*)
 TEST="$NAME: ignoreeof and inactivity timeout"
 if ! eval $NUMCOND; then :; else
 #set -vx
@@ -4592,7 +4592,7 @@ N=$((N+1))
 
 NAME=PROXY2SPACES
 case "$TESTS" in
-*%functions%*|*%$NAME%*)
+*%functions%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: proxy connect accepts status with multiple spaces"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs proxy >/dev/null; then
@@ -4888,7 +4888,7 @@ N=$((N+1))
 #!
 NAME=OUTBOUNDIN
 case "$TESTS" in
-*%functions%*|*%$NAME%*)
+*%functions%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: gender changer via SSL through HTTP proxy, oneshot"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl proxy); then
@@ -4975,7 +4975,7 @@ PORT=$((RANDOM+16184))
 #!
 NAME=INTRANETRIPPER
 case "$TESTS" in
-*%functions%*|*%$NAME%*)
+*%functions%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: gender changer via SSL through HTTP proxy, daemons"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl proxy); then
@@ -6187,7 +6187,7 @@ N=$((N+1))
 
 NAME=UNIXTODGRAM
 case "$TESTS" in
-*%functions%*|*%unix%*|*%recv%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%unix%*|*%recv%*|*%$NAME%*)
 TEST="$NAME: generic UNIX client connects to datagram socket"
 if ! eval $NUMCOND; then :; else
 ts1="$td/test$N.socket1"
@@ -6569,7 +6569,7 @@ fi #false
 
 NAME=UNIXDGRAM
 case "$TESTS" in
-*%functions%*|*%unix%*|*%dgram%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%unix%*|*%dgram%*|*%$NAME%*)
 TEST="$NAME: UNIX datagram"
 if ! eval $NUMCOND; then :; else
 tf="$td/test$N.stdout"
@@ -6611,7 +6611,7 @@ N=$((N+1))
 
 NAME=UDP4RECV
 case "$TESTS" in
-*%functions%*|*%ip4%*|*%dgram%*|*%udp%*|*%udp4%*|*%recv%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%ip4%*|*%dgram%*|*%udp%*|*%udp4%*|*%recv%*|*%$NAME%*)
 TEST="$NAME: UDP/IPv4 receive"
 if ! eval $NUMCOND; then :; else
 tf="$td/test$N.stdout"
@@ -7495,7 +7495,7 @@ N=$((N+1))
 
 NAME=COOLWRITE
 case "$TESTS" in
-*%functions%*|*%timeout%*|*%ignoreeof%*|*%coolwrite%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%timeout%*|*%ignoreeof%*|*%coolwrite%*|*%$NAME%*)
 TEST="$NAME: option cool-write"
 if ! eval $NUMCOND; then :;
 elif ! testoptions cool-write >/dev/null; then
@@ -7537,7 +7537,7 @@ N=$((N+1))
 # this failed up to socat 1.6.0.0
 NAME=COOLSTDIO
 case "$TESTS" in
-*%functions%*|*%timeout%*|*%ignoreeof%*|*%coolwrite%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%timeout%*|*%ignoreeof%*|*%coolwrite%*|*%$NAME%*)
 TEST="$NAME: option cool-write on bidirectional stdio"
 # this test starts a socat reader that terminates after receiving one+ 
 # bytes (option readbytes); and a test process that sends two bytes via
@@ -7902,7 +7902,7 @@ NAME=IP4BROADCAST
 # because we receive - in addition to the regular reply - our own broadcast,
 # we use a token XXXX that is changed to YYYY in the regular reply packet.
 case "$TESTS" in
-*%functions%*|*%rawip%*|*%rawip4%*|*%ip4%*|*%dgram%*|*%broadcast%*|*%root%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%rawip%*|*%rawip4%*|*%ip4%*|*%dgram%*|*%broadcast%*|*%root%*|*%$NAME%*)
 TEST="$NAME: raw IPv4 broadcast"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs ip4 rawip) || ! runsip4 >/dev/null; then
@@ -9029,7 +9029,7 @@ N=$((N+1))
 # the reverse direction
 NAME=IGNOREEOFNOBLOCK
 case "$TESTS" in
-*%functions%*|*%socket%*|*%ignoreeof%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%socket%*|*%ignoreeof%*|*%$NAME%*)
 TEST="$NAME: ignoreeof does not block other direction"
 # have socat poll in ignoreeof mode. while it waits one second for next check,
 # we send data in the reverse direction and then the total timeout fires.
@@ -9068,7 +9068,7 @@ N=$((N+1))
 # test the escape option
 NAME=ESCAPE
 case "$TESTS" in
-*%functions%*|*%escape%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%escape%*|*%$NAME%*)
 TEST="$NAME: escape character triggers EOF"
 # idea: start socat just echoing input, but apply escape option. send a string
 # containing the escape character and check if the output is truncated
@@ -9101,7 +9101,7 @@ N=$((N+1))
 # test the escape option combined with ignoreeof
 NAME=ESCAPE_IGNOREEOF
 case "$TESTS" in
-*%functions%*|*%ignoreeof%*|*%escape%*|*%$NAME%*)
+*%functions%*|*%engine%*|*%ignoreeof%*|*%escape%*|*%$NAME%*)
 TEST="$NAME: escape character triggers EOF"
 # idea: start socat just echoing input, but apply escape option. send a string
 # containing the escape character and check if the output is truncated

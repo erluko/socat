@@ -1,5 +1,5 @@
 
-####################### V 2.0.0-b1:
+####################### V 2.0.0-b2:
 
 new features:
 	address chains consisting of inter and endpoint addresses, linked with
@@ -26,6 +26,12 @@ new features:
 	new form of PTY address with symlink paramater
 
 	new form of FD address with output/input fd numbers
+
+corrections:
+	help displayed some option types wrong
+
+	under some circumstances shutdown was called multiple times for the
+	same fd
 
 ####################### V 1.7.0.0:
 

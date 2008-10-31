@@ -448,13 +448,15 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	    xioshutdown(sock2, SHUT_WR);
 	    XIO_RDSTREAM(sock1)->eof = 2;
 	    XIO_RDSTREAM(sock1)->ignoreeof = false;
-	    sock2->stream.closing = MAX(sock2->stream.closing, 1);
-	    if (/*0 xioparams->lefttoright*/ !XIO_READABLE(sock2)) {
-	       break;
-	    }
 	 }
       } else if (polling && XIO_RDSTREAM(sock1)->ignoreeof) {
          polling = 0;
+      }
+      if (XIO_RDSTREAM(sock1)->eof >= 2) {
+	 sock2->stream.closing = MAX(sock2->stream.closing, 1);
+	 if (!XIO_READABLE(sock2)) {
+	    break;
+	 }
       }
 
       if (bytes2 == 0 || XIO_RDSTREAM(sock2)->eof >= 2) {
@@ -469,13 +471,15 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	    xioshutdown(sock1, SHUT_WR);
 	    XIO_RDSTREAM(sock2)->eof = 2;
 	    XIO_RDSTREAM(sock2)->ignoreeof = false;
-	    sock1->stream.closing = MAX(sock1->stream.closing, 1);
-	    if (/*0 xioparams->righttoleft*/ !XIO_READABLE(sock1)) {
-	       break;
-	    }
 	 }
       } else if (polling && XIO_RDSTREAM(sock2)->ignoreeof) {
          polling = 0;
+      }
+      if (XIO_RDSTREAM(sock2)->eof >= 2) {
+	 sock1->stream.closing = MAX(sock1->stream.closing, 1);
+	 if (!XIO_READABLE(sock1)) {
+	    break;
+	 }
       }
    }
 
