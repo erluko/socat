@@ -1157,6 +1157,9 @@ int _xioopen_foxec_end(int xioflags,	/* XIO_RDONLY etc. */
 		  a graceful solution via temporary descriptors */
 	       int tmpi, tmpo;
 
+	       Close(rdpip[0]);
+	       Close(wrpip[1]);
+
 	       if (fdi == rdpip[1]) {	/* a conflict here */
 		  if ((tmpi = Dup(wrpip[0])) < 0) {
 		     Error2("dup(%d): %s", wrpip[0], strerror(errno));
