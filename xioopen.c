@@ -422,7 +422,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
    int srchleftA, srchrightA, srchleftB=0, srchrightB=0;
    xiofile_t *xfd0;	/* what we return */
    xiofile_t *xfd1;	/* left hand of engine */
-   xiofile_t *xfd2;	/* return by sub address */
+   xiofile_t *xfd2;	/* returned by sub address */
    int dirs0, dirs1, dirs2;	/* the data directions for respective xfd */
    int xfd0shut;
    int xfd0close;
@@ -432,6 +432,8 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
    /*0 pthread_t thread = 0;*/
    /*pthread_attr_t attr;*/
    int _errno = 0;
+
+   Info3("opening address \"%s\", dirs=%d, flags=%d", addrs0, dirs, flags);
 
    /* loop over retries */
    while (true) {
@@ -531,7 +533,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	 }
       }
 
-      if (((dirs0+1) & (XIO_WRONLY+1)) || currentisendpoint) {
+      if ((true || ((dirs0+1) & (XIO_WRONLY+1))) || currentisendpoint) {
 	 if (xioopen_unoverload(sfdA, srchleftA, &isleftA, srchrightA, &isrightA)
 	     < 0) {
 	    Error1("address \"%s\" can not be used in this context",
@@ -1118,6 +1120,9 @@ static int
    tag = (mayright ? XIOADDR_INTER : XIOADDR_ENDPOINT);
 
    /* look for a matching entry in the list of address descriptions */
+   Debug5("searching record for \"%s\" with tag=%d, numparams=%d, leftdirs %d, rightdirs %d",
+	  addrdescs[0]->common_desc.defname,
+	  tag, sfd->argc-1, mayleft, mayright);
    while ((*addrdescs) != NULL) {
       if ((*addrdescs)->tag == tag &&
 	  addrdescs[0]->common_desc.numparams == sfd->argc-1 &&
