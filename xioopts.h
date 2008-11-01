@@ -65,6 +65,7 @@ enum e_types {
    TYPE_INT_INT_STRING,	/* 3 params: first and second are int, 3rd is string */
 
    TYPE_IP4NAME,	/* IPv4 hostname or address */
+   TYPE_STRING2,	/* string:string */
 #if HAVE_STRUCT_LINGER
    TYPE_LINGER,		/* struct linger */
 #endif /* HAVE_STRUCT_LINGER */

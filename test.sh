@@ -8044,10 +8044,10 @@ printf "test $F_n $TEST... " $N
 $CMD1 2>"${te}1"  >"${tf}" &
 pid1="$!"
 waitip4proto $ts1p 1
-usleep $MICROS
+usleep $((10*MICROS))
 echo "$da" |$CMD2 2>>"${te}2"
 rc2="$?"
-usleep $MICROS
+usleep $((10*MICROS))
 kill "$pid1" 2>/dev/null; wait;
 if [ "$rc2" -ne 0 ]; then
    $PRINTF "$FAILED: $SOCAT:\n"
@@ -10137,6 +10137,65 @@ fi # NUMCOND, feats
 esac
 PORT=$((PORT+1))
 N=$((N+1))
+
+
+while read KEYW PF LO
+do
+if [ -z "$KEYW" ] || [[ "$KEYW" == \#* ]]; then continue; fi
+#
+pf="$(echo $PF |tr A-Z a-z)"
+proto="$(echo $KEYW |tr A-Z a-z)"
+NAME=OPENSSL_${KEYW}_FORK
+case "$TESTS" in
+*%functions%*|*%openssl%*|*%sctp%*|*%$pf%*|*%$NAME%*)
+TEST="$NAME: openssl over SCTP with server fork"
+if ! eval $NUMCOND; then :;
+elif ! testaddrs openssl >/dev/null; then
+    $PRINTF "test $F_n $TEST... ${YELLOW}OPENSSL not available${NORMAL}\n" $N
+    numCANT=$((numCANT+1))
+elif ! testaddrs listen sctp $pf >/dev/null || ! runs$pf >/dev/null; then
+    $PRINTF "test $F_n $TEST... ${YELLOW}SCTP/$PF not available${NORMAL}\n" $N
+    numCANT=$((numCANT+1))
+else
+gentestcert testsrv
+tf="$td/test$N.stdout"
+te="$td/test$N.stderr"
+tdiff="$td/test$N.diff"
+da1="test$N $(date) $RANDOM"
+da2="test$N $(date) $RANDOM"
+CMD0="$SOCAT $opts ${KEYW}-LISTEN:$PORT,reuseaddr,fork ^OPENSSL-LISTEN,$SOCAT_EGD',cert=testsrv.crt,key=testsrv.key,verify=0|pipe'"
+CMD1="$SOCAT $opts - openssl,verify=0,$SOCAT_EGD|${KEYW}:$LOCALHOST:$PORT"
+printf "test $F_n $TEST... " $N
+eval "$CMD0 2>\"${te}0\" &"
+pid0=$!	# background process id
+wait${proto}port $PORT
+(echo "$da1"; sleep 1) |$CMD1 >${tf}1 2>"${te}1"
+(echo "$da2"; sleep 1) |$CMD1 >${tf}2 2>"${te}2"
+kill $pid0 2>/dev/null
+if ! echo "$da2" |diff - "${tf}2" >"$tdiff"; then
+    $PRINTF "$FAILED: $SOCAT:\n"
+    echo "$CMD0 &"
+    echo "$CMD1"
+    cat "${te}0"
+    cat "${te}1"
+    cat "${te}2"
+    cat "$tdiff"
+    numFAIL=$((numFAIL+1))
+else
+   $PRINTF "$OK\n"
+   if [ -n "$debug" ]; then cat "${te}0" "${te}1" "${te}2"; fi
+   numOK=$((numOK+1))
+fi
+wait
+fi ;; # NUMCOND, feats
+esac
+PORT=$((PORT+1))
+N=$((N+1))
+#
+done <<<"
+SCTP4 IP4 127.0.0.1
+SCTP6 IP6 [::1]
+"
 
 
 echo "summary: $((N-1)) tests; $numOK ok, $numFAIL failed, $numCANT could not be performed"
