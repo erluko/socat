@@ -127,8 +127,10 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
    total_timeout = xioparams->total_timeout;
 
    Notice4("starting data transfer loop with FDs [%d,%d] and [%d,%d]",
-	   XIO_GETRDFD(sock1), XIO_GETWRFD(sock1),
-	   XIO_GETRDFD(sock2), XIO_GETWRFD(sock2));
+	   XIO_READABLE(sock1)?XIO_GETRDFD(sock1):-1,
+	   XIO_WRITABLE(sock1)?XIO_GETWRFD(sock1):-1,
+	   XIO_READABLE(sock2)?XIO_GETRDFD(sock2):-1,
+	   XIO_WRITABLE(sock2)?XIO_GETWRFD(sock2):-1);
    while (XIO_RDSTREAM(sock1)->eof <= 1 ||
 	  XIO_RDSTREAM(sock2)->eof <= 1) {
       struct timeval timeout, *to = NULL;
