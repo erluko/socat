@@ -2108,7 +2108,7 @@ waitfile () {
 # generate a test certificate and key
 gentestcert () {
     local name="$1"
-    if [ -f $name.key -a -f $name.crt -a -f $name.pem ]; then return; fi
+    if [ -s $name.key -a -s $name.crt -a -s $name.pem ]; then return; fi
     openssl genrsa $OPENSSL_RAND -out $name.key 768 >/dev/null 2>&1
     openssl req -new -config testcert.conf -key $name.key -x509 -days 3653 -out $name.crt >/dev/null 2>&1
     cat $name.key $name.crt >$name.pem
@@ -2118,9 +2118,7 @@ gentestcert () {
 gentestdsacert () {
 #set -vx
     local name="$1"
-    if [ -f $name.key -a -f $name.crt -a -f $name.pem ]; then
-	return;
-    fi
+    if [ -s $name.key -a -s $name.crt -a -s $name.pem ]; then return; fi
     openssl dsaparam -out $name-dsa.pem 512 >/dev/null 2>&1
     openssl dhparam -dsaparam -out $name-dh.pem 512 >/dev/null 2>&1
     openssl req -newkey dsa:$name-dsa.pem -keyout $name.key -nodes -x509 -days 3653 -config testcert.conf -out $name.crt >/dev/null 2>&1
@@ -2299,14 +2297,13 @@ esac
 N=$((N+1))
 
 
-## LATER:
-#NAME=SYSTEMPIPESFLUSH
-#case "$TESTS" in
-#*%functions%*|*%system%*|*%$NAME%*)
-#TEST="$NAME: call to od via system() with pipes"
-#testod "$N" "$TEST" "" "system:$OD_C,pipes" "$opts"
-#esac
-#N=$((N+1))
+NAME=SYSTEMPIPESFLUSH
+case "$TESTS" in
+*%functions%*|*%system%*|*%$NAME%*)
+TEST="$NAME: call to od via system() with pipes"
+testod "$N" "$TEST" "" "system:$OD_C,pipes" "$opts" "$val_t"
+esac
+N=$((N+1))
 
 
 ## LATER:
@@ -2339,24 +2336,22 @@ N=$((N+1))
 #N=$((N+1))
 
 
-## LATER:
-#NAME=SYSTEMPIPESFDSFLUSH
-#case "$TESTS" in
-#*%functions%*|*%system%*|*%$NAME%*)
-#TEST="$NAME: call to od via system() with pipes, non stdio"
-#testod "$N" "$TEST" "" "system:$OD_C>&9 <&8,pipes,fdin=8,fdout=9" "$opts"
-#esac
-#N=$((N+1))
+NAME=SYSTEMPIPESFDSFLUSH
+case "$TESTS" in
+*%functions%*|*%system%*|*%$NAME%*)
+TEST="$NAME: call to od via system() with pipes, non stdio"
+testod "$N" "$TEST" "" "system:$OD_C>&9 <&8,pipes,fdin=8,fdout=9" "$opts" "$val_t"
+esac
+N=$((N+1))
 
 
-## LATER:
-#NAME=DUALSYSTEMFDSFLUSH
-#case "$TESTS" in
-#*%functions%*|*%system%*|*%$NAME%*)
-#TEST="$NAME: call to od via dual system()"
-#testecho "$N" "$TEST" "system:$CAT<&7,fdin=7%system:$OD_C>&6,fdout=6" "" "$opts"
-#esac
-#N=$((N+1))
+NAME=DUALSYSTEMFDSFLUSH
+case "$TESTS" in
+*%functions%*|*%system%*|*%$NAME%*)
+TEST="$NAME: call to od via dual system()"
+testod "$N" "$TEST" "system:$CAT<&7,fdin=7%system:$OD_C>&6,fdout=6" "pipe" "$opts" "$val_t"
+esac
+N=$((N+1))
 
 
 case "$UNAME" in
@@ -4717,7 +4712,7 @@ case "$TESTS" in
 TEST="$NAME: readline with password and sigint"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs readline pty); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 SAVETERM="$TERM"; TERM=	# 'cause konsole might print controls even in raw
@@ -4861,7 +4856,7 @@ case "$TESTS" in
 TEST="$NAME: gender changer via SSL through HTTP proxy, oneshot"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl proxy); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat |tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat" |tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 gentestcert testsrv
@@ -4948,7 +4943,7 @@ case "$TESTS" in
 TEST="$NAME: gender changer via SSL through HTTP proxy, daemons"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl proxy); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 gentestcert testsrv
@@ -5823,10 +5818,10 @@ case "$TESTS" in
 TEST="$NAME: test if master pty ($PTYTYPE) waits for slave connection"
 if ! eval $NUMCOND; then :; else
 if ! feat=$(testaddrs pty); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 elif ! feat=$(testoptions "$PTYTYPE" pty-wait-slave); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}option $(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}option $(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
    testptywaitslave "$N" "$TEST" "$PTYTYPE" "$opts"
@@ -5842,10 +5837,10 @@ case "$TESTS" in
 TEST="$NAME: test if master pty ($PTYTYPE) waits for slave connection"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs pty); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 elif ! feat=$(testoptions "$PTYTYPE" pty-wait-slave); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}option $(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}option $(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
    testptywaitslave "$N" "$TEST" "$PTYTYPE" "$opts"
@@ -5856,14 +5851,14 @@ N=$((N+1))
 
 NAME=CONNECTTIMEOUT
 case "$TESTS" in
-*%functions%*|*%$NAME%*)
+*%functions%*|*%ip4%*|*%ipapp%*|*%tcp%*|*%timeout%*|*%$NAME%*)
 TEST="$NAME: test the connect-timeout option"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs tcp); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 elif ! feat=$(testoptions connect-timeout); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 # we need a hanging connection attempt, guess an address for this
@@ -5904,6 +5899,53 @@ fi
 wait
 fi ;; # testaddrs, NUMCOND
 esac
+N=$((N+1))
+
+
+# version 1.7.0.0 had a bug with the connect-timeout option: while it correctly
+# terminated a hanging connect attempt, it prevented a successful connection
+# establishment from being recognized by socat, instead the timeout occurred
+NAME=CONNECTTIMEOUT_CONN
+if ! eval $NUMCOND; then :; else
+case "$TESTS" in
+*%functions%*|*%ip4%*|*%ipapp%*|*%tcp%*|*%timeout%*|*%$NAME%*)
+TEST="$NAME: TCP4 connect-timeout option when server replies"
+# just try a connection that is expected to succeed with the usual data
+# transfer; with the bug it will fail
+tf="$td/test$N.stdout"
+te="$td/test$N.stderr"
+tdiff="$td/test$N.diff"
+tsl=$PORT
+ts="127.0.0.1:$tsl"
+da="test$N $(date) $RANDOM"
+CMD1="$SOCAT $opts TCP4-LISTEN:$tsl,reuseaddr PIPE"
+CMD2="$SOCAT $opts STDIO TCP4:$ts,connect-timeout=1"
+printf "test $F_n $TEST... " $N
+$CMD1 >"$tf" 2>"${te}1" &
+pid1=$!
+waittcp4port $tsl 1
+echo "$da" |$CMD2 >>"$tf" 2>>"${te}2"
+if [ $? -ne 0 ]; then
+   $PRINTF "$FAILED: $SOCAT:\n"
+   echo "$CMD1 &"
+   cat "${te}1"
+   echo "$CMD2"
+   cat "${te}2"
+   numFAIL=$((numFAIL+1))
+elif ! echo "$da" |diff - "$tf" >"$tdiff"; then
+   $PRINTF "$FAILED\n"
+   cat "$tdiff"
+   numFAIL=$((numFAIL+1))
+else
+   $PRINTF "$OK\n"
+   if [ -n "$debug" ]; then cat "${te}1" "${te}2"; fi
+   numOK=$((numOK+1))
+fi
+kill $pid1 2>/dev/null
+wait ;;
+esac
+PORT=$((PORT+1))
+fi # NUMCOND
 N=$((N+1))
 
 
@@ -5957,7 +5999,7 @@ N=$((N+1))
 signum () {
   if [ ! "$BASH_VERSION" -o -o posix ]; then
     # we expect:
-    for i in $(POSIXLY_CORRECT=1 kill -l); do echo $i; done |grep -n -i "^$1$" |cut -d: -f1
+    for i in $(POSIXLY_CORRECT=1 kill -l); do echo "$i"; done |grep -n -i "^$1$" |cut -d: -f1
   else
     # expect:
     # " 1) SIGHUP       2) SIGINT       3) SIGQUIT      4) SIGILL"
@@ -5977,7 +6019,7 @@ case "$TESTS" in
 TEST="$NAME: exit status when dying on SIG$signam"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs pty); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat |tr a-z A-Z) not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat" |tr a-z A-Z) not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 SIG="$(signum $signam)"
@@ -6021,7 +6063,7 @@ case "$TESTS" in
 TEST="$NAME: restrict reading from file with bytes option"
 if ! eval $NUMCOND; then :;
 elif false; then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 tr="$td/test$N.ref"
@@ -7672,6 +7714,89 @@ esac
 N=$((N+1))
 
 
+# up to 1.7.0.0 option end-close led to an error with some address types due to
+# bad internal handling. here we check it for address PTY
+NAME=PTYENDCLOSE
+case "$TESTS" in
+*%functions%*|*%bugs%*|*%pty%*|*%$NAME%*)
+TEST="$NAME: PTY handles option end-close"
+# with the bug, socat exits with error. we invoke socat in a no-op mode and
+# check its return status.
+if ! eval $NUMCOND; then :;
+ else
+tf="$td/test$N.stout"
+te="$td/test$N.stderr"
+CMD="$SOCAT $opts /dev/null pty,end-close"
+printf "test $F_n $TEST... " $N
+$CMD 2>"${te}"
+rc=$?
+if [ "$rc" = 0 ]; then
+    $PRINTF "$OK\n"
+    numOK=$((numOK+1))
+else
+    $PRINTF "$FAILED\n"
+    echo "$CMD"
+    cat "${te}"
+    numFAIL=$((numFAIL+1))
+fi
+fi # NUMCOND
+ ;;
+esac
+N=$((N+1))
+
+
+# test the shut-null and null-eof options
+NAME=SHUTNULLEOF
+case "$TESTS" in
+*%functions%*|*%socket%*|*%$NAME%*)
+TEST="$NAME: options shut-null and null-eof"
+# run a receiving background process with option null-eof. 
+# start a sending process with option shut-null that sends a test record to the
+# receiving process and then terminates.
+# send another test record.
+# whe the receiving process just got the first test record the test succeeded
+if ! eval $NUMCOND; then :; else
+tf="$td/test$N.stout"
+te="$td/test$N.stderr"
+tdiff="$td/test$N.diff"
+da="test$N $(date) $RANDOM"
+CMD0="$SOCAT $opts -u UDP-RECV:$PORT,null-eof CREAT:$tf"
+CMD1="$SOCAT $opts -u - UDP-SENDTO:127.0.0.1:$PORT,shut-null"
+printf "test $F_n $TEST... " $N
+$CMD0 >/dev/null 2>"${te}0" &
+pid0=$!
+waitudp4port $PORT 1
+echo "$da" |$CMD1 >"${tf}1" 2>"${te}1"
+rc1=$?
+echo "xyz" |$CMD1 >"${tf}2" 2>"${te}2"
+rc2=$?
+kill $pid0 2>/dev/null; wait
+if [ $rc1 != 0 -o $rc2 != 0 ]; then
+    $PRINTF "$FAILED\n"
+    echo "$CMD0 &"
+    echo "$CMD1"
+    cat "${te}0"
+    cat "${te}1"
+    cat "${te}2"
+    numFAIL=$((numFAIL+1))
+elif echo "$da" |diff - "${tf}" >"$tdiff"; then
+    $PRINTF "$OK\n"
+    numOK=$((numOK+1))
+else
+    $PRINTF "$FAILED\n"
+    echo "$CMD0 &"
+    echo "$CMD1"
+    cat "${te}0"
+    cat "${te}1"
+    cat "${tdiff}"
+    numFAIL=$((numFAIL+1))
+fi
+fi # NUMCOND
+ ;;
+esac
+N=$((N+1))
+
+
 NAME=UDP6LISTENBIND
 # this tests for a bug in (up to) 1.5.0.0:
 #    with udp*-listen, the bind option supported only IPv4
@@ -8016,7 +8141,8 @@ waitip4proto $ts1p 1
 usleep $((10*MICROS))
 echo "$da" |$CMD2 2>>"${te}2"
 rc2="$?"
-usleep $((10*MICROS))
+#usleep $MICROS
+sleep 1
 kill "$pid1" 2>/dev/null; wait;
 if [ "$rc2" -ne 0 ]; then
    $PRINTF "$FAILED: $SOCAT:\n"
@@ -8467,7 +8593,7 @@ TEST="$NAME: socat handles data buffered by openssl"
 # transferred, the test has failed.
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl) >/dev/null; then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 tf="$td/test$N.out"
@@ -8519,7 +8645,7 @@ TEST="$NAME: trigger EOF after that many bytes, even when socket idle"
 # the process did not terminate and the bug is still there.
 if ! eval $NUMCOND; then :;
 elif false; then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat"| tr 'a-z' 'A-Z') not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 tr="$td/test$N.ref"
@@ -9106,8 +9232,8 @@ while read PF KEYW ADDR IPPORT SCM_ENABLE SCM_RECV SCM_TYPE SCM_NAME ROOT SCM_VA
 do
 if [ -z "$PF" ] || [[ "$PF" == \#* ]]; then continue; fi
 #
-pf="$(echo $PF |tr A-Z a-z)"
-proto="$(echo $KEYW |tr A-Z a-z)"
+pf="$(echo "$PF" |tr A-Z a-z)"
+proto="$(echo "$KEYW" |tr A-Z a-z)"
 NAME=${KEYW}SCM_$SCM_TYPE
 case "$TESTS" in
 *%functions%*|*%$pf%*|*%dgram%*|*%udp%*|*%$proto%*|*%recv%*|*%ancillary%*|*%$ROOT%*|*%$NAME%*)
@@ -9227,7 +9353,7 @@ IP6  IP6  [::1]     PROTO ipv6-tclass=0xaa     ipv6-recvtclass   IPV6_TCLASS    
 while read KEYW FEAT TEST_SOCKADDR TEST_PEERADDR TEST_SOCKPORT TEST_PEERPORT; do
 if [ -z "$KEYW" ] || [[ "$KEYW" == \#* ]]; then continue; fi
 #
-test_proto="$(echo $KEYW |tr A-Z a-z)"
+test_proto="$(echo "$KEYW" |tr A-Z a-z)"
 NAME=${KEYW}LISTENENV
 case "$TESTS" in
 *%functions%*|*%ip4%*|*%ipapp%*|*%tcp%*|*%$test_proto%*|*%envvar%*|*%$NAME%*)
@@ -9238,12 +9364,12 @@ TEST="$NAME: $KEYW-LISTEN fills environment variables with socket addresses"
 # describing the peer and local sockets.
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs $FEAT); then
-    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo $feat |tr a-z A-Z) not available${NORMAL}\n" $N
+    $PRINTF "test $F_n $TEST... ${YELLOW}$(echo "$feat" |tr a-z A-Z) not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
 tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
-TEST_SOCKADDR="$(echo $TEST_SOCKADDR |sed "s/\$N/$N/g")"	# actual vars
+TEST_SOCKADDR="$(echo "$TEST_SOCKADDR" |sed "s/\$N/$N/g")"	# actual vars
 tsa="$TEST_SOCKADDR"	# test server address
 tsp="$TEST_SOCKPORT"	# test server port
 if [ "$tsp" != ',' ]; then
@@ -9251,7 +9377,7 @@ if [ "$tsp" != ',' ]; then
 else
     tsa1="$tsa"; tsa2=				# tsa1 used for addr parameter
 fi
-TEST_PEERADDR="$(echo $TEST_PEERADDR |sed "s/\$N/$N/g")"	# actual vars
+TEST_PEERADDR="$(echo "$TEST_PEERADDR" |sed "s/\$N/$N/g")"	# actual vars
 tca="$TEST_PEERADDR"	# test client address
 tcp="$TEST_PEERPORT"	# test client port
 if [ "$tcp" != ',' ]; then
@@ -9297,11 +9423,11 @@ else
     cat "${te}1"
     numFAIL=$((numFAIL+1))
 fi
-set +xv
 fi # NUMCOND, feats
  ;;
 esac
 N=$((N+1))
+set +xv
 #
 done <<<"
 TCP4  TCP  $LOCALHOST                                $SECONDADDR                               $PORT       $((PORT+1))
@@ -9320,8 +9446,8 @@ while read PF KEYW ADDR IPPORT SCM_ENABLE SCM_RECV SCM_ENVNAME ROOT SCM_VALUE
 do
 if [ -z "$PF" ] || [[ "$PF" == \#* ]]; then continue; fi
 #
-pf="$(echo $PF |tr A-Z a-z)"
-proto="$(echo $KEYW |tr A-Z a-z)"
+pf="$(echo "$PF" |tr A-Z a-z)"
+proto="$(echo "$KEYW" |tr A-Z a-z)"
 NAME=${KEYW}ENV_$SCM_ENVNAME
 case "$TESTS" in
 *%functions%*|*%$pf%*|*%dgram%*|*%udp%*|*%$proto%*|*%recv%*|*%ancillary%*|*%envvar%*|*%$ROOT%*|*%$NAME%*)
@@ -10032,7 +10158,7 @@ printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 pid1=$!
 waitsctp4port $tsl 1
-# SCTP does not seem to support half close, so we let it 1s to finish
+# SCTP does not seem to support half close, so we give it 1s to finish
 (echo "$da"; sleep 1) |$CMD2 >>"$tf" 2>>"${te}2"
 if [ $? -ne 0 ]; then
    $PRINTF "$FAILED: $SOCAT:\n"
@@ -10421,12 +10547,12 @@ case "$TESTS" in
 TEST="$NAME: give a one line description of test"
 # describe how the test is performed, and what's the success criteria
 if ! eval $NUMCOND; then :; else
-tf="$td/test$N.stout"
+tf="$td/test$N.stdout"
 te="$td/test$N.stderr"
 tdiff="$td/test$N.diff"
 da="test$N $(date) $RANDOM"
 CMD0="$SOCAT $opts server-address PIPE"
-CMD1="$SOCAT - client-address"
+CMD1="$SOCAT $opts - client-address"
 printf "test $F_n $TEST... " $N
 $CMD0 >/dev/null 2>"${te}0" &
 pid0=$!

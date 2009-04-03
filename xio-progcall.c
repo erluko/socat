@@ -40,7 +40,7 @@ const struct optdesc opt_pipes   = { "pipes",     NULL, OPT_PIPES,       GROUP_F
 #if HAVE_PTY
 const struct optdesc opt_pty     = { "pty",       NULL, OPT_PTY,         GROUP_FORK,   PH_BIGEN, TYPE_BOOL, 	OFUNC_SPEC };
 #endif
-const struct optdesc opt_commtype= { "commtype",  "c",  OPT_COMMTYPE,    GROUP_FORK,   PH_BIGEN,       TYPE_STRING,     OFUNC_SPEC };
+const struct optdesc opt_commtype= { "commtype",  NULL,  OPT_COMMTYPE,    GROUP_FORK,   PH_BIGEN,       TYPE_STRING,     OFUNC_SPEC };
 const struct optdesc opt_stderr  = { "stderr",    NULL, OPT_STDERR,      GROUP_FORK,   PH_PASTFORK,        TYPE_BOOL,	OFUNC_SPEC };
 const struct optdesc opt_nofork  = { "nofork",    NULL, OPT_NOFORK,      GROUP_FORK,   PH_BIGEN,       TYPE_BOOL,       OFUNC_SPEC };
 const struct optdesc opt_sighup  = { "sighup",    NULL, OPT_SIGHUP,      GROUP_PARENT, PH_LATE,        TYPE_CONST,      OFUNC_SIGNAL, SIGHUP };
@@ -87,7 +87,7 @@ int _xioopen_progcall(int xioflags,	/* XIO_RDONLY etc. */
    struct opt *popts;	/* parent process options */
    int numleft;
    int sv[2], rdpip[2], wrpip[2];
-   int saverfd, savewfd;	/* with inter addr, save assigned right fds */
+   int saverfd = -1, savewfd = -1;	/* with inter addr, save assigned right fds */
    int rw = (xioflags & XIO_ACCMODE);
    char *commname;
    int commtype = XIOCOMM_SOCKETPAIRS;
@@ -213,6 +213,7 @@ int _xioopen_progcall(int xioflags,	/* XIO_RDONLY etc. */
       case XIOCOMM_TCP4:        typename = "TCP4 socket pair"; break;
       case XIOCOMM_TCP4_LISTEN: typename = "TCP4 listen socket pair"; break;
 #endif
+      default:			typename = NULL; break;
       }
       Notice2("forking off child, using %s for %s",
 	      typename, ddirection[rw]);
@@ -758,6 +759,7 @@ Warn1("xio-progcall.c: fd->howtoshut == %d", fd->howtoshut);
 	       }
 	       if (fdi != sv[1] && fdo != sv[1]) {
 		  applyopts_cloexec(sv[1], *copts);
+		  Close(sv[1]);
 	       }
 
 	       applyopts(fdi, *copts, PH_LATE);

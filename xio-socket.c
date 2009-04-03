@@ -226,6 +226,8 @@ const struct optdesc opt_setsockopt_int    = { "setsockopt-int",    "sockopt-int
 const struct optdesc opt_setsockopt_bin    = { "setsockopt-bin",    "sockopt-bin",    OPT_SETSOCKOPT_BIN,        GROUP_SOCKET,PH_PASTSOCKET,TYPE_INT_INT_BIN,     OFUNC_SOCKOPT_GENERIC, 0, 0 };
 const struct optdesc opt_setsockopt_string = { "setsockopt-string", "sockopt-string", OPT_SETSOCKOPT_STRING,     GROUP_SOCKET,PH_PASTSOCKET,TYPE_INT_INT_STRING,  OFUNC_SOCKOPT_GENERIC, 0, 0 };
 
+const struct optdesc opt_null_eof = { "null-eof", NULL, OPT_NULL_EOF, GROUP_SOCKET, PH_INIT, TYPE_BOOL, OFUNC_OFFSET, (bool)&((xiofile_t *)0)->stream.para.socket.null_eof };
+
 
 #if WITH_GENERICSOCKET
 
@@ -267,8 +269,8 @@ int xioopen_socket_connect(int argc, const char *argv[], struct opt *opts,
    retropt_int(opts, OPT_SO_TYPE, &socktype);
    /*retropt_int(opts, OPT_IP_PROTOCOL, &proto);*/
 
-   applyopts(-1, opts, PH_INIT);
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
+   applyopts(-1, opts, PH_INIT);
    applyopts(-1, opts, PH_EARLY);
 
    themlen = 0;
@@ -891,10 +893,10 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 		  themlen, strerror(errno));
 	    timeout = xfd->para.socket.connect_timeout;
 	    writefd.fd = xfd->rfd;
-	    writefd.events = (POLLIN|POLLHUP|POLLERR);
+	    writefd.events = (POLLOUT|POLLERR);
 	    result = xiopoll(&writefd, 1, &timeout);
 	    if (result < 0) {
-	       Msg4(level, "xiopoll({%d,POLLIN|POLLHUP|POLLER},,{"F_tv_sec"."F_tv_usec"): %s",
+	       Msg4(level, "xiopoll({%d,POLLOUT|POLLER},,{"F_tv_sec"."F_tv_usec"): %s",
 		    xfd->rfd, timeout.tv_sec, timeout.tv_usec, strerror(errno));
 	       return STAT_RETRYLATER;
 	    }
@@ -904,7 +906,7 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 		    strerror(ETIMEDOUT));
 	       return STAT_RETRYLATER;
 	    }
-	    if (writefd.revents & POLLOUT) {
+	    if (writefd.revents & POLLERR) {
 #if 0
 	       unsigned char dummy[1];
 	       Read(xfd->rfd, &dummy, 1);        /* get error message */

@@ -1,5 +1,5 @@
 /* source: xioshutdown.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source of the extended shutdown function */
@@ -20,6 +20,7 @@ static void signal_kill_pid(int dummy) {
 
 /* how: SHUT_RD, SHUT_WR, or SHUT_RDWR */
 int xioshutdown(xiofile_t *sock, int how) {
+   int fd;
    int result = 0;
 
    Debug2("xioshutdown(%p, %d)", sock, how);
@@ -43,6 +44,8 @@ int xioshutdown(xiofile_t *sock, int how) {
       return result;
    }
 
+   fd = XIO_GETWRFD(sock);
+
    /* let us bring how nearer to the resulting action */
    if ((sock->stream.flags&XIO_ACCMODE) == XIO_WRONLY) {
       how = ((how+1) & ~(SHUT_RD+1)) - 1;
@@ -50,7 +53,6 @@ int xioshutdown(xiofile_t *sock, int how) {
       how = ((how+1) & ~(SHUT_WR+1)) - 1;
    }
 
-   /* here handle special shutdown functions */
    switch (sock->stream.howtoshut) {
 #if WITH_PTY
    case XIOSHUT_PTYEOF:
@@ -92,6 +94,31 @@ int xioshutdown(xiofile_t *sock, int how) {
       /*! what about half/full close? */
       return 0;
 #endif /* WITH_OPENSSL */
+   default:
+      break;
+   }
+
+   /* here handle special shutdown functions */
+   switch (sock->stream.howtoshut & XIOSHUTWR_MASK) {
+      char writenull;
+   case XIOSHUTWR_NONE:
+      return 0;
+   case XIOSHUTWR_CLOSE:
+      if (Close(fd) < 0) {
+	 Info2("close(%d): %s", fd, strerror(errno));
+      }
+      return 0;
+   case XIOSHUTWR_DOWN:
+      if ((result = Shutdown(fd, how)) < 0) {
+	 Info3("shutdown(%d, %d): %s", fd, how, strerror(errno));
+      }
+      return 0;
+#if _WITH_SOCKET
+   case XIOSHUTWR_NULL:
+      /* send an empty packet; only useful on datagram sockets? */
+      xiowrite(sock, &writenull, 0);
+      return 0;
+#endif /* _WITH_SOCKET */
    default: break;
    }
 
@@ -103,25 +130,23 @@ int xioshutdown(xiofile_t *sock, int how) {
    switch (sock->stream.howtoshut) {
 #if _WITH_SOCKET
      case XIOSHUT_DOWN:
-      if ((result = Shutdown(sock->stream.fd1, how)) < 0) {
-	 Info3("shutdown(%d, %d): %s",
-	       sock->stream.fd1, how, strerror(errno));
+      if ((result = Shutdown(fd, how)) < 0) {
+	 Info3("shutdown(%d, %d): %s", fd, how, strerror(errno));
       }
       break;
      case XIOSHUT_KILL:
-      if ((result = Shutdown(sock->stream.fd1, how)) < 0) {
-	 Info3("shutdown(%d, %d): %s",
-	       sock->stream.fd1, how, strerror(errno));
+	if ((result = Shutdown(fd, how)) < 0) {
+	 Info3("shutdown(%d, %d): %s", fd, how, strerror(errno));
       }
       break;
 #endif /* _WITH_SOCKET */
      case XIOSHUT_CLOSE:
-	Close(sock->stream.fd1);
+	Close(fd);
 #if WITH_TERMIOS
 	if (sock->stream.ttyvalid) {
-	   if (Tcsetattr(sock->stream.fd1, 0, &sock->stream.savetty) < 0) {
+	   if (Tcsetattr(fd, 0, &sock->stream.savetty) < 0) {
 	      Warn2("cannot restore terminal settings on fd %d: %s",
-		    sock->stream.fd1, strerror(errno));
+		    fd, strerror(errno));
 	   }
 	}
 #endif /* WITH_TERMIOS */
@@ -136,9 +161,9 @@ int xioshutdown(xiofile_t *sock, int how) {
 #if 0 && _WITH_SOCKET
    case XIODATA_RECVFROM:
       if (how >= 1) {
-	 if (Close(sock->stream.fd1) < 0) {
+	 if (Close(fd) < 0) {
 	    Info2("close(%d): %s",
-		  sock->stream.fd1, strerror(errno));
+		  fd, strerror(errno));
 	 }
 	 sock->stream.eof = 2;
 	 sock->stream.fd1 = -1;
@@ -154,9 +179,8 @@ int xioshutdown(xiofile_t *sock, int how) {
 
       case XIOREAD_STREAM:
       case XIODATA_2PIPE:
-	 if (Close(sock->stream.rfd) < 0) {
-	    Info2("close(%d): %s",
-		  sock->stream.rfd, strerror(errno));
+	 if (Close(fd) < 0) {
+	    Info2("close(%d): %s", fd, strerror(errno));
 	 }
 	 break;
       }
@@ -164,9 +188,6 @@ int xioshutdown(xiofile_t *sock, int how) {
 
    if ((how+1) & 2) {	/* contains SHUT_WR */
       /* shutdown write channel */
-      int fd;
-
-      fd = sock->stream.wfd;
 
       switch (sock->stream.howtoshut & XIOSHUTWR_MASK) {
 

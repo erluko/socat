@@ -937,6 +937,8 @@ const struct optname optionnames[] = {
 #ifdef O_NSHARE
 	IF_OPEN   ("nshare",	&opt_o_nshare)
 #endif
+	IF_SOCKET ("null-eof",		&opt_null_eof)
+	IF_ANY    ("o-append",		&opt_append)
 #ifdef O_ASYNC
 	IF_ANY    ("o-async",		&opt_async)
 #endif
@@ -1286,6 +1288,7 @@ const struct optname optionnames[] = {
 	IF_ANY    ("shut-close",	&opt_shut_close)
 	IF_ANY    ("shut-down",	&opt_shut_down)
 	IF_ANY    ("shut-none",	&opt_shut_none)
+	IF_ANY    ("shut-null",		&opt_shut_null)
 #if WITH_EXEC || WITH_SYSTEM
 	IF_ANY    ("sid",	&opt_setsid)
 #endif
@@ -1428,8 +1431,10 @@ const struct optname optionnames[] = {
 #endif
 	IF_ANY    ("su",	&opt_substuser)
 	IF_ANY    ("su-d",	&opt_substuser_delayed)
+	IF_ANY    ("su-e",	&opt_substuser_early)
 	IF_ANY    ("substuser",	&opt_substuser)
 	IF_ANY    ("substuser-delayed",	&opt_substuser_delayed)
+	IF_ANY    ("substuser-early",	&opt_substuser_early)
 	IF_TERMIOS("susp",	&opt_vsusp)
 #ifdef VSWTC
 	IF_TERMIOS("swtc",	&opt_vswtc)
@@ -3256,6 +3261,7 @@ int applyopts(int fd, struct opt *opts, enum e_phase phase) {
 	       opt->desc = ODESC_ERROR; ++opt; continue;
 	    }
 	    break;
+	 case OPT_SUBSTUSER_EARLY:
 	 case OPT_SUBSTUSER:
 	    {
 	       struct passwd *pwd;

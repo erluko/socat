@@ -123,11 +123,13 @@ struct opt;
 #define XIOSHUTRD_SIGTERM	0x0050	/* kill sub process with SIGTERM */
 #define XIOSHUTWR_SIGTERM	0x0005	/* kill sub process with SIGTERM */
 #define XIOSHUTWR_SIGKILL	0x0006	/* kill sub process with SIGKILL */
+#define XIOSHUTWR_NULL		0x0007	/* send empty packet (dgram socket) */
 #define XIOSHUT_UNSPEC		(XIOSHUTRD_UNSPEC|XIOSHUTWR_UNSPEC)
 #define XIOSHUT_NONE		(XIOSHUTRD_NONE|XIOSHUTWR_NONE)
 #define XIOSHUT_CLOSE		(XIOSHUTRD_CLOSE|XIOSHUTWR_CLOSE)
 #define XIOSHUT_DOWN		(XIOSHUTRD_DOWN|XIOSHUTWR_DOWN)
 #define XIOSHUT_KILL		(XIOSHUTRD_KILL|XIOSHUTWR_KILL)
+#define XIOSHUT_NULL		(XIOSHUTRD_DOWN|XIOSHUTWR_NULL)
 #define XIOSHUT_PTYEOF		0x0100	/* change pty to icanon and write VEOF */
 #define XIOSHUT_OPENSSL		0x0101	/* specific action on openssl */
 /*!!!*/
@@ -374,7 +376,7 @@ typedef struct single {
       struct {
 	 struct timeval connect_timeout; /* how long to hang in connect() */
 	 union sockaddr_union la;	/* local socket address */
-	 bool emptyiseof;	/* with dgram: empty packet means EOF */
+	 bool null_eof;		/* with dgram: empty packet means EOF */
 	 bool dorange;
 	 struct xiorange range;	/* restrictions for peer address */
 #if _WITH_IP4 || _WITH_IP6

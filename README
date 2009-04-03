@@ -50,7 +50,7 @@ following operating systems:
 
 Debian lenny/sid on x86, kernel 2.6.24
 FreeBSD 6.1 on x86
-NetBSD4.0  on x86
+NetBSD 4.0  on x86
 OpenBSD 4.3 on x86
 OpenSolaris 10 on x86 with gcc
 Mac OS X 10.5.5 on iMac G5, with libreadline
@@ -75,7 +75,7 @@ install
 
 Get the tarball and extract it:
 	gtar xzf socat.tar.gz
-	cd socat-1.7.0.0
+	cd socat-1.7.1.0
 	./configure
 	make
 	su

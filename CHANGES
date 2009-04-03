@@ -1,4 +1,19 @@
 
+####################### V 2.0.0-b3:
+
+new features:
+	added inter addresses for execution of external programs or scripts:
+	EXEC2 and SYSTEM2 are bidirectional, EXEC1 and SYSTEM1 are
+	unidirectional
+
+	option commtype replaces the now obsolete "socketpair" and "pipes"
+	options and selects the communication mechanism on the left side of
+	EXEC and SYSTEM addresses
+
+	options leftfd, leftinfd, leftoutfd; and rightfd, rightinfd,
+	rightoutfd override the default file descriptor numbers provided to
+	exec'd programs
+
 ####################### V 2.0.0-b2:
 
 new features:
@@ -27,8 +42,42 @@ new features:
 
 	new form of FD address with output/input fd numbers
 
+####################### V 1.7.1.0:
+
+new features:
+	address options shut-none, shut-down, and shut-close allow to control
+	socat's half close behaviour
+
+	with address option shut-null socat sends an empty packet to the peer
+	to indicate EOF
+
+	option null-eof changes the behaviour of sockets that receive an empty
+	packet to see EOF instead of ignoring it
+
+	introduced option names substuser-early and su-e, currently equivalent
+	to option substuser (thanks to Mike Perry for providing the patch)
+
 corrections:
-	help displayed some option types wrong
+	fixed some typos and improved some comments
+
+####################### V 1.7.0.1:
+
+corrections:
+	fixed possible SIGSEGV in listening addresses when a new connection was
+	reset by peer before the socket addresses could be retrieved. Thanks to
+	Mike Perry for sending a patch.
+
+	fixed a bug, introduced with version 1.7.0.0, that let client
+	connections with option connect-timeout fail when the connections
+	succeeded. Thanks to Bruno De Fraine for reporting this bug.
+
+	option end-close "did not apply" to addresses PTY, SOCKET-CONNECT,
+	and most UNIX-* and ABSTRACT-*
+
+	half close of EXEC and SYSTEM addresses did not work for pipes and
+	sometimes socketpair
+
+	help displayed for some option a wrong type
 
 	under some circumstances shutdown was called multiple times for the
 	same fd

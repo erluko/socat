@@ -1,5 +1,5 @@
 /* source: xio-fd.h */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_fd_h_included
@@ -45,6 +45,7 @@ extern const struct optdesc opt_end_close;
 extern const struct optdesc opt_shut_none;
 extern const struct optdesc opt_shut_down;
 extern const struct optdesc opt_shut_close;
+extern const struct optdesc opt_shut_null;
 extern const struct optdesc opt_streams_i_push;
 
 #endif /* !defined(__xio_fd_h_included) */

@@ -247,8 +247,8 @@ int xiosocketpair2(int pf, int socktype, int protocol, int sv[2]) {
 int xiocommpair(int commtype, bool lefttoright, bool righttoleft,
 		int dual, xiofd_t *left, xiofd_t *right, ...) {
    va_list ap;
-   int domain, socktype, protocol;
-   int useptmx;
+   int domain = -1, socktype = -1, protocol = -1;
+   int useptmx = 0;
    /* arrays can be used with pipe(2) and socketpair(2): */
    int svlr[2] = {-1, -1};	/* left to right: rfd, wfd */
    int svrl[2] = {-1, -1};	/* right to left: rfd, wfd */

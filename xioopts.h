@@ -448,6 +448,7 @@ enum e_optcode {
    OPT_NOFLSH,		/* termios.c_lflag */
    OPT_NOFORK,		/* exec, system */
    OPT_NOPROMPT,	/* readline */
+   OPT_NULL_EOF,	/* receiving empty packet triggers EOF */
 #ifdef OCRNL
    OPT_OCRNL,		/* termios.c_oflag */
 #endif
@@ -600,6 +601,7 @@ enum e_optcode {
    OPT_SHUT_CLOSE,
    OPT_SHUT_DOWN,
    OPT_SHUT_NONE,
+   OPT_SHUT_NULL,	/* send 0 bytes on shutdown */
    OPT_SIGHUP,
    OPT_SIGINT,
    OPT_SIGQUIT,
@@ -707,6 +709,7 @@ enum e_optcode {
 #  define ENABLE_OPTCODE
 #  include "xio-streams.h"
 #  undef ENABLE_OPTCODE
+   OPT_SUBSTUSER_EARLY,
    OPT_SUBSTUSER,
    OPT_SUBSTUSER_DELAYED,
    OPT_SYMBOLIC_LINK,	/* with pty */
