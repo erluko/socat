@@ -15,8 +15,8 @@
 static int xioopen_fdnum(int argc, const char *argv[], struct opt *opts, int rw, xiofile_t *xfd, unsigned groups, int dummy1, int dummy2, int dummy3);
 
 
-const struct xioaddr_endpoint_desc xioaddr_fdnum1  = { XIOADDR_ENDPOINT, "fd", 1, XIOBIT_ALL,  GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_fdnum, 0, 0, 0 HELP(":<num>") };
-const struct xioaddr_endpoint_desc xioaddr_fdnum2  = { XIOADDR_ENDPOINT, "fd", 2, XIOBIT_RDWR, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_fdnum, 0, 0, 0 HELP(":<numout>:<numin>") };
+const struct xioaddr_endpoint_desc xioaddr_fdnum1  = { XIOADDR_ENDPOINT, "fd", 1, XIOBIT_ALL,  GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_UNSPEC, XIOCLOSE_CLOSE, xioopen_fdnum, 0, 0, 0 HELP(":<num>") };
+const struct xioaddr_endpoint_desc xioaddr_fdnum2  = { XIOADDR_ENDPOINT, "fd", 2, XIOBIT_RDWR, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_UNSPEC, XIOCLOSE_CLOSE, xioopen_fdnum, 0, 0, 0 HELP(":<numout>:<numin>") };
 
 const union xioaddr_desc *xioaddrs_fdnum[] = {
    (union xioaddr_desc *)&xioaddr_fdnum1,
@@ -30,6 +30,7 @@ static int xioopen_fdnum(int argc, const char *argv[], struct opt *opts,
    char *a1;
    int rw = (xioflags&XIO_ACCMODE);
    int numfd1, numfd2 = -1;
+   int numrfd, numwfd;
    int result;
 
    if (argc < 2 || argc > 3) {
@@ -49,23 +50,32 @@ static int xioopen_fdnum(int argc, const char *argv[], struct opt *opts,
       if (rw != XIO_RDWR) {
 	 Warn("two file descriptors given for unidirectional transfer");
       }
-      numfd2 = numfd1;
-      numfd1 = strtoul(argv[2], &a1, 0);
+      numwfd = numfd1;
+      numrfd = strtoul(argv[2], &a1, 0);
       if (*a1 != '\0') {
 	 Error1("error in FD number \"%s\"", argv[2]);
       }
       /* we dont want to see these fds in child processes */
-      if (Fcntl_l(numfd2, F_SETFD, FD_CLOEXEC) < 0) {
-	 Warn2("fcntl(%d, F_SETFD, FD_CLOEXEC): %s", numfd2, strerror(errno));
+      if (Fcntl_l(numrfd, F_SETFD, FD_CLOEXEC) < 0) {
+	 Warn2("fcntl(%d, F_SETFD, FD_CLOEXEC): %s", numrfd, strerror(errno));
+      }
+   } else {
+      if (XIOWITHWR(rw)) {
+	 numwfd = numfd1;
+	 numrfd = -1;
+      } else {
+	 numrfd = numfd1;
+	 numwfd = -1;
       }
    }
 
    if (argv[2] == NULL) {
-      Notice2("using file descriptor %d for %s", numfd1, ddirection[rw]);
+      Notice2("using file descriptor %d for %s",
+	      numrfd>=0?numrfd:numwfd, ddirection[rw]);
    } else {
-      Notice4("using file descriptors %d for %s and %d for %s", numfd1, ddirection[((rw+1)&1)-1], numfd2, ddirection[((rw+1)&2)-1]);
+      Notice4("using file descriptors %d for %s and %d for %s", numrfd, ddirection[((rw+1)&1)-1], numwfd, ddirection[((rw+1)&2)-1]);
    }
-   if ((result = xioopen_fd(opts, rw, xfd, numfd1, numfd2, dummy2, dummy3)) < 0) {
+   if ((result = xioopen_fd(opts, rw, xfd, numrfd, numwfd, dummy2, dummy3)) < 0) {
       return result;
    }
    return 0;
@@ -77,21 +87,35 @@ static int xioopen_fdnum(int argc, const char *argv[], struct opt *opts,
 
 /* retrieve and apply options to a standard file descriptor.
    Do not set FD_CLOEXEC flag. */
-int xioopen_fd(struct opt *opts, int rw, xiofile_t *xfd, int numfd1, int numfd2, int dummy2, int dummy3) {
+int xioopen_fd(struct opt *opts, int rw, xiofile_t *xfd, int numrfd, int numwfd, int dummy2, int dummy3) {
+   int fd;
+   struct stat buf;
 
-   xfd->stream.fd1 = numfd1;
-   xfd->stream.fd2 = numfd2;
-   if (numfd2 >= 0) {
-      xfd->stream.fdtype = FDTYPE_DOUBLE;
+   if (numwfd >= 0) {
+      if (Fstat(numwfd, &buf) < 0) {
+	 Warn2("fstat(%d, ): %s", numwfd, strerror(errno));
+      }
+      if ((buf.st_mode&S_IFMT) == S_IFSOCK &&
+	  xfd->stream.howtoshut == XIOSHUT_UNSPEC) {
+	 xfd->stream.howtoshut = XIOSHUT_DOWN;
+      }
+   }
+   if (xfd->stream.howtoshut == XIOSHUT_UNSPEC)
+      xfd->stream.howtoshut = XIOSHUT_CLOSE;
+   
+   xfd->stream.rfd = numrfd;
+   xfd->stream.wfd = numwfd;
+   if (numrfd >= 0) {
+      fd = numrfd;
    } else {
-      xfd->stream.fdtype = FDTYPE_SINGLE;
+      fd = numwfd;
    }
 
 #if WITH_TERMIOS
-   if (Isatty(xfd->stream.fd1)) {
-      if (Tcgetattr(xfd->stream.fd1, &xfd->stream.savetty) < 0) {
+   if (Isatty(fd)) {
+      if (Tcgetattr(fd, &xfd->stream.savetty) < 0) {
 	 Warn2("cannot query current terminal settings on fd %d: %s",
-	       xfd->stream.fd1, strerror(errno));
+	       fd, strerror(errno));
       } else {
 	 xfd->stream.ttyvalid = true;
       }
@@ -100,7 +124,7 @@ int xioopen_fd(struct opt *opts, int rw, xiofile_t *xfd, int numfd1, int numfd2,
    if (applyopts_single(&xfd->stream, opts, PH_INIT) < 0)  return -1;
    applyopts(-1, opts, PH_INIT);
 
-   applyopts2(xfd->stream.fd1, opts, PH_INIT, PH_FD);
+   applyopts2(fd, opts, PH_INIT, PH_FD);
 
    return _xio_openlate(&xfd->stream, opts);
 }

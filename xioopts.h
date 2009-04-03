@@ -1,5 +1,5 @@
 /* source: xioopts.h */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xioopts_h_included
@@ -235,6 +235,7 @@ enum e_optcode {
    /*OPT_CIBAUD,*/		/* termios.c_cflag */
    OPT_CLOCAL,		/* termios.c_cflag */
    OPT_CLOEXEC,
+   OPT_COMMTYPE,	/* exec/system communication type */
    OPT_CONNECT_TIMEOUT,	/* socket connect */
    OPT_COOL_WRITE,
    OPT_CR,		/* customized */
@@ -288,8 +289,9 @@ enum e_optcode {
    OPT_EXT2_NOTAIL,
    OPT_EXT2_DIRSYNC,
    OPT_EXT2_TOPDIR,
-   OPT_FDIN,
-   OPT_FDOUT,
+   OPT_LEFTFD,
+   OPT_LEFTINFD,
+   OPT_LEFTOUTFD,
 #ifdef FFDLY
 #  ifdef FF0
    OPT_FF0,		/* termios.c_oflag */
@@ -573,6 +575,9 @@ enum e_optcode {
    OPT_RES_STAYOPEN,	/* resolver(3) */
    OPT_RES_USEVC,	/* resolver(3) */
    OPT_RETRY,
+   OPT_RIGHTFD,		/* inter exec, system */
+   OPT_RIGHTINFD,	/* inter exec, system */
+   OPT_RIGHTOUTFD,	/* inter exec, system */
    OPT_SANE,		/* termios */
    OPT_SCTP_MAXSEG,
    OPT_SCTP_MAXSEG_LATE,
@@ -592,6 +597,8 @@ enum e_optcode {
    OPT_SETSOCKOPT_STRING,
    OPT_SETUID,
    OPT_SETUID_EARLY,
+   OPT_SHUT_CLOSE,
+   OPT_SHUT_DOWN,
    OPT_SHUT_NONE,
    OPT_SIGHUP,
    OPT_SIGINT,

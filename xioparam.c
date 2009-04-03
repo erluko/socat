@@ -32,6 +32,7 @@ xioopts_t xioopts = {
    {0,500000},	/* closwait */
    false,	/* lefttoright */
    false,	/* righttoleft */
+   0,		/* pipetype: two unidirectional socketpairs */
 } ;
 xioopts_t *xioparams = &xioopts;
 

@@ -1,5 +1,5 @@
 /* source: xio-unix.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of UNIX socket type */
@@ -205,6 +205,7 @@ static int xioopen_unix_connect(int argc, const char *argv[], struct opt *opts, 
    /* we expect the form: filename */
    const char *name;
    struct single *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    int pf = PF_UNIX;
    int socktype = SOCK_STREAM;
    int protocol = 0;
@@ -252,6 +253,8 @@ static int xioopen_unix_connect(int argc, const char *argv[], struct opt *opts, 
 			opts, pf, socktype, protocol, false)) != 0) {
       return result;
    }
+   if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+   if (!XIOWITHRD(rw))  xfd->rfd = -1;
    if ((result = _xio_openlate(xfd, opts)) < 0) {
       return result;
    }
@@ -259,10 +262,14 @@ static int xioopen_unix_connect(int argc, const char *argv[], struct opt *opts, 
 }
 
 
+/*
+   returns the resulting FD in xfd->rfd, independend of xioflags
+*/
 static int xioopen_unix_sendto(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *xxfd, unsigned groups, int abstract, int dummy, int dummy3) {
    /* we expect the form: filename */
    const char *name;
    xiosingle_t *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    int pf = PF_UNIX;
    int socktype = SOCK_DGRAM;
    int protocol = 0;
@@ -271,6 +278,7 @@ static int xioopen_unix_sendto(int argc, const char *argv[], struct opt *opts, i
    bool tight = true;
    bool needbind = false;
    bool opt_unlink_close = false;
+   int result;
 
    if (argc != 2) {
       Error2("%s: wrong number of parameters (%d instead of 1)",
@@ -310,10 +318,15 @@ static int xioopen_unix_sendto(int argc, const char *argv[], struct opt *opts, i
    applyopts(-1, opts, PH_INIT);
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
 
-   return
-      _xioopen_dgram_sendto(needbind?&us:NULL, uslen,
-			    opts, xioflags, xfd, groups,
-			    pf, socktype, protocol);
+   if ((result =
+	_xioopen_dgram_sendto(needbind?&us:NULL, uslen,
+			      opts, xioflags, xfd, groups,
+			      pf, socktype, protocol)) != STAT_OK) {
+      return result;
+   }
+   if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+   if (!XIOWITHRD(rw))  xfd->rfd = -1;
+   return STAT_OK;
 }
 
 
@@ -472,6 +485,7 @@ static int xioopen_unix_client(int argc, const char *argv[], struct opt *opts, i
 int 
 _xioopen_unix_client(xiosingle_t *xfd, int xioflags, unsigned groups,
 		     int abstract, struct opt *opts, const char *name) {
+   int rw = (xioflags&XIO_ACCMODE);
    int pf = PF_UNIX;
    int socktype = 0;	/* to be determined by server socket type */
    int protocol = 0;
@@ -537,6 +551,8 @@ _xioopen_unix_client(xiosingle_t *xfd, int xioflags, unsigned groups,
 	 xfd->dtype = XIODATA_RECVFROM;
       }
    }
+   if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+   if (!XIOWITHRD(rw))  xfd->rfd = -1;
    if ((result = _xio_openlate(xfd, opts)) < 0) {
       return result;
    }

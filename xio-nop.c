@@ -40,7 +40,7 @@ static int xioopen_nop(int argc, const char *argv[], struct opt *opts,
       return STAT_NORETRY;
    }
 
-   if (xfd->fd1 < 0 && xfd->fd2 < 0) {
+   if (xfd->rfd < 0 && xfd->wfd < 0) { /*!!!*/
       Error("NOP cannot be endpoint");
       return STAT_NORETRY;
    }
@@ -53,7 +53,7 @@ static int xioopen_nop(int argc, const char *argv[], struct opt *opts,
    xfd->dtype = XIODATA_STREAM;
    /*xfd->fdtype = FDTYPE_DOUBLE;*/
 
-   applyopts(xfd->fd1, opts, PH_ALL);
+   applyopts(xfd->rfd, opts, PH_ALL);
 
    if ((result = _xio_openlate(xfd, opts)) < 0)
       return result;

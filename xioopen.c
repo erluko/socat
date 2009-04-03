@@ -1,5 +1,5 @@
 /* source: xioopen.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this is the source file of the extended open function */
@@ -64,6 +64,8 @@ const struct xioaddrname address_names[] = {
 #endif
 #if WITH_EXEC
    { "exec",		xioaddrs_exec },
+   { "exec1",		xioaddrs_exec1 },
+   { "exec2",		xioaddrs_exec },
 #endif
 #if WITH_FDNUM
    { "fd",		xioaddrs_fdnum },
@@ -230,6 +232,8 @@ const struct xioaddrname address_names[] = {
 #endif
 #if WITH_SYSTEM
    { "system",		xioaddrs_system },
+   { "system1",		xioaddrs_system1 },
+   { "system2",		xioaddrs_system },
 #endif
 #if (WITH_IP4 || WITH_IP6) && WITH_TCP
    { "tcp",		xioaddrs_tcp_connect },
@@ -347,11 +351,9 @@ int xioopen_makedual(xiofile_t *file) {
    if ((file->dual.stream[0] = (xiosingle_t *)xioallocfd()) == NULL)
       return -1;
    file->dual.stream[0]->flags = XIO_RDONLY;
-   file->dual.stream[0]->fdtype = FDTYPE_SINGLE;
    if ((file->dual.stream[1] = (xiosingle_t *)xioallocfd()) == NULL)
       return -1;
    file->dual.stream[1]->flags = XIO_WRONLY;
-   file->dual.stream[1]->fdtype = FDTYPE_SINGLE;
    return 0;
 }
 
@@ -376,9 +378,8 @@ xiofile_t *xioallocfd(void) {
 /* fd->common.ignoreeof = false; */
 /* fd->common.eof       = 0; */
 
-   fd->stream.fd1       = -1;
-   fd->stream.fd2       = -1;
-   fd->stream.fdtype    = FDTYPE_SINGLE;
+   fd->stream.rfd       = -1;
+   fd->stream.wfd       = -1;
    fd->stream.dtype     = XIODATA_STREAM;
 #if _WITH_SOCKET
 /* fd->stream.salen     = 0; */
@@ -408,9 +409,11 @@ void xiofreefd(xiofile_t *xfd) {
 
 
 /* handle one chain of addresses
-   dirs is one of XIO_RDWR, XIO_RDONLY, or XIO_WRONLY
+   rw is one of XIO_RDWR, XIO_RDONLY, or XIO_WRONLY
+   when finished with this and the following sub addresses we return an xfd
+   that can be used by the _socat() loop
 */
-xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
+xiofile_t *socat_open(const char *addrs0, int rw, int flags) {
    const char *addrs;
    xiosingle_t *sfdA;	/* what we just parse(d) */
    xiosingle_t *sfdB;	/* what we just parse(d) - second part of dual */
@@ -423,24 +426,23 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
    xiofile_t *xfd0;	/* what we return */
    xiofile_t *xfd1;	/* left hand of engine */
    xiofile_t *xfd2;	/* returned by sub address */
-   int dirs0, dirs1, dirs2;	/* the data directions for respective xfd */
-   int xfd0shut;
-   int xfd0close;
-   int lefttoright[2];
-   int righttoleft[2];
+   int rw0, rw1, rw2;	/* the data directions for respective xfd
+				 directions are sepcified as seen by transfer
+				 engine */
+   xiofd_t left, right;
    struct threadarg_struct *thread_arg;
    /*0 pthread_t thread = 0;*/
    /*pthread_attr_t attr;*/
    int _errno = 0;
 
-   Info3("opening address \"%s\", dirs=%d, flags=%d", addrs0, dirs, flags);
+   Info3("opening address \"%s\", rw=%d, flags=0x%x", addrs0, rw, flags);
 
-   /* loop over retries */
+   /* loop over retries, contains nearly the complete function */
    while (true) {
 
       addrs = addrs0;
       skipsp(&addrs);
-      dirs0 = dirs;
+      rw0 = rw;
 
       /* here we do not know much: will the next sub address be inter or
 	 endpoint, single or dual, reverse? */
@@ -462,7 +464,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
       /* is it a dual sub address? */
       if (!strncmp(addrs, xioparams->pipesep, strlen(xioparams->pipesep))) {
 	 /* yes, found dual-address operator */
-	 if (dirs != XIO_RDWR) {
+	 if (rw != XIO_RDWR) {
 	    Error("dual address cannot handle single direction data stream");
 	 }
 	 skipsp(&addrs);
@@ -506,16 +508,16 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	 sfdB.......if not null, we have a dual type address
 	 reverseA...sfdA is reverse
 	 reverseB...if dual address then sfdB is reverse
-	 dirs0......the data directions of xfd0 */
+	 rw0......the data direction of xfd0 */
       /* note: with dual inter, sfdB is implicitely reverse */
 
       /* calculate context parameters that are easier to handle */
       if (sfdB == NULL) {
-	 srchleftA  = mayleftA  = (1 << dirs0);
+	 srchleftA  = mayleftA  = (1 << rw0);
 	 srchrightA = mayrightA = (currentisendpoint ? 0 : XIOBIT_ALL);
 	 if (reverseA) {
-	    /*srchrightA = XIOBIT_REVERSE(srchleftA);*/
 	    srchrightA = srchleftA;
+	    /*srchrightA = XIOBIT_REVERSE(srchleftA); no, see what right means*/
 	    srchleftA  = XIOBIT_ALL;
 	 }
       } else {	/* A is only part of dual */
@@ -533,7 +535,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	 }
       }
 
-      if ((true || ((dirs0+1) & (XIO_WRONLY+1))) || currentisendpoint) {
+      if ((true /*0 || ((rw0+1) & (XIO_WRONLY+1))*/) || currentisendpoint) {
 	 if (xioopen_unoverload(sfdA, srchleftA, &isleftA, srchrightA, &isrightA)
 	     < 0) {
 	    Error1("address \"%s\" can not be used in this context",
@@ -546,7 +548,10 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 		   sfdA->addrdescs[0]->inter_desc.defname);
 	 }
       }
-      if (reverseA)  { isrightA = isleftA; }
+      if (reverseA)  {
+	 int tmp;
+	 tmp = isleftA;  isrightA = isleftA;  isleftA = tmp;
+      }
 
       if (sfdB != NULL) {
 	 if (xioopen_unoverload(sfdB, srchleftB, &isleftB, srchrightB, &isrightB)
@@ -559,11 +564,11 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	    /* conflict in directions on right side (xfd1) */
 	    Error("conflict in data directions");/*!!*/
 	 }
-	 dirs1 = ((isrightA+1) | (isleftB+1)) - 1;
+	 rw1 = ((isrightA+1) | (isleftB+1)) - 1;
       } else {
-	 dirs1 = isrightA;
+	 rw1 = isrightA;
       }
-      dirs2 = (dirs1==XIO_RDWR) ? XIO_RDWR : (dirs1==XIO_RDONLY) ? XIO_WRONLY :
+      rw2 = (rw1==XIO_RDWR) ? XIO_RDWR : (rw1==XIO_RDONLY) ? XIO_WRONLY :
 	 XIO_RDONLY;
 
       /* now we know exactly what to do with the current sub address */
@@ -573,6 +578,8 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
       if (sfdB != NULL) {
 	 applyopts_offset(sfdB, sfdB->opts);
       }
+
+      /* if we found the endpoint address we are almost finished here */
 
       if (currentisendpoint) {
 	 if (sfdB != NULL) {
@@ -587,7 +594,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	    xfd0 = (xiofile_t *)sfdA;
 	 }
 	 /* open it and be ready in this thread */
-	 if (xioopen_endpoint_dual(xfd0, dirs0|flags) < 0) {
+	 if (xioopen_endpoint_dual(xfd0, rw0|flags) < 0) {
 	    xiofreefd(xfd0);
 	    return NULL;
 	 }
@@ -599,7 +606,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
       /* recursively open the following addresses of chain */
       /* loop over retries if appropriate */
       do {
-	 xfd2 = socat_open(addrs, dirs2, flags);
+	 xfd2 = socat_open(addrs, rw2, flags);
 	 if (xfd2 != NULL) {
 	    break;	/* succeeded */
 	 }
@@ -615,13 +622,14 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 
       /* only xfd2 is valid here, contains a handle for the rest of the chain
 	 */
-      /* yupp, and the single addresses sfdA and ev.sfdB are valid too */
+      /* yupp, and the single addresses sfdA and ev.sfdB are valid too, but
+	 not yet opened */
 
       /* what are xfd0, xfd1, and xfd2?
 	 consider chain: addr1|addr2
 	 with no reverse address, this will run like:
 	 _socat(<upstream>,addr1) --- _socat(-,   addr2)
-	 _socat(???,       xfd0)   --- _socat(xfd1,xfd2)
+	 _socat(???,       xfd0)  --- _socat(xfd1,xfd2)
 	 xfd0 will be opened in this routine
 	 xfd1 will be assembled now, just using FDs
 	 xfd2 comes from recursive open call
@@ -642,32 +650,41 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 				
       /* prepare FD based communication of current addr with its right neighbor
 	 (xfd0-xfd1) */
-      if (1) {
-	 int sv[2];
-	 if (Socketpair(PF_UNIX, SOCK_STREAM, 0, sv) < 0) {
-	    Error2("socketpair(PF_UNIX, PF_STREAM, 0, %s): %s",
-		   sv, strerror(errno));
+      {
+	 switch (xioopts.pipetype) {
+	 case XIOCOMM_SOCKETPAIR:
+	 case XIOCOMM_SOCKETPAIRS:
+	    if (xiocommpair(xioopts.pipetype,
+			    (rw0+1)&(XIO_WRONLY+1), (rw0+1)&(XIO_RDONLY+1),
+			    sfdB!=0, &left, &right,
+			    PF_UNIX, SOCK_STREAM, 0) != 0) {
+	       return NULL;
+	    }
+	    break;
+	 case XIOCOMM_PTY:
+	 case XIOCOMM_PTYS:
+	    if (xiocommpair(xioopts.pipetype,
+			    (rw0+1)&(XIO_WRONLY+1), (rw0+1)&(XIO_RDONLY+1),
+			    sfdB!=0, &left, &right,
+			    1 /* useptmx */) != 0) {
+	       return NULL;
+	    }
+	    break;
+	 default:
+	    if (xiocommpair(xioopts.pipetype,
+			    (rw0+1)&(XIO_WRONLY+1), (rw0+1)&(XIO_RDONLY+1),
+			    sfdB!=0, &left, &right) != 0) {
+	       return NULL;
+	    }
+	    break;
 	 }
-	 lefttoright[0] = righttoleft[1] = sv[0];
-	 lefttoright[1] = righttoleft[0] = sv[1];
-	 xfd0shut = XIOSHUT_DOWN;
-	 xfd0close = XIOCLOSE_CLOSE;
-	 /*xfd0fdtype = FDTYPE_SINGLE;*/
-      } else {
-	 if (Pipe(lefttoright) < 0) {
-	    Error2("pipe(%p): %s", lefttoright, strerror(errno)); }
-	 if (Pipe(righttoleft) < 0) {
-	    Error2("pipe(%p): %s", righttoleft, strerror(errno)); }
-	 xfd0shut = XIOSHUT_CLOSE;
-	 xfd0close = XIOCLOSE_CLOSE;
-	 /*xfd0fdtype = FDTYPE_DOUBLE;*/
       }
 
       /* now assemble xfd0 and xfd1 */
 
       if (sfdB != NULL && reverseA == reverseB) {
 	 /* dual address, differing orientation (B is impl.reverse) */
-	 /* dual implies (dirs0==dirs1==XIO_RDWR) */
+	 /* dual implies (rw0==rw1==XIO_RDWR) */
 	 if (!reverseA) {
 	    /* A is not reverse, but B */
 	    char addr[15];
@@ -675,7 +692,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	    xfd0 = xioallocfd();
 	    xioopen_makedual(xfd0);
 	    xfd0->dual.stream[1] = sfdA;
-	    sprintf(addr, "FD:%u", righttoleft[0]);
+	    sprintf(addr, "FD:%u", /*0 righttoleft[0]*/left.rfd);
 	    if ((xfd0->dual.stream[0] =
 		 (xiosingle_t *)socat_open(addr, XIO_WRONLY, 0))
 		== NULL) {
@@ -686,7 +703,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	    xfd1 = xioallocfd();
 	    xioopen_makedual(xfd1);
 	    xfd1->dual.stream[1] = sfdB;
-	    sprintf(addr, "FD:%u", lefttoright[0]);
+	    sprintf(addr, "FD:%u", /*0 lefttoright[0]*/right.rfd);
 	    if ((xfd1->dual.stream[0] =
 		 (xiosingle_t *)socat_open(addr, XIO_RDONLY, 0))
 		== NULL) {
@@ -700,7 +717,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	    xfd0 = xioallocfd();
 	    xioopen_makedual(xfd0);
 	    xfd0->dual.stream[0] = sfdB;
-	    sprintf(addr, "FD:%u", lefttoright[1]);
+	    sprintf(addr, "FD:%u", /*0 lefttoright[1]*/left.wfd);
 	    if ((xfd0->dual.stream[1] =
 		 (xiosingle_t *)socat_open(addr, XIO_RDONLY, 0))
 		== NULL) {
@@ -710,7 +727,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	    xfd1 = xioallocfd();
 	    xioopen_makedual(xfd1);
 	    xfd1->dual.stream[0] = sfdA;
-	    sprintf(addr, "FD:%u", righttoleft[1]);
+	    sprintf(addr, "FD:%u", /*0 righttoleft[1]*/right.wfd);
 	    if ((xfd1->dual.stream[1] =
 		 (xiosingle_t *)socat_open(addr, XIO_RDONLY, 0))
 		== NULL) {
@@ -718,10 +735,11 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	       return NULL;
 	    }
 	 }
-	 xfd0->dual.stream[0]->fd1 = lefttoright[1];
-	 xfd0->dual.stream[1]->fd1 = righttoleft[0];
-	 xfd1->dual.stream[0]->fd1 = righttoleft[1];
-	 xfd1->dual.stream[1]->fd1 = lefttoright[0];
+	 xfd0->dual.stream[0]->rfd = left.rfd;
+	 xfd0->dual.stream[1]->wfd = left.wfd;
+	 xfd1->dual.stream[0]->rfd = right.rfd;
+	 xfd1->dual.stream[1]->wfd = right.wfd;
+
       } else {
 	 /* either dual with equal directions, or non-dual */
 	 xiofile_t *tfd;	/* temp xfd */
@@ -741,86 +759,123 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 	 if (!reverseA) {
 	    /* forward */
 	    xfd0 = tfd;
-	    if (dirs1 == XIO_RDWR) {
-	       sprintf(addr, "FD:%u:%u", righttoleft[1], lefttoright[0]);
-	    } else if (dirs1 == XIO_RDONLY) {
-	       sprintf(addr, "FD:%u", lefttoright[0]);
+	    if (rw1 == XIO_RDWR) {
+	       sprintf(addr, "FD:%u:%u", /*0 righttoleft[1]*/right.wfd, /*0 lefttoright[0]*/right.rfd);
+	    } else if (rw1 == XIO_RDONLY) {
+	       sprintf(addr, "FD:%u", /*0 lefttoright[0]*/right.rfd);
 	    } else {
-	       sprintf(addr, "FD:%u", righttoleft[1]);
+	       sprintf(addr, "FD:%u", /*0 righttoleft[1]*/right.wfd);
 	    }
-	    if ((xfd1 = socat_open(addr, dirs1, 0)) == NULL) {
+	    if ((xfd1 = socat_open(addr, rw1, 0)) == NULL) {
 	       xiofreefd(xfd0);  xiofreefd(xfd2);
 	       return NULL;
 	    }
 	 } else {
 	    /* reverse */
 	    xfd1 = tfd;
-	    if (dirs0 == XIO_RDWR) {
-	       sprintf(addr, "FD:%u:%u", lefttoright[1], righttoleft[0]);
-	    } else if (dirs0 == XIO_RDONLY) {
-	       sprintf(addr, "FD:%u", righttoleft[0]);
+	    if (rw0 == XIO_RDWR) {
+	       sprintf(addr, "FD:%u:%u", /*0 lefttoright[1]*/left.wfd, /*0 righttoleft[0]*/left.rfd);
+	    } else if (rw0 == XIO_RDONLY) {
+	       sprintf(addr, "FD:%u", /*0 righttoleft[0]*/left.rfd);
 	    } else {
-	       sprintf(addr, "FD:%u", lefttoright[1]);
+	       sprintf(addr, "FD:%u", /*0 lefttoright[1]*/left.wfd);
 	    }
-	    if ((xfd0 = socat_open(addr, XIO_RDWR, 0)) == NULL) {
+	    if ((xfd0 = socat_open(addr, rw0/*0 XIO_RDWR*/, 0)) == NULL) {
 	       xiofreefd(xfd1);  xiofreefd(xfd2);
 	       return NULL;
 	    }
 	    /* address type FD keeps the FDs open per default, but ... */
 	 }
 	 if (xfd0->tag == XIO_TAG_DUAL) {
-	    xfd0->dual.stream[0]->fd1 = lefttoright[1];
-	    xfd0->dual.stream[1]->fd1 = righttoleft[0];
+	    xfd0->dual.stream[0]->rfd = /*0 righttoleft[0]*/left.rfd;
+	    xfd0->dual.stream[1]->wfd = /*0 lefttoright[1]*/left.wfd;
 	 } else {
-	    xfd0->stream.fd1 = righttoleft[0];
-	    xfd0->stream.fd2 = lefttoright[1];
+	    xfd0->stream.rfd = /*0 righttoleft[0]*/left.rfd;
+	    xfd0->stream.wfd = /*0 lefttoright[1]*/left.wfd;
 	 }
 	 if (xfd1->tag == XIO_TAG_DUAL) {
-	    xfd1->dual.stream[0]->fd1 = righttoleft[1];
-	    xfd1->dual.stream[1]->fd1 = lefttoright[0];
+	    xfd1->dual.stream[0]->rfd = /*0 righttoleft[0]*/left.rfd;
+	    xfd1->dual.stream[1]->rfd = /*0 lefttoright[1]*/left.wfd;
 	 } else {
-	    xfd1->stream.fd1 = lefttoright[0];
-	    xfd1->stream.fd2 = righttoleft[1];
+	    xfd1->stream.rfd = /*0 lefttoright[0]*/right.rfd;
+	    xfd1->stream.wfd = /*0 righttoleft[1]*/right.wfd;
 	 }
       }
 
       /* address type FD keeps the FDs open per default, but ... */
       if (xfd0->tag == XIO_TAG_DUAL) {
-	 xfd0->dual.stream[0]->howtoshut = xfd0shut;
-	 xfd0->dual.stream[0]->howtoclose = xfd0close;
-	 xfd0->dual.stream[1]->howtoshut = xfd0shut;
-	 xfd0->dual.stream[1]->howtoclose = xfd0close;
+	 xfd0->dual.stream[0]->howtoshut = left.howtoshut;
+	 xfd0->dual.stream[0]->howtoclose = left.howtoclose;
+	 xfd0->dual.stream[0]->dtype      = left.dtype;
+	 xfd0->dual.stream[1]->howtoshut = right.howtoshut;
+	 xfd0->dual.stream[1]->howtoclose = right.howtoclose;
+	 xfd0->dual.stream[1]->dtype      = right.dtype;
       } else {
-	 xfd0->stream.howtoshut = xfd0shut;
-	 xfd0->stream.howtoclose = xfd0close;
+	 xfd0->stream.howtoshut = left.howtoshut;
+	 xfd0->stream.howtoclose = left.howtoclose;
+	 xfd0->stream.dtype      = left.dtype;
       }
       if (xfd1->tag == XIO_TAG_DUAL) {
-	 xfd1->dual.stream[0]->howtoshut = xfd0shut;
-	 xfd1->dual.stream[0]->howtoclose = xfd0close;
-	 xfd1->dual.stream[1]->howtoshut = xfd0shut;
-	 xfd1->dual.stream[1]->howtoclose = xfd0close;
+	 xfd1->dual.stream[0]->howtoshut = left.howtoshut;
+	 xfd1->dual.stream[0]->howtoclose = left.howtoclose;
+	 xfd1->dual.stream[0]->dtype      = left.dtype;
+	 xfd1->dual.stream[1]->howtoshut = right.howtoshut;
+	 xfd1->dual.stream[1]->howtoclose = right.howtoclose;
+	 xfd1->dual.stream[1]->dtype      = right.dtype;
       } else {
-	 xfd1->stream.howtoshut = xfd0shut;
-	 xfd1->stream.howtoclose = xfd0close;
+	 xfd1->stream.howtoshut = right.howtoshut;
+	 xfd1->stream.howtoclose = right.howtoclose;
+	 xfd1->stream.dtype      = right.dtype;
       }
 
       /* here xfd2 is valid and ready for transfer;
 	 and xfd0 and xfd1 are valid and ready for opening */
 
+      /* create a new thread that do the xioopen() of xfd1 and xfd2, and then
+	 drive the transfer engine between them */
       if ((thread_arg = Malloc(sizeof(struct threadarg_struct))) == NULL) {
 	 /*! free something */
 	 xiofreefd(xfd0); xiofreefd(xfd1); xiofreefd(xfd2);
 	 return NULL;
       }
+      thread_arg->rw = (reverseA ? rw1 : rw0);
       thread_arg->xfd1 = xfd1;
       thread_arg->xfd2 = xfd2;
+      Notice5("starting thread: dir=%d, reverseA=%d, reverseB=%d, xfd1->tag=%d, xfd2->tag=%d",
+	      rw0, reverseA, reverseB, xfd1->tag, xfd2->tag);
+      if (xfd1->tag==XIO_TAG_DUAL) {
+	 Notice4("xfd1: [%s, wfd=%d] %% [%s, rfd=%d]",
+		 xfd1->dual.stream[1]->addrdesc->common_desc.defname,
+		 xfd1->dual.stream[1]->wfd,
+		 xfd1->dual.stream[0]->addrdesc->common_desc.defname,
+		 xfd1->dual.stream[0]->rfd);
+      } else {
+	 Notice3("xfd1: %s, wfd=%d, rfd=%d",
+		 xfd1->stream.addrdesc->common_desc.defname,
+		 xfd1->stream.wfd, xfd1->stream.rfd);
+      }
+      if (xfd2->tag==XIO_TAG_DUAL) {
+	 Notice4("xfd2: [%s, wfd=%d] %% [%s, rfd=%d]",
+		 xfd2->dual.stream[1]->addrdesc->common_desc.defname,
+		 xfd2->dual.stream[1]->wfd,
+		 xfd2->dual.stream[0]->addrdesc->common_desc.defname,
+		 xfd2->dual.stream[0]->rfd);
+      } else {
+	 Notice3("xfd2: %s, wfd=%d, rfd=%d",
+		 xfd2->stream.addrdesc->common_desc.defname,
+		 xfd2->stream.wfd, xfd2->stream.rfd);
+      }
+      Info5("pthread_create(%p, NULL, %s, {%d,%p,%p})",
+	    &xfd0->stream.subthread,
+	    (reverseA||(sfdB!=NULL)&&!reverseB)?"xioopenleftthenengine":"xioengine",
+	    thread_arg->rw, thread_arg->xfd1, thread_arg->xfd2);
       if ((_errno =
 	   Pthread_create(&xfd0->stream.subthread, NULL,
 			  (reverseA||(sfdB!=NULL)&&!reverseB)?xioopenleftthenengine:xioengine,
 			   thread_arg))
 	  != 0) {
-	 Error4("pthread_create(%p, {}, xioengine, {%p,%p}): %s",
-		&xfd0->stream.subthread, thread_arg->xfd1, thread_arg->xfd2,
+	 Error3("pthread_create(%p, {}, xioengine, %p): %s",
+		&xfd0->stream.subthread, thread_arg,
 		strerror(_errno));
 	 xiofreefd(xfd0); xiofreefd(xfd1); xiofreefd(xfd2);
 	 free(thread_arg); return NULL;
@@ -830,7 +885,7 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
       xfd2 = NULL;
 
       /* open protocol part */
-      if (xioopen_inter_dual(xfd0, dirs|flags)
+      if (xioopen_inter_dual(xfd0, rw|flags)
 	  < 0) {
 	 /*! close sub chain */
 	 if (xfd0->stream.retry == 0 && !xfd0->stream.forever) {
@@ -851,11 +906,12 @@ xiofile_t *socat_open(const char *addrs0, int dirs, int flags) {
 
 void *xioopenleftthenengine(void *thread_void) {
    struct threadarg_struct *thread_arg = thread_void;
+   int rw = thread_arg->rw;
    xiofile_t *xfd1 = thread_arg->xfd1;
    xiofile_t *xfd2 = thread_arg->xfd2;
 
    /*! design a function with better interface */
-   if (xioopen_inter_dual(xfd1, XIO_RDWR|XIO_MAYCONVERT) < 0) {
+   if (xioopen_inter_dual(xfd1, rw|XIO_MAYCONVERT|XIO_MAYCHILD) < 0) {
       xioclose(xfd2);
       xiofreefd(xfd1);
       xiofreefd(xfd2);
@@ -1120,7 +1176,7 @@ static int
    tag = (mayright ? XIOADDR_INTER : XIOADDR_ENDPOINT);
 
    /* look for a matching entry in the list of address descriptions */
-   Debug5("searching record for \"%s\" with tag=%d, numparams=%d, leftdirs %d, rightdirs %d",
+   Debug5("searching record for \"%s\" with tag=%d, numparams=%d, leftdir %d, rightdir %d",
 	  addrdescs[0]->common_desc.defname,
 	  tag, sfd->argc-1, mayleft, mayright);
    while ((*addrdescs) != NULL) {
@@ -1134,9 +1190,13 @@ static int
    }
 
    if (addrdescs[0] == NULL) {
-      Error3("address \"%s...\" in %s context and with %d parameter(s) is not defined",
-	     sfd->argv[0], tag==XIOADDR_ENDPOINT?"endpoint":"intermediate",
-	     sfd->argc-1);
+      if (tag == XIOADDR_ENDPOINT) {
+	 Error3("address \"%s...\" in endpoint context, leftdirs=%d, with %d parameter(s) is not available",
+		sfd->argv[0], mayleft, sfd->argc-1);
+      } else {
+	 Error4("address \"%s...\" in intermediate context, leftdirs=%d, rightdirs=%d, with %d parameter(s) is not available",
+		sfd->argv[0], mayleft, mayright, sfd->argc-1);
+      }
       xiofreefd((xiofile_t *)sfd);  return -1;
    }
 
@@ -1154,9 +1214,19 @@ static int
    }
    sfd->tag  = (*isleft + 1);
    sfd->addrdesc = addrdescs[0];
-   sfd->howtoshut = addrdescs[0]->common_desc.howtoshut;
-   sfd->howtoclose  = addrdescs[0]->common_desc.howtoclose;
+   if (addrdescs[0]->common_desc.howtoshut != XIOSHUT_UNSPEC)
+      sfd->howtoshut = addrdescs[0]->common_desc.howtoshut;
+   if (addrdescs[0]->common_desc.howtoclose != XIOCLOSE_UNSPEC)
+      sfd->howtoclose  = addrdescs[0]->common_desc.howtoclose;
 
+   if (tag == XIOADDR_ENDPOINT) {
+      Debug1("selected record with leftdirs %d",
+	     addrdescs[0]->common_desc.leftdirs);
+   } else {
+      Debug2("selected record with leftdirs %d, rightdirs %d",
+	     addrdescs[0]->common_desc.leftdirs,
+	     addrdescs[0]->inter_desc.rightdirs);
+   }
    return 0;
 }
 
@@ -1170,17 +1240,10 @@ static int
 
    if ((xioflags&XIO_ACCMODE) == XIO_RDONLY) {
       xfd->tag = XIO_TAG_RDONLY;
-      xfd->stream.fdtype = FDTYPE_SINGLE;
    } else if ((xioflags&XIO_ACCMODE) == XIO_WRONLY) {
       xfd->tag = XIO_TAG_WRONLY;
-      xfd->stream.fdtype = FDTYPE_SINGLE;
    } else if ((xioflags&XIO_ACCMODE) == XIO_RDWR) {
       xfd->tag = XIO_TAG_RDWR;
-      if (xfd->stream.fd2 >= 0) {
-	 xfd->stream.fdtype = FDTYPE_DOUBLE;
-      } else {
-	 xfd->stream.fdtype = FDTYPE_SINGLE;
-      }
    } else {
       Error1("invalid mode for address \"%s\"", xfd->stream.argv[0]);
    }
@@ -1201,10 +1264,8 @@ static int
    addrdesc = &xfd->stream.addrdesc->endpoint_desc;
    if ((xioflags&XIO_ACCMODE) == XIO_RDONLY) {
       xfd->tag = XIO_TAG_RDONLY;
-      xfd->stream.fdtype = FDTYPE_SINGLE;
    } else if ((xioflags&XIO_ACCMODE) == XIO_WRONLY) {
       xfd->tag = XIO_TAG_WRONLY;
-      xfd->stream.fdtype = FDTYPE_SINGLE;
    } else if ((xioflags&XIO_ACCMODE) == XIO_RDWR) {
       xfd->tag = XIO_TAG_RDWR;
    } else {

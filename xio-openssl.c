@@ -225,6 +225,7 @@ static int
 					   addr_openssl */
 {
    struct single *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    struct opt *opts0 = NULL;
    const char *hostname, *portname = NULL;
    int pf = PF_UNSPEC;
@@ -282,7 +283,7 @@ static int
    } else if (argc = 1) {
 
       /* or a "non terminal" address without required parameters */
-      if (xfd->fd2 < 0) {
+      if (xfd->wfd < 0) {
 	 Error("openssl-connect without hostname and port must be an embedded address");
 	 return STAT_NORETRY;
       }
@@ -347,86 +348,85 @@ static int
       default:
 	 return result;
 	 }
-      }
+      xfd->wfd = xfd->rfd;
+       }
 
-      /*! isn't this too early? */
-      if ((result = _xio_openlate(xfd, opts)) < 0) {
-	 return result;
-      }
+       /*! isn't this too early? */
+       if ((result = _xio_openlate(xfd, opts)) < 0) {
+	  return result;
+       }
 
-      result =
-	 _xioopen_openssl_connect(xfd, opt_ver, xfd->para.openssl.ctx, level);
-      switch (result) {
-      case STAT_OK: break;
-#if WITH_RETRY
-      case STAT_RETRYLATER:
-      case STAT_RETRYNOW:
-	 if (xfd->forever || xfd->retry) {
-	    Close(xfd->fd1);
-	    if (xfd->fdtype == FDTYPE_DOUBLE)
-	       Close(xfd->fd2);
-	    dropopts(opts, PH_ALL); opts = copyopts(opts0, GROUP_ALL);
-	    if (result == STAT_RETRYLATER) {
-	       Nanosleep(&xfd->intervall, NULL);
-	    }
-	    --xfd->retry;
-	    continue;
-	 }
-#endif /* WITH_RETRY */
-      default: return STAT_NORETRY;
-      }
+       result =
+	  _xioopen_openssl_connect(xfd, opt_ver, xfd->para.openssl.ctx, level);
+       switch (result) {
+       case STAT_OK: break;
+ #if WITH_RETRY
+       case STAT_RETRYLATER:
+       case STAT_RETRYNOW:
+	  if (xfd->forever || xfd->retry) {
+	     Close(xfd->rfd);
+	     Close(xfd->wfd);
+	     dropopts(opts, PH_ALL); opts = copyopts(opts0, GROUP_ALL);
+	     if (result == STAT_RETRYLATER) {
+		Nanosleep(&xfd->intervall, NULL);
+	     }
+	     --xfd->retry;
+	     continue;
+	  }
+ #endif /* WITH_RETRY */
+       default: return STAT_NORETRY;
+       }
 
-      if (dofork) {
-	 xiosetchilddied();	/* set SIGCHLD handler */
-      }
+       if (dofork) {
+	  xiosetchilddied();	/* set SIGCHLD handler */
+       }
 
-#if WITH_RETRY
-      if (dofork) {
-	 pid_t pid;
-	 int level = E_ERROR;
-	 if (xfd->forever || xfd->retry) {
-	    level = E_WARN;
-	 }
-	 while ((pid = xio_fork(false, level)) < 0) {
-	    if (xfd->forever || --xfd->retry) {
-	       Nanosleep(&xfd->intervall, NULL); continue;
-	    }
-	    return STAT_RETRYLATER;
-	 }
+ #if WITH_RETRY
+       if (dofork) {
+	  pid_t pid;
+	  int level = E_ERROR;
+	  if (xfd->forever || xfd->retry) {
+	     level = E_WARN;
+	  }
+	  while ((pid = xio_fork(false, level)) < 0) {
+	     if (xfd->forever || --xfd->retry) {
+		Nanosleep(&xfd->intervall, NULL); continue;
+	     }
+	     return STAT_RETRYLATER;
+	  }
 
-	 if (pid == 0) {	/* child process */
-	    xfd->forever = false;  xfd->retry = 0;
-	    break;
-	 }
+	  if (pid == 0) {	/* child process */
+	     xfd->forever = false;  xfd->retry = 0;
+	     break;
+	  }
 
-	 /* parent process */
-	 Notice1("forked off child process "F_pid, pid);
-	 Close(xfd->fd1);
-	 if (xfd->fdtype == FDTYPE_DOUBLE)
-	    Close(xfd->fd2);
-	 sycSSL_free(xfd->para.openssl.ssl);
-	 xfd->para.openssl.ssl = NULL;
-	 /* with and without retry */
-	 Nanosleep(&xfd->intervall, NULL);
-	 dropopts(opts, PH_ALL); opts = copyopts(opts0, GROUP_ALL);
-	 continue;	/* with next socket() bind() connect() */
-      }
-#endif /* WITH_RETRY */
-      break;
-   } while (true);	/* drop out on success */
+	  /* parent process */
+	  Notice1("forked off child process "F_pid, pid);
+	  Close(xfd->rfd);
+	  Close(xfd->wfd);
+	  sycSSL_free(xfd->para.openssl.ssl);
+	  xfd->para.openssl.ssl = NULL;
+	  /* with and without retry */
+	  Nanosleep(&xfd->intervall, NULL);
+	  dropopts(opts, PH_ALL); opts = copyopts(opts0, GROUP_ALL);
+	  continue;	/* with next socket() bind() connect() */
+       }
+ #endif /* WITH_RETRY */
+       break;
+    } while (true);	/* drop out on success */
 
-   Notice1("SSL connection using %s", SSL_get_cipher(xfd->para.openssl.ssl));
+    Notice1("SSL connection using %s", SSL_get_cipher(xfd->para.openssl.ssl));
 
-   /* fill in the fd structure */
-   return STAT_OK;
-}
+    /* fill in the fd structure */
+    return STAT_OK;
+ }
 
 
-/* this function is typically called within the OpenSSL client fork/retry loop.
-   xfd must be of type DATA_OPENSSL, and its fd must be set with a valid file
-   descriptor. this function then performs all SSL related step to make a valid
-   SSL connection from an FD and a CTX. */
-int _xioopen_openssl_connect(struct single *xfd,
+ /* this function is typically called within the OpenSSL client fork/retry loop.
+    xfd must be of type DATA_OPENSSL, and its fd must be set with a valid file
+    descriptor. this function then performs all SSL related step to make a valid
+    SSL connection from an FD and a CTX. */
+ int _xioopen_openssl_connect(struct single *xfd,
 			     bool opt_ver,
 			     SSL_CTX *ctx,
 			     int level) {
@@ -542,7 +542,7 @@ static int
       }
 
    } else if (argc == 1) {
-      if (xfd->fd1 < 0) {
+      if (xfd->rfd < 0) {
 	 Error("openssl-listen without port must be an embedded address");
 	 return STAT_NORETRY;
       }
@@ -590,7 +590,6 @@ static int
 				  E_ERROR
 #endif /* WITH_RETRY */
 				  );
-      }
 	 /*! not sure if we should try again on retry/forever */
       switch (result) {
       case STAT_OK: break;
@@ -610,6 +609,8 @@ static int
 #endif /* WITH_RETRY */
       default:
 	 return result;
+      }
+      xfd->wfd = xfd->rfd;
       }
       result =
 	 _xioopen_openssl_listen(xfd, opt_ver, xfd->para.openssl.ctx, level);
@@ -1088,33 +1089,37 @@ static int xioSSL_set_fd(struct single *xfd, int level) {
    unsigned long err;
 
    /* assign a network connection to the SSL object */
-  if (xfd->fd2 < 0) {
-   if (sycSSL_set_fd(xfd->para.openssl.ssl, xfd->fd1) <= 0) {
+  if (xfd->rfd == xfd->wfd) {
+   if (sycSSL_set_fd(xfd->para.openssl.ssl, xfd->rfd) <= 0) {
       Msg(level, "SSL_set_fd() failed");
       while (err = ERR_get_error()) {
 	 Msg2(level, "SSL_set_fd(, %d): %s",
-	      xfd->fd2, ERR_error_string(err, NULL));
+	      xfd->wfd, ERR_error_string(err, NULL));
       }
       return STAT_RETRYLATER;
    }
   } else {
-      if (sycSSL_set_rfd(xfd->para.openssl.ssl, xfd->fd1) <= 0) {
-	 Msg(level, "SSL_set_rfd() failed");
-	 while (err = ERR_get_error()) {
-	    Msg2(level, "SSL_set_rfd(, %d): %s",
-		 xfd->fd1, ERR_error_string(err, NULL));
+      if (xfd->rfd >= 0) {
+	 if (sycSSL_set_rfd(xfd->para.openssl.ssl, xfd->rfd) <= 0) {
+	    Msg(level, "SSL_set_rfd() failed");
+	    while (err = ERR_get_error()) {
+	       Msg2(level, "SSL_set_rfd(, %d): %s",
+		    xfd->rfd, ERR_error_string(err, NULL));
+	    }
+	    return STAT_RETRYLATER;
 	 }
-	 return STAT_RETRYLATER;
       }
-      if (sycSSL_set_wfd(xfd->para.openssl.ssl, xfd->fd2) <= 0) {
-	 Msg(level, "SSL_set_wfd() failed");
-	 while (err = ERR_get_error()) {
-	    Msg2(level, "SSL_set_wfd(, %d): %s",
-		 xfd->fd2, ERR_error_string(err, NULL));
+      if (xfd->wfd >= 0) {
+	 if (sycSSL_set_wfd(xfd->para.openssl.ssl, xfd->wfd) <= 0) {
+	    Msg(level, "SSL_set_wfd() failed");
+	    while (err = ERR_get_error()) {
+	       Msg2(level, "SSL_set_wfd(, %d): %s",
+		    xfd->wfd, ERR_error_string(err, NULL));
+	    }
+	    return STAT_RETRYLATER;
 	 }
-	 return STAT_RETRYLATER;
       }
-   }      
+   }  
    return STAT_OK;
 }
 

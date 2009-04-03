@@ -158,7 +158,7 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 #if HAVE_STRUCT_MSGHDR_MSGCONTROLLEN
       msgh.msg_controllen = sizeof(ctrlbuff);
 #endif
-      if (xiogetpacketsrc(pipe->fd1, &msgh) < 0) {
+      if (xiogetpacketsrc(pipe->rfd, &msgh) < 0) {
 	 return -1;
       }
       do {
@@ -350,7 +350,7 @@ ssize_t xioread(xiofile_t *file, void *buff, size_t bufsiz) {
 #if HAVE_STRUCT_MSGHDR_MSGCONTROLLEN
       msgh.msg_controllen = sizeof(ctrlbuff);
 #endif
-      if (xiogetpacketsrc(pipe->fd1, &msgh) < 0) {
+      if (xiogetpacketsrc(pipe->rfd, &msgh) < 0) {
 	 return -1;
       }
       xiodopacketinfo(&msgh, true, false);

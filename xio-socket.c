@@ -1,5 +1,5 @@
 /* source: xio-socket.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for socket related functions, and the
@@ -234,6 +234,7 @@ int xioopen_socket_connect(int argc, const char *argv[], struct opt *opts,
 			   int xioflags, xiofile_t *xxfd, unsigned groups,
 			   int dummy1, int dummy2, int dummy3) {
    struct single *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    const char *pfname = argv[1];
    const char *protname = argv[2];
    const char *address = argv[3];
@@ -302,6 +303,8 @@ int xioopen_socket_connect(int argc, const char *argv[], struct opt *opts,
 			opts, pf, socktype, proto, false)) != 0) {
       return result;
    }
+   if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+   if (!XIOWITHRD(rw))  xfd->rfd = -1;
    if ((result = _xio_openlate(xfd, opts)) < 0) {
       return result;
    }
@@ -382,6 +385,7 @@ static
 int xioopen_socket_sendto(int argc, const char *argv[], struct opt *opts,
 			  int xioflags, xiofile_t *xxfd, unsigned groups,
 			  int dummy1, int dummy2, int dummy3) {
+   int rw = (xioflags&XIO_ACCMODE);
    int result;
 
    if (argc != 5) {
@@ -396,15 +400,22 @@ int xioopen_socket_sendto(int argc, const char *argv[], struct opt *opts,
       return result;
    }
    _xio_openlate(&xxfd->stream, opts);
+   if (XIOWITHWR(rw))   xxfd->stream.wfd = xxfd->stream.rfd;
+   if (!XIOWITHRD(rw))  xxfd->stream.rfd = -1;
+
    return STAT_OK;
 }
 
+/*
+   returns the resulting FD in xfd->rfd, independend of xioflags
+*/
 static
 int _xioopen_socket_sendto(const char *pfname, const char *type,
 			   const char *protname, const char *address,
 			   struct opt *opts, int xioflags, xiofile_t *xxfd,
 			   unsigned groups) {
    xiosingle_t *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    char *garbage;
    union sockaddr_union us = {{0}};
    socklen_t uslen = 0;
@@ -484,9 +495,15 @@ int _xioopen_socket_sendto(const char *pfname, const char *type,
       needbind = true;
    }
 
-   return
-      _xioopen_dgram_sendto(needbind?&us:NULL, uslen,
-			  opts, xioflags, xfd, groups, pf, socktype, proto);
+   if ((result =
+	_xioopen_dgram_sendto(needbind?&us:NULL, uslen,
+			      opts, xioflags, xfd, groups, pf, socktype, proto))
+       != STAT_OK) {
+      return result;
+   }
+   if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+   if (!XIOWITHRD(rw))  xfd->rfd = -1;
+   return STAT_OK;
 }
 
 
@@ -723,6 +740,7 @@ int xioopen_socket_datagram(int argc, const char *argv[], struct opt *opts,
 /* a subroutine that is common to all socket addresses that want to connect
    to a peer address.
    might fork.
+   returns the resulting FD in xfd->rfd
    applies and consumes the following options: 
    PH_PASTSOCKET, PH_FD, PH_PREBIND, PH_BIND, PH_PASTBIND, PH_CONNECT,
    PH_CONNECTED, PH_LATE,
@@ -741,19 +759,18 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
    int _errno;
    int result;
 
-   if ((xfd->fd1 = xiosocket(opts, pf, socktype, protocol, level)) < 0) {
+   if ((xfd->rfd = xiosocket(opts, pf, socktype, protocol, level)) < 0) {
       return STAT_RETRYLATER;	    
    }
-   xfd->fdtype = FDTYPE_SINGLE;
-
+   
    applyopts_offset(xfd, opts);
-   applyopts(xfd->fd1, opts, PH_PASTSOCKET);
-   applyopts(xfd->fd1, opts, PH_FD);
+   applyopts(xfd->rfd, opts, PH_PASTSOCKET);
+   applyopts(xfd->rfd, opts, PH_FD);
 
-   applyopts_cloexec(xfd->fd1, opts);
+   applyopts_cloexec(xfd->rfd, opts);
 
-   applyopts(xfd->fd1, opts, PH_PREBIND);
-   applyopts(xfd->fd1, opts, PH_BIND);
+   applyopts(xfd->rfd, opts, PH_PREBIND);
+   applyopts(xfd->rfd, opts, PH_BIND);
 #if WITH_TCP || WITH_UDP
    if (alt) {
       union sockaddr_union sin, *sinp;
@@ -810,13 +827,13 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
       problem = false;
       do {	/* loop over lowport bind() attempts */
 	 *port = htons(i);
-	 if (Bind(xfd->fd1, (struct sockaddr *)sinp, sizeof(*sinp)) < 0) {
+	 if (Bind(xfd->rfd, (struct sockaddr *)sinp, sizeof(*sinp)) < 0) {
 	    Msg4(errno==EADDRINUSE?E_INFO:level,
-		 "bind(%d, {%s}, "F_Zd"): %s", xfd->fd1,
+		 "bind(%d, {%s}, "F_Zd"): %s", xfd->rfd,
 		 sockaddr_info(&sinp->soa, sizeof(*sinp), infobuff, sizeof(infobuff)),
 		 sizeof(*sinp), strerror(errno));
 	    if (errno != EADDRINUSE) {
-	       Close(xfd->fd1);
+	       Close(xfd->rfd);
 	       return STAT_RETRYLATER;
 	    }
 	 } else {
@@ -826,7 +843,7 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 	 if (i == N) {
 	    Msg(level, "no low port available");
 	    /*errno = EADDRINUSE; still assigned */
-	    Close(xfd->fd1);
+	    Close(xfd->rfd);
 	    return STAT_RETRYLATER;
 	 }
       } while (i != N);
@@ -834,31 +851,31 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 #endif /* WITH_TCP || WITH_UDP */
 
    if (us) {
-      if (Bind(xfd->fd1, us, uslen) < 0) {
+      if (Bind(xfd->rfd, us, uslen) < 0) {
 	 Msg4(level, "bind(%d, {%s}, "F_Zd"): %s",
-	      xfd->fd1, sockaddr_info(us, uslen, infobuff, sizeof(infobuff)),
+	      xfd->rfd, sockaddr_info(us, uslen, infobuff, sizeof(infobuff)),
 	      uslen, strerror(errno));
-	 Close(xfd->fd1);
+	 Close(xfd->rfd);
 	 return STAT_RETRYLATER;
       }
    }
 
-   applyopts(xfd->fd1, opts, PH_PASTBIND);
+   applyopts(xfd->rfd, opts, PH_PASTBIND);
 
-   applyopts(xfd->fd1, opts, PH_CONNECT);
+   applyopts(xfd->rfd, opts, PH_CONNECT);
 
    if (xfd->para.socket.connect_timeout.tv_sec  != 0 ||
        xfd->para.socket.connect_timeout.tv_usec != 0) {
-      fcntl_flags = Fcntl(xfd->fd1, F_GETFL);
-      Fcntl_l(xfd->fd1, F_SETFL, fcntl_flags|O_NONBLOCK);
+      fcntl_flags = Fcntl(xfd->rfd, F_GETFL);
+      Fcntl_l(xfd->rfd, F_SETFL, fcntl_flags|O_NONBLOCK);
    }
 
-   result = Connect(xfd->fd1, (struct sockaddr *)them, themlen);
+   result = Connect(xfd->rfd, (struct sockaddr *)them, themlen);
    _errno = errno;
    la.soa.sa_family = them->sa_family;  lalen = sizeof(la);
-   if (Getsockname(xfd->fd1, &la.soa, &lalen) < 0) {
+   if (Getsockname(xfd->rfd, &la.soa, &lalen) < 0) {
       Msg4(level-1, "getsockname(%d, %p, {%d}): %s",
-	    xfd->fd1, &la.soa, lalen, strerror(errno));
+	    xfd->rfd, &la.soa, lalen, strerror(errno));
    }
    errno = _errno;
    if (result < 0) {
@@ -870,15 +887,15 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 	    int result;
 
 	    Info4("connect(%d, %s, "F_Zd"): %s",
-		  xfd->fd1, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
+		  xfd->rfd, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
 		  themlen, strerror(errno));
 	    timeout = xfd->para.socket.connect_timeout;
-	    writefd.fd = xfd->fd1;
+	    writefd.fd = xfd->rfd;
 	    writefd.events = (POLLIN|POLLHUP|POLLERR);
 	    result = xiopoll(&writefd, 1, &timeout);
 	    if (result < 0) {
 	       Msg4(level, "xiopoll({%d,POLLIN|POLLHUP|POLLER},,{"F_tv_sec"."F_tv_usec"): %s",
-		    xfd->fd1, timeout.tv_sec, timeout.tv_usec, strerror(errno));
+		    xfd->rfd, timeout.tv_sec, timeout.tv_usec, strerror(errno));
 	       return STAT_RETRYLATER;
 	    }
 	    if (result == 0) {
@@ -890,23 +907,23 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 	    if (writefd.revents & POLLOUT) {
 #if 0
 	       unsigned char dummy[1];
-	       Read(xfd->fd1, &dummy, 1);        /* get error message */
+	       Read(xfd->rfd, &dummy, 1);        /* get error message */
 	       Msg2(level, "connecting to %s: %s",
 		    sockaddr_info(them, infobuff, sizeof(infobuff)),
 		    strerror(errno));
 #else
-	       Connect(xfd->fd1, them, themlen); /* get error message */
+	       Connect(xfd->rfd, them, themlen); /* get error message */
 	       Msg4(level, "connect(%d, %s, "F_Zd"): %s",
-		    xfd->fd1, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
+		    xfd->rfd, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
 		    themlen, strerror(errno));
 #endif
 	       return STAT_RETRYLATER;
 	    }
 	    /* otherwise OK */
-	    Fcntl_l(xfd->fd1, F_SETFL, fcntl_flags);
+	    Fcntl_l(xfd->rfd, F_SETFL, fcntl_flags);
 	 } else {
 	    Warn4("connect(%d, %s, "F_Zd"): %s",
-		  xfd->fd1, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
+		  xfd->rfd, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
 		  themlen, strerror(errno));
 	 }
       } else if (pf == PF_UNIX && errno == EPROTOTYPE) {
@@ -914,7 +931,7 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 	    the only way to distinguish stream and datagram sockets */
 	 int _errno = errno;
 	 Info4("connect(%d, %s, "F_Zd"): %s",
-	       xfd->fd1, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
+	       xfd->rfd, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
 	       themlen, strerror(errno));
 #if 0
 	 Info("assuming datagram socket");
@@ -923,21 +940,21 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 	 memcpy(&xfd->peersa.soa, them, xfd->salen);
 #endif
 	 /*!!! and remove bind socket */
-	 Close(xfd->fd1);  xfd->fd1 = -1;
+	 Close(xfd->rfd);  xfd->rfd = -1;
 	 errno = _errno;
 	 return -1;
       } else {
 	 Msg4(level, "connect(%d, %s, "F_Zd"): %s",
-	      xfd->fd1, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
+	      xfd->rfd, sockaddr_info(them, themlen, infobuff, sizeof(infobuff)),
 	      themlen, strerror(errno));
-	 Close(xfd->fd1);
+	 Close(xfd->rfd);
 	 return STAT_RETRYLATER;
       }
    }
 
-   applyopts_fchown(xfd->fd1, opts);	/* OPT_USER, OPT_GROUP */
-   applyopts(xfd->fd1, opts, PH_CONNECTED);
-   applyopts(xfd->fd1, opts, PH_LATE);
+   applyopts_fchown(xfd->rfd, opts);	/* OPT_USER, OPT_GROUP */
+   applyopts(xfd->rfd, opts, PH_CONNECTED);
+   applyopts(xfd->rfd, opts, PH_LATE);
 
    Notice1("successfully connected from local address %s",
 	   sockaddr_info(&la.soa, themlen, infobuff, sizeof(infobuff)));
@@ -954,6 +971,7 @@ int _xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
    PH_CONNECTED, PH_LATE,
    OFUNC_OFFSET, 
    OPT_FORK, OPT_SO_TYPE, OPT_SO_PROTOTYPE, OPT_USER, OPT_GROUP, OPT_CLOEXEC
+   returns the resulting FD in xfd->rfd, independend of xioflags
    returns 0 on success.
 */
 int xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
@@ -1030,7 +1048,7 @@ int xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
 
 	 /* parent process */
 	 Notice1("forked off child process "F_pid, pid);
-	 Close(xfd->fd1);
+	 Close(xfd->rfd);
 	 /* with and without retry */
 	 Nanosleep(&xfd->intervall, NULL);
 	 dropopts(opts, PH_ALL); opts = copyopts(opts0, GROUP_ALL);
@@ -1055,6 +1073,7 @@ int xioopen_connect(struct single *xfd, struct sockaddr *us, size_t uslen,
    PH_PASTSOCKET, PH_FD, PH_PREBIND, PH_BIND, PH_PASTBIND, PH_CONNECTED, PH_LATE
    OFUNC_OFFSET
    OPT_SO_TYPE, OPT_SO_PROTOTYPE, OPT_USER, OPT_GROUP, OPT_CLOEXEC
+   returns the resulting FD in xfd->rfd, independend of xioflags
  */
 int _xioopen_dgram_sendto(/* them is already in xfd->peersa */
 			union sockaddr_union *us, socklen_t uslen,
@@ -1065,42 +1084,42 @@ int _xioopen_dgram_sendto(/* them is already in xfd->peersa */
    union sockaddr_union la; socklen_t lalen = sizeof(la);
    char infobuff[256];
 
-   if ((xfd->fd1 = xiosocket(opts, pf, socktype, ipproto, level)) < 0) {
+   if ((xfd->rfd = xiosocket(opts, pf, socktype, ipproto, level)) < 0) {
       return STAT_RETRYLATER;	    
    }
 
    applyopts_offset(xfd, opts);
    applyopts_single(xfd, opts, PH_PASTSOCKET);
-   applyopts(xfd->fd1, opts, PH_PASTSOCKET);
-   applyopts(xfd->fd1, opts, PH_FD);
+   applyopts(xfd->rfd, opts, PH_PASTSOCKET);
+   applyopts(xfd->rfd, opts, PH_FD);
 
-   applyopts_cloexec(xfd->fd1, opts);
+   applyopts_cloexec(xfd->rfd, opts);
 
-   applyopts(xfd->fd1, opts, PH_PREBIND);
-   applyopts(xfd->fd1, opts, PH_BIND);
+   applyopts(xfd->rfd, opts, PH_PREBIND);
+   applyopts(xfd->rfd, opts, PH_BIND);
 
    if (us) {
-      if (Bind(xfd->fd1, (struct sockaddr *)us, uslen) < 0) {
+      if (Bind(xfd->rfd, (struct sockaddr *)us, uslen) < 0) {
 	 Msg4(level, "bind(%d, {%s}, "F_Zd"): %s",
-	      xfd->fd1, sockaddr_info((struct sockaddr *)us, uslen, infobuff, sizeof(infobuff)),
+	      xfd->rfd, sockaddr_info((struct sockaddr *)us, uslen, infobuff, sizeof(infobuff)),
 	      uslen, strerror(errno));
-	 Close(xfd->fd1);
+	 Close(xfd->rfd);
 	 return STAT_RETRYLATER;
       }
    }
 
-   applyopts(xfd->fd1, opts, PH_PASTBIND);
+   applyopts(xfd->rfd, opts, PH_PASTBIND);
 
-   /*applyopts(xfd->fd1, opts, PH_CONNECT);*/
+   /*applyopts(xfd->rfd, opts, PH_CONNECT);*/
 
-   if (Getsockname(xfd->fd1, &la.soa, &lalen) < 0) {
+   if (Getsockname(xfd->rfd, &la.soa, &lalen) < 0) {
       Warn4("getsockname(%d, %p, {%d}): %s",
-	    xfd->fd1, &la.soa, lalen, strerror(errno));
+	    xfd->rfd, &la.soa, lalen, strerror(errno));
    }
 
-   applyopts_fchown(xfd->fd1, opts);
-   applyopts(xfd->fd1, opts, PH_CONNECTED);
-   applyopts(xfd->fd1, opts, PH_LATE);
+   applyopts_fchown(xfd->rfd, opts);
+   applyopts(xfd->rfd, opts, PH_CONNECTED);
+   applyopts(xfd->rfd, opts, PH_LATE);
 
    /* xfd->dtype = DATA_RECVFROM; *//* no, the caller must set this (ev _SKIPIP) */
    Notice1("successfully prepared local socket %s",
@@ -1210,6 +1229,8 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
 			  struct sockaddr *us, socklen_t uslen,
 			  struct opt *opts,
 			  int pf, int socktype, int proto, int level) {
+   int rw = (xioflags&XIO_ACCMODE);
+   int s;
    char *rangename;
    socklen_t salen;
    bool dofork = false;
@@ -1258,22 +1279,24 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
    }
 #endif /* 1 */
 
-   if ((xfd->fd1 = xiosocket(opts, pf, socktype, proto, level)) < 0) {
+   if ((s = xiosocket(opts, pf, socktype, proto, level)) < 0) {
       return STAT_RETRYLATER;
    }
+   if (XIOWITHRD(rw))  xfd->rfd = s;
+   if (XIOWITHWR(rw))  xfd->wfd = s;
 
    applyopts_single(xfd, opts, PH_PASTSOCKET);
-   applyopts(xfd->fd1, opts, PH_PASTSOCKET);
+   applyopts(xfd->rfd, opts, PH_PASTSOCKET);
 
-   applyopts_cloexec(xfd->fd1, opts);
+   applyopts_cloexec(xfd->rfd, opts);
 
-   applyopts(xfd->fd1, opts, PH_PREBIND);
-   applyopts(xfd->fd1, opts, PH_BIND);
-   if ((us != NULL) && Bind(xfd->fd1, (struct sockaddr *)us, uslen) < 0) {
-      Msg4(level, "bind(%d, {%s}, "F_Zd"): %s", xfd->fd1,
+   applyopts(xfd->rfd, opts, PH_PREBIND);
+   applyopts(xfd->rfd, opts, PH_BIND);
+   if ((us != NULL) && Bind(xfd->rfd, (struct sockaddr *)us, uslen) < 0) {
+      Msg4(level, "bind(%d, {%s}, "F_Zd"): %s", xfd->rfd,
 	   sockaddr_info(us, uslen, infobuff, sizeof(infobuff)), uslen,
 	   strerror(errno));
-      Close(xfd->fd1);
+      Close(xfd->rfd);
       return STAT_RETRYLATER;
    }
 
@@ -1283,7 +1306,7 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
    }
 #endif
 
-   applyopts(xfd->fd1, opts, PH_PASTBIND);
+   applyopts(xfd->rfd, opts, PH_PASTBIND);
 #if WITH_UNIX
    if (pf == AF_UNIX && us != NULL) {
       /*applyopts_early(((struct sockaddr_un *)us)->sun_path, opts);*/
@@ -1368,7 +1391,7 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
       if (drop) {
 	 char *dummy[2];
 
-	 Recv(xfd->fd1, dummy, sizeof(dummy), 0);
+	 Recv(xfd->rfd, dummy, sizeof(dummy), 0);
 	 drop = true;
       }
 
@@ -1381,7 +1404,7 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
 	 } else {
 	    Notice1("receiving IP protocol %u", proto);
 	 }
-	 readfd.fd = xfd->fd1;
+	 readfd.fd = xfd->rfd;
 	 readfd.events = POLLIN;
 	 if (xiopoll(&readfd, 1, NULL) > 0) {
 	    break;
@@ -1391,8 +1414,8 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
 	    continue;
 	 }
 
-	 Msg2(level, "xiopoll({%d,,},,-1): %s", xfd->fd1, strerror(errno));
-	 Close(xfd->fd1);
+	 Msg2(level, "xiopoll({%d,,},,-1): %s", xfd->rfd, strerror(errno));
+	 Close(xfd->rfd);
 	 return STAT_RETRYLATER;
       } while (true);
 
@@ -1404,7 +1427,7 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
 #if HAVE_STRUCT_MSGHDR_MSGCONTROLLEN
       msgh.msg_controllen = sizeof(ctrlbuff);
 #endif
-      if (xiogetpacketsrc(xfd->fd1, &msgh) < 0) {
+      if (xiogetpacketsrc(xfd->rfd, &msgh) < 0) {
 	 return STAT_RETRYLATER;
       }
       palen = msgh.msg_namelen;
@@ -1418,7 +1441,7 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
       if (xiocheckpeer(xfd, pa, la) < 0) {
 	 /* drop packet */
 	 char buff[512];
-	 Recv(xfd->fd1, buff, sizeof(buff), 0);
+	 Recv(xfd->rfd, buff, sizeof(buff), 0);
 	 continue;
       }
       Info1("permitting packet from %s",
@@ -1429,9 +1452,9 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
       /*xiosetsockaddrenv("SOCK", la, lalen, proto);*/
       xiosetsockaddrenv("PEER", pa, palen, proto);
 
-      applyopts(xfd->fd1, opts, PH_FD);
+      applyopts(xfd->rfd, opts, PH_FD);
 
-      applyopts(xfd->fd1, opts, PH_CONNECTED);
+      applyopts(xfd->rfd, opts, PH_CONNECTED);
 
       xfd->peersa = *(union sockaddr_union *)pa;
       xfd->salen = palen;
@@ -1450,7 +1473,7 @@ int _xioopen_dgram_recvfrom(struct single *xfd, int xioflags,
 	 Sigprocmask(SIG_BLOCK, &mask_sigchldusr1, NULL);
 
 	 if ((pid = xio_fork(false, level)) < 0) {
-	    Close(xfd->fd1);
+	    Close(xfd->rfd);
 	    Sigprocmask(SIG_UNBLOCK, &mask_sigchldusr1, NULL);
 	    return STAT_RETRYLATER;
 	 }
@@ -1505,27 +1528,31 @@ int _xioopen_dgram_recv(struct single *xfd, int xioflags,
 			struct sockaddr *us, socklen_t uslen,
 			struct opt *opts, int pf, int socktype, int proto,
 			int level) {
+   int rw = (xioflags&XIO_ACCMODE);
+   int s;
    char *rangename;
    char infobuff[256];
 
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return STAT_NORETRY;
 
-   if ((xfd->fd1 = xiosocket(opts, pf, socktype, proto, level)) < 0) {
+   if ((s = xiosocket(opts, pf, socktype, proto, level)) < 0) {
       return STAT_RETRYLATER;
    }
+   if (XIOWITHRD(rw))  xfd->rfd = s;
+   if (XIOWITHWR(rw))  xfd->wfd = s;
 
    applyopts_single(xfd, opts, PH_PASTSOCKET);
-   applyopts(xfd->fd1, opts, PH_PASTSOCKET);
+   applyopts(xfd->rfd, opts, PH_PASTSOCKET);
 
-   applyopts_cloexec(xfd->fd1, opts);
+   applyopts_cloexec(xfd->rfd, opts);
 
-   applyopts(xfd->fd1, opts, PH_PREBIND);
-   applyopts(xfd->fd1, opts, PH_BIND);
-   if ((us != NULL) && Bind(xfd->fd1, (struct sockaddr *)us, uslen) < 0) {
-      Msg4(level, "bind(%d, {%s}, "F_Zd"): %s", xfd->fd1,
+   applyopts(xfd->rfd, opts, PH_PREBIND);
+   applyopts(xfd->rfd, opts, PH_BIND);
+   if ((us != NULL) && Bind(xfd->rfd, (struct sockaddr *)us, uslen) < 0) {
+      Msg4(level, "bind(%d, {%s}, "F_Zd"): %s", xfd->rfd,
 	   sockaddr_info(us, uslen, infobuff, sizeof(infobuff)), uslen,
 	   strerror(errno));
-      Close(xfd->fd1);
+      Close(xfd->rfd);
       return STAT_RETRYLATER;
    }
 
@@ -1535,7 +1562,7 @@ int _xioopen_dgram_recv(struct single *xfd, int xioflags,
    }
 #endif
 
-   applyopts(xfd->fd1, opts, PH_PASTBIND);
+   applyopts(xfd->rfd, opts, PH_PASTBIND);
 #if WITH_UNIX
    if (pf == AF_UNIX && us != NULL) {
       /*applyopts_early(((struct sockaddr_un *)us)->sun_path, opts);*/
@@ -2165,11 +2192,6 @@ xiosocketpair(struct opt *opts, int pf, int socktype, int proto, int sv[2]) {
 
    retropt_int(opts, OPT_SO_TYPE, &socktype);
    retropt_int(opts, OPT_SO_PROTOTYPE, &proto);
-   result = Socketpair(pf, socktype, proto, sv);
-   if (result < 0) {
-      Error5("socketpair(%d, %d, %d, %p): %s",
-	     pf, socktype, proto, sv, strerror(errno));
-      return -1;
-   }
+   result = xiosocketpair2(pf, socktype, proto, sv);
    return result;
 }

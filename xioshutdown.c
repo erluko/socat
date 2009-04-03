@@ -52,6 +52,40 @@ int xioshutdown(xiofile_t *sock, int how) {
 
    /* here handle special shutdown functions */
    switch (sock->stream.howtoshut) {
+#if WITH_PTY
+   case XIOSHUT_PTYEOF:
+      {
+	 struct termios termarg;
+	 int result;
+	 Debug1("tcdrain(%d)", sock->stream.wfd);
+	 result = tcdrain(sock->stream.wfd);
+	 Debug1("tcdrain() -> %d", result);
+	 if (Tcgetattr(sock->stream.wfd, &termarg) < 0) {
+	    Error3("tcgetattr(%d, %p): %s",
+		   sock->stream.wfd, &termarg, strerror(errno));
+	 }
+#if 0
+	 /* these settings might apply to data still in the buff (despite the
+	    TCSADRAIN */
+	 termarg.c_iflag |= (IGNBRK | BRKINT | PARMRK | ISTRIP
+                           | INLCR | IGNCR | ICRNL | IXON);
+	 termarg.c_oflag |= OPOST;
+	 termarg.c_lflag |= (/*ECHO | ECHONL |*/ ICANON | ISIG | IEXTEN);
+	 //termarg.c_cflag |= (PARENB);
+#else
+	 termarg.c_lflag |= ICANON;
+#endif
+	 if (Tcsetattr(sock->stream.wfd, TCSADRAIN, &termarg) < 0) {
+	    Error3("tcsetattr(%d, TCSADRAIN, %p): %s",
+		   sock->stream.wfd, &termarg, strerror(errno));
+	 }
+	 if (Write(sock->stream.wfd, &termarg.c_cc[VEOF], 1) < 1) {
+	    Warn3("write(%d, 0%o, 1): %s",
+		  sock->stream.wfd, termarg.c_cc[VEOF], strerror(errno));
+	 }
+      }
+      return 0;
+#endif /* WITH_PTY */
 #if WITH_OPENSSL
    case XIOSHUT_OPENSSL:
       sycSSL_shutdown(sock->stream.para.openssl.ssl);
@@ -120,9 +154,9 @@ int xioshutdown(xiofile_t *sock, int how) {
 
       case XIOREAD_STREAM:
       case XIODATA_2PIPE:
-	 if (Close(sock->stream.fd1) < 0) {
+	 if (Close(sock->stream.rfd) < 0) {
 	    Info2("close(%d): %s",
-		  sock->stream.fd1, strerror(errno));
+		  sock->stream.rfd, strerror(errno));
 	 }
 	 break;
       }
@@ -132,11 +166,7 @@ int xioshutdown(xiofile_t *sock, int how) {
       /* shutdown write channel */
       int fd;
 
-      if (sock->stream.fdtype == FDTYPE_DOUBLE) {
-	 fd = sock->stream.fd2;
-      } else {
-	 fd = sock->stream.fd1;
-      }
+      fd = sock->stream.wfd;
 
       switch (sock->stream.howtoshut & XIOSHUTWR_MASK) {
 
@@ -183,6 +213,7 @@ int xioshutdown(xiofile_t *sock, int how) {
 	 Error1("xioshutdown(): unhandled howtoshut=0x%x during SHUT_WR",
 		sock->stream.howtoshut&XIOSHUTWR_MASK);
       }
+      sock->stream.wfd = -1;
    }
 
    return result;

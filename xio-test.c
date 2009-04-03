@@ -1,5 +1,5 @@
 /* source: xio-test.c */
-/* Copyright Gerhard Rieger 2007 */
+/* Copyright Gerhard Rieger 2007-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for an intermediate test address that appends
@@ -27,9 +27,9 @@ static int xioopen_testrev(int argc, const char *argv[], struct opt *opts,
 				  unsigned groups, int dummy1, int dummy2,
 				  int dummy3);
 
-static const struct xioaddr_inter_desc xiointer_test0ro = { XIOADDR_PROT, "test", 0, XIOBIT_RDONLY, 0/*groups*/, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_test, 0, 0, 0, XIOBIT_WRONLY HELP("") };
-static const struct xioaddr_inter_desc xiointer_test0wo = { XIOADDR_PROT, "test", 0, XIOBIT_WRONLY, 0/*groups*/, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_test, 0, 0, 0, XIOBIT_RDONLY HELP("") };
-static const struct xioaddr_inter_desc xiointer_test0rw = { XIOADDR_PROT, "test", 0, XIOBIT_RDWR,   0/*groups*/, XIOSHUT_CLOSE, XIOCLOSE_NONE, xioopen_test, 0, 0, 0, XIOBIT_RDWR   HELP("") };
+static const struct xioaddr_inter_desc xiointer_test0ro = { XIOADDR_PROT, "test", 0, XIOBIT_RDONLY, 0/*groups*/, XIOSHUT_UNSPEC, XIOCLOSE_UNSPEC, xioopen_test, 0, 0, 0, XIOBIT_WRONLY HELP("") };
+static const struct xioaddr_inter_desc xiointer_test0wo = { XIOADDR_PROT, "test", 0, XIOBIT_WRONLY, 0/*groups*/, XIOSHUT_UNSPEC, XIOCLOSE_UNSPEC, xioopen_test, 0, 0, 0, XIOBIT_RDONLY HELP("") };
+static const struct xioaddr_inter_desc xiointer_test0rw = { XIOADDR_PROT, "test", 0, XIOBIT_RDWR,   0/*groups*/, XIOSHUT_UNSPEC, XIOCLOSE_UNSPEC, xioopen_test, 0, 0, 0, XIOBIT_RDWR   HELP("") };
 
 const union xioaddr_desc *xioaddrs_test[] = {
    (union xioaddr_desc *)&xiointer_test0ro,
@@ -59,14 +59,14 @@ static int xioopen_test(int argc, const char *argv[], struct opt *opts,
    int result;
 
    assert(argc == 1);
-   assert(!(xfd->fd1 < 0 && xfd->fd2 < 0));
+   assert(!(xfd->rfd < 0 && xfd->wfd < 0));	/*!!!*/
 
    applyopts(-1, opts, PH_INIT);
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
 
    Notice("opening TEST");
    xfd->dtype = XIODATA_TEST;
-   applyopts(xfd->fd1, opts, PH_ALL);
+   applyopts(xfd->rfd, opts, PH_ALL);
    if ((result = _xio_openlate(xfd, opts)) < 0)
       return result;
    return 0;
@@ -80,14 +80,14 @@ static int xioopen_testuni(int argc, const char *argv[], struct opt *opts,
    int result;
 
    assert(argc == 1);
-   assert(!(xfd->fd1 < 0 && xfd->fd2 < 0));
+   assert(!(xfd->rfd < 0 && xfd->wfd < 0));	/*!!!*/
 
    applyopts(-1, opts, PH_INIT);
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
 
    Notice("opening TESTUNI");
    xfd->dtype = XIODATA_TESTUNI;
-   applyopts(xfd->fd1, opts, PH_ALL);
+   applyopts(xfd->rfd, opts, PH_ALL);
    if ((result = _xio_openlate(xfd, opts)) < 0)
       return result;
    return 0;
@@ -101,21 +101,21 @@ static int xioopen_testrev(int argc, const char *argv[], struct opt *opts,
    int result;
 
    assert(argc == 1);
-   assert(!(xfd->fd1 < 0 && xfd->fd2 < 0));
+   assert(!(xfd->rfd < 0 && xfd->wfd < 0));	/*!!!*/
 
    applyopts(-1, opts, PH_INIT);
    if (applyopts_single(xfd, opts, PH_INIT) < 0)  return -1;
 
    Notice("opening TESTREV");
    xfd->dtype = XIODATA_TESTREV;
-   applyopts(xfd->fd1, opts, PH_ALL);
+   applyopts(xfd->rfd, opts, PH_ALL);
    if ((result = _xio_openlate(xfd, opts)) < 0)
       return result;
    return 0;
 }
 
 size_t xioread_test(struct single *sfd, void *buff, size_t bufsiz) {
-   int fd = sfd->fd1;
+   int fd = sfd->rfd;
    ssize_t bytes;
    int _errno;
 
@@ -143,7 +143,7 @@ size_t xioread_test(struct single *sfd, void *buff, size_t bufsiz) {
 }
 
 size_t xiowrite_test(struct single *sfd, const void *buff, size_t bytes) {
-   int fd = ((sfd->fdtype==FDTYPE_DOUBLE)?sfd->fd2:sfd->fd1);
+   int fd = sfd->wfd;
    void *buff1;
    ssize_t writt;
    int _errno;
@@ -184,7 +184,7 @@ size_t xiowrite_test(struct single *sfd, const void *buff, size_t bytes) {
 }
 
 size_t xiowrite_testrev(struct single *sfd, const void *buff, size_t bytes) {
-   int fd = ((sfd->fdtype==FDTYPE_DOUBLE)?sfd->fd2:sfd->fd1);
+   int fd = sfd->wfd;
    void *buff1;
    ssize_t writt;
    int _errno;

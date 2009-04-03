@@ -1,5 +1,5 @@
 /* source: xio-tcpwrap.c */
-/* Copyright Gerhard Rieger 2006-2008 */
+/* Copyright Gerhard Rieger 2006-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for tcpwrapper handling stuff */
@@ -132,11 +132,11 @@ int xio_tcpwrap_check(xiosingle_t *xfd, union sockaddr_union *us,
       Warn1("inet_ntop(): %s", strerror(errno));
    }
    Debug7("request_init(%p, RQ_FILE, %d, RQ_CLIENT_SIN, {%s:%u}, RQ_SERVER_SIN, {%s:%u}, RQ_DAEMON, \"%s\", 0",
-	   &ri, xfd->fd1, clientaddr,
+	   &ri, xfd->rfd, clientaddr,
 	   ntohs(((struct sockaddr_in *)them)->sin_port),
 	   serveraddr, ntohs(us->ip4.sin_port),
 	   xfd->para.socket.ip.libwrapname?xfd->para.socket.ip.libwrapname:(char *)diag_get_string('p'));
-   request_init(&ri, RQ_FILE, xfd->fd1,
+   request_init(&ri, RQ_FILE, xfd->rfd,
 		RQ_CLIENT_SIN, them,
 		RQ_SERVER_SIN, &us->soa,
 		RQ_DAEMON, xfd->para.socket.ip.libwrapname?xfd->para.socket.ip.libwrapname:(char *)diag_get_string('p'), 0);

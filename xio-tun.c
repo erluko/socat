@@ -1,5 +1,5 @@
 /* source: xio-tun.c */
-/* Copyright Gerhard Rieger 2007-2008 */
+/* Copyright Gerhard Rieger 2007-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of tun/tap type */
@@ -105,7 +105,8 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
    Notice("creating tunnel network interface");
    if ((result = _xioopen_open(tundevice, rw, opts)) < 0)
       return result;
-   xfd->stream.fd1 = result;
+   if (XIOWITHRD(rw))  xfd->stream.rfd = result;
+   if (XIOWITHWR(rw))  xfd->stream.wfd = result;
 
    /* prepare configuration of the new network interface */
    memset(&ifr, 0,sizeof(ifr));
@@ -136,10 +137,10 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
       }
    }
 
-   if (Ioctl(xfd->stream.fd1, TUNSETIFF, &ifr) < 0) {
+   if (Ioctl(xfd->stream.rfd, TUNSETIFF, &ifr) < 0) {
       Error3("ioctl(%d, TUNSETIFF, {\"%s\"}: %s",
-	     xfd->stream.fd1, ifr.ifr_name, strerror(errno));
-      Close(xfd->stream.fd1);
+	     xfd->stream.rfd, ifr.ifr_name, strerror(errno));
+      Close(xfd->stream.rfd);
    }
 
    /*===================== setting interface properties =====================*/
@@ -147,7 +148,7 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
    /* we seem to need a socket for manipulating the interface */
    if ((sockfd = Socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
       Error1("socket(PF_INET, SOCK_DGRAM, 0): %s", strerror(errno));
-      sockfd = xfd->stream.fd1;	/* desparate fallback attempt */
+      sockfd = xfd->stream.rfd;	/* desparate fallback attempt */
    }
 
    /*--------------------- setting interface address and netmask ------------*/
@@ -201,10 +202,10 @@ static int xioopen_tun(int argc, const char *argv[], struct opt *opts, int xiofl
 #if LATER
    applyopts_named(tundevice, opts, PH_FD);
 #endif
-   applyopts(xfd->stream.fd1, opts, PH_FD);
-   applyopts_cloexec(xfd->stream.fd1, opts);
+   applyopts(xfd->stream.rfd, opts, PH_FD);
+   applyopts_cloexec(xfd->stream.rfd, opts);
 
-   applyopts_fchown(xfd->stream.fd1, opts);
+   applyopts_fchown(xfd->stream.rfd, opts);
 
    if ((result = _xio_openlate(&xfd->stream, opts)) < 0)
       return result;

@@ -1,5 +1,5 @@
 /* source: xio-socks.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of socks4 type */
@@ -60,6 +60,7 @@ static int xioopen_socks4_connect(int argc, const char *argv[], struct opt *opts
 				  int dummy3) {
    /* we expect the form: host:host:port */
    struct single *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    struct opt *opts0 = NULL;
    const char *sockdname; char *sockdport;
    const char *targetname, *targetport;
@@ -86,7 +87,7 @@ static int xioopen_socks4_connect(int argc, const char *argv[], struct opt *opts
    }
 
    if (argc == 3) {
-      if (xfd->fd1 < 0) {
+      if (xfd->rfd < 0) {
 	 Error("xioopen_socks4_connect(): socksservername missing");
 	 return STAT_NORETRY;
       }
@@ -94,7 +95,7 @@ static int xioopen_socks4_connect(int argc, const char *argv[], struct opt *opts
       targetname = argv[1];
       targetport = argv[2];
    } else /* if (argc == 4) */ {
-      if (xfd->fd1 >= 0) {
+      if (xfd->rfd >= 0) {
 	 Error("xioopen_socks4_connect(): socksservername not allowed here");
 	 return STAT_NORETRY;
       }
@@ -112,7 +113,7 @@ static int xioopen_socks4_connect(int argc, const char *argv[], struct opt *opts
 
    result = _xioopen_socks4_prepare(targetport, opts, &sockdport, sockhead, &buflen);
    if (result != STAT_OK)  return result;
-  if (xfd->fd2 < 0) {
+  if (xfd->wfd < 0) {
    result =
       _xioopen_ipapp_prepare(opts, &opts0, sockdname, sockdport,
 			     &pf, ipproto,
@@ -159,7 +160,7 @@ static int xioopen_socks4_connect(int argc, const char *argv[], struct opt *opts
 	 return result;
       }
 
-     if (xfd->fd2 < 0) {
+     if (xfd->wfd < 0) {
       /* this cannot fork because we retrieved fork option above */
       result =
 	 _xioopen_connect (xfd,
@@ -179,14 +180,14 @@ static int xioopen_socks4_connect(int argc, const char *argv[], struct opt *opts
       default:
 	 return result;
       }
-      xfd->fdtype = FDTYPE_SINGLE;
+      if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+      if (!XIOWITHRD(rw))  xfd->rfd = -1;
      } else {
 	xfd->dtype = XIODATA_STREAM;
-	xfd->fdtype = FDTYPE_DOUBLE;
      }
 
       /*!*/
-      applyopts(xfd->fd1, opts, PH_ALL);
+      applyopts(xfd->rfd, opts, PH_ALL);
 
       if ((result = _xio_openlate(xfd, opts)) < 0)
 	 return result;
@@ -233,8 +234,8 @@ static int xioopen_socks4_connect(int argc, const char *argv[], struct opt *opts
 
 	 /* parent process */
 	 Notice1("forked off child process "F_pid, pid);
-	 Close(xfd->fd1);
-	 Close(xfd->fd2);
+	 Close(xfd->rfd);
+	 Close(xfd->wfd);
 	 Nanosleep(&xfd->intervall, NULL);
 	 dropopts(opts, PH_ALL); opts = copyopts(opts0, GROUP_ALL);
 	 continue;
@@ -348,7 +349,7 @@ int _xioopen_socks4_connect(struct single *xfd,
    struct socks4head *replyhead = (struct socks4head *)buff;
    char *destdomname = NULL;
 
-   wfd = (xfd->fdtype == FDTYPE_SINGLE ? xfd->fd1 : xfd->fd2);
+   wfd =xfd->wfd;
 
    /* send socks header (target addr+port, +auth) */
 #if WITH_MSGLEVEL <= E_INFO
@@ -384,8 +385,8 @@ int _xioopen_socks4_connect(struct single *xfd,
       if (Close(wfd) < 0) {
 	 Info2("close(%d): %s", wfd, strerror(errno));
       }
-      if (Close(xfd->fd1) < 0) {
-	 Info2("close(%d): %s", xfd->fd1, strerror(errno));
+      if (Close(xfd->rfd) < 0) {
+	 Info2("close(%d): %s", xfd->rfd, strerror(errno));
       }
       return STAT_RETRYLATER;	/* retry complete open cycle */
    }
@@ -395,14 +396,14 @@ int _xioopen_socks4_connect(struct single *xfd,
    while (bytes >= 0) {	/* loop over answer chunks until complete or error */
       /* receive socks answer */
       do {
-	 result = Read(xfd->fd1, buff+bytes, SIZEOF_STRUCT_SOCKS4-bytes);
+	 result = Read(xfd->rfd, buff+bytes, SIZEOF_STRUCT_SOCKS4-bytes);
       } while (result < 0 && errno == EINTR);
       if (result < 0) {
 	 Msg4(level, "read(%d, %p, "F_Zu"): %s",
-	      xfd->fd1, buff+bytes, SIZEOF_STRUCT_SOCKS4-bytes,
+	      xfd->rfd, buff+bytes, SIZEOF_STRUCT_SOCKS4-bytes,
 	      strerror(errno));
-	 if (Close(xfd->fd1) < 0) {
-	    Info2("close(%d): %s", xfd->fd1, strerror(errno));
+	 if (Close(xfd->rfd) < 0) {
+	    Info2("close(%d): %s", xfd->rfd, strerror(errno));
 	 }
 	 if (Close(wfd) < 0) {
 	    Info2("close(%d): %s", wfd, strerror(errno));
@@ -410,8 +411,8 @@ int _xioopen_socks4_connect(struct single *xfd,
       }
       if (result == 0) {
 	 Msg(level, "read(): EOF during read of socks reply, peer might not be a socks4 server");
-	 if (Close(xfd->fd1) < 0) {
-	    Info2("close(%d): %s", xfd->fd1, strerror(errno));
+	 if (Close(xfd->rfd) < 0) {
+	    Info2("close(%d): %s", xfd->rfd, strerror(errno));
 	 }
 	 if (Close(wfd) < 0) {
 	    Info2("close(%d): %s", wfd, strerror(errno));

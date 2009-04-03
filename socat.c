@@ -1,9 +1,9 @@
 /* source: socat.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
-/* this is the main source, including command line option parsing, general
-   control, and the data shuffler */
+/* this is the main source, including command line option parsing and general
+   control */
 
 #include "config.h"
 #include "xioconfig.h"	/* what features are enabled */
@@ -220,6 +220,21 @@ int main(int argc, const char *argv[]) {
 	 xioopts.preferred_ip = arg1[0][1];
 	 break;
 #endif /* WITH_IP4 || WITH_IP6 */
+      case 'c':
+	 switch (arg1[0][2]) {
+	 case 'S': xioparams->pipetype = XIOCOMM_SOCKETPAIRS; break;
+	 case 'P':
+	 case 'p': xioparams->pipetype = XIOCOMM_PIPES;       break;
+	 case 's': xioparams->pipetype = XIOCOMM_SOCKETPAIR;  break;
+	 case 'Y': xioparams->pipetype = XIOCOMM_PTYS;        break;
+	 case 'y': xioparams->pipetype = XIOCOMM_PTY;         break;
+	 case 't': xioparams->pipetype = XIOCOMM_TCP;         break;
+	 case '0': case '1': case '2': case '3': case '4':
+	 case '5': case '6': case '7': case '8': case '9':
+	    xioparams->pipetype = atoi(&arg1[0][2]); break;
+	 default: Error1("bad chain communication type \"%s\"", &arg1[0][2]);
+	 }
+	 break;
       case '\0':
       case '-':	/*! this is hardcoded "--" */
       case ',':

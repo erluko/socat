@@ -1,6 +1,6 @@
 #! /bin/bash
 # source: test.sh
-# Copyright Gerhard Rieger 2001-2008
+# Copyright Gerhard Rieger 2001-2009
 # Published under the GNU General Public License V.2, see file COPYING
 
 # perform lots of tests on socat
@@ -2215,70 +2215,38 @@ esac
 N=$((N+1))
 
 
-NAME=EXECSOCKET
+#EXECSOCKET SYSTEMSOCKET EXECPIPES SYSTEMPIPES EXECPTY SYSTEMPTY
+while read commtype feature addropts; do
+COMMTYPE="$(echo $commtype |tr a-z A-Z)"
+if [ -z "$COMMTYPE" ] || [[ "$COMMTYPE" == \#* ]]; then continue; fi
+for EXEC in EXEC SYSTEM
+do exec="$(echo $EXEC |tr A-Z a-z)"
+
+NAME=${EXEC}$COMMTYPE
 case "$TESTS" in
-*%functions%*|*%exec%*|*%$NAME%*)
-TEST="$NAME: simple echo via exec of cat with socketpair"
-testecho "$N" "$TEST" "" "exec:$CAT" "$opts"
-esac
-N=$((N+1))
-
-
-NAME=SYSTEMSOCKET
-case "$TESTS" in
-*%functions%*|*%system%*|*%$NAME%*)
-TEST="$NAME: simple echo via system() of cat with socketpair"
-testecho "$N" "$TEST" "" "system:$CAT" "$opts" "$val_t"
-esac
-N=$((N+1))
-
-
-NAME=EXECPIPES
-case "$TESTS" in
-*%functions%*|*%pipe%*|*%$NAME%*)
-TEST="$NAME: simple echo via exec of cat with pipes"
-testecho "$N" "$TEST" "" "exec:$CAT,pipes" "$opts"
-esac
-N=$((N+1))
-
-
-NAME=SYSTEMPIPES
-case "$TESTS" in
-*%functions%*|*%pipes%*|*%$NAME%*)
-TEST="$NAME: simple echo via system() of cat with pipes"
-testecho "$N" "$TEST" "" "system:$CAT,pipes" "$opts"
-esac
-N=$((N+1))
-
-
-NAME=EXECPTY
-case "$TESTS" in
-*%functions%*|*%exec%*|*%pty%*|*%$NAME%*)
-TEST="$NAME: simple echo via exec of cat with pseudo terminal"
+*%functions%*|*%$commtype%*|*%$exec%*|*%$NAME%*)
+TEST="$NAME: simple echo via $exec() of cat using $commtype"
 if ! eval $NUMCOND; then :;
-elif ! testaddrs pty >/dev/null; then
-    $PRINTF "test $F_n $TEST... ${YELLOW}PTY not available${NORMAL}\n" $N
+elif [ "$feature" != . ] && ! testaddrs $feature >/dev/null; then
+    $PRINTF "test $F_n $TEST... ${YELLOW}$commtype not available${NORMAL}\n" $N
     numCANT=$((numCANT+1))
 else
-testecho "$N" "$TEST" "" "exec:$CAT,pty,$PTYOPTS" "$opts"
+testecho "$N" "$TEST" "" "$exec:$CAT,commtype=$commtype,$addropts" "$opts" "$val_t"
 fi
 esac
 N=$((N+1))
 
+done
+done <<<"
+pipes       .
+pty         pty raw,echo=0
+socketpair  .
+ptys        pty raw,echo=0
+tcp         tcp
+socketpairs .
+"
 
-NAME=SYSTEMPTY
-case "$TESTS" in
-*%functions%*|*%system%*|*%pty%*|*%$NAME%*)
-TEST="$NAME: simple echo via system() of cat with pseudo terminal"
-if ! eval $NUMCOND; then :;
-elif ! testaddrs pty >/dev/null; then
-    $PRINTF "test $F_n $TEST... ${YELLOW}PTY not available${NORMAL}\n" $N
-    numCANT=$((numCANT+1))
-else
-testecho "$N" "$TEST" "" "system:$CAT,pty,$PTYOPTS" "$opts"
-fi
-esac
-N=$((N+1))
+
 
 
 NAME=SYSTEMPIPESFDS
@@ -3751,7 +3719,8 @@ NAME=CHAINUNIDIR
 case "$TESTS" in
 *%functions%*|*%chain%*|*%$NAME%*)
 TEST="$NAME: two unidirectional chains"
-testchain "$N" "$TEST" "test|stdin" "test|stdout" "-u $opts" "<>"
+# on Linux (Debian lenny/sid) we need MISCDELAY due to a weakness/bug
+testchain "$N" "$TEST" "test|stdin" "test|stdout" "-u $opts" "<>" "$val_t"
 esac
 N=$((N+1))
 
@@ -3759,7 +3728,7 @@ NAME=CHAINREVDIR
 case "$TESTS" in
 *%functions%*|*%chain%*|*%$NAME%*)
 TEST="$NAME: two unidirectional chains, right to left"
-testchain "$N" "$TEST" "^test|stdout" "^test|stdin" "-U $opts" "><"
+testchain "$N" "$TEST" "^test|stdout" "^test|stdin" "-U $opts" "><" "$val_t"
 esac
 N=$((N+1))
 
@@ -3806,7 +3775,7 @@ N=$((N+1))
 
 NAME=OPENSSL_TCP4
 case "$TESTS" in
-*%functions%*|*%openssl%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%openssl%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
 TEST="$NAME: openssl connect"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs openssl >/dev/null; then
@@ -3859,7 +3828,7 @@ N=$((N+1))
 
 NAME=OPENSSLLISTEN_TCP4
 case "$TESTS" in
-*%functions%*|*%openssl%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%openssl%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
 TEST="$NAME: openssl listen"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs openssl >/dev/null; then
@@ -4136,7 +4105,7 @@ N=$((N+1))
 
 NAME=SOCKS4CONNECT_TCP4
 case "$TESTS" in
-*%functions%*|*%socks%*|*%socks4%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%socks%*|*%socks4%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
 TEST="$NAME: socks4 connect over TCP/IPv4"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs socks4 >/dev/null; then
@@ -4226,7 +4195,7 @@ N=$((N+1))
 
 NAME=SOCKS4ACONNECT_TCP4
 case "$TESTS" in
-*%functions%*|*%socks%*|*%socks4a%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%socks%*|*%socks4a%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
 TEST="$NAME: socks4a connect over TCP/IPv4"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs socks4a >/dev/null; then
@@ -4316,7 +4285,7 @@ N=$((N+1))
 
 NAME=PROXYCONNECT_TCP4
 case "$TESTS" in
-*%functions%*|*%proxyconnect%*|*%proxy%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%proxyconnect%*|*%proxy%*|*%tcp%*|*%tcp4%*|*%ip4%*|*%$NAME%*)
 TEST="$NAME: proxy connect over TCP/IPv4"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs proxy >/dev/null; then
@@ -4592,7 +4561,7 @@ N=$((N+1))
 
 NAME=PROXY2SPACES
 case "$TESTS" in
-*%functions%*|*%proxy%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: proxy connect accepts status with multiple spaces"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs proxy >/dev/null; then
@@ -4888,7 +4857,7 @@ N=$((N+1))
 #!
 NAME=OUTBOUNDIN
 case "$TESTS" in
-*%functions%*|*%proxy%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: gender changer via SSL through HTTP proxy, oneshot"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl proxy); then
@@ -4975,7 +4944,7 @@ PORT=$((RANDOM+16184))
 #!
 NAME=INTRANETRIPPER
 case "$TESTS" in
-*%functions%*|*%proxy%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%proxy%*|*%$NAME%*)
 TEST="$NAME: gender changer via SSL through HTTP proxy, daemons"
 if ! eval $NUMCOND; then :;
 elif ! feat=$(testaddrs openssl proxy); then
@@ -5940,7 +5909,7 @@ N=$((N+1))
 
 NAME=OPENSSLLISTENDSA
 case "$TESTS" in
-*%functions%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%openssl%*|*%tcp%*|*%$NAME%*)
 TEST="$NAME: openssl listen with DSA certificate"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs openssl >/dev/null; then
@@ -7658,7 +7627,7 @@ TEST="$NAME: end-close keeps EXEC child running"
 # data; each client is handled in a sub process with a clone of the forwarder
 # socket.
 # two client processes connect and send data. normally, the "common" connection
-# the the cat sub process would terminate when the first client disconnects;
+# to the cat sub process would terminate when the first client disconnects;
 # with the shut-none option, the data of the second process also has to arrive
 # at the target service.
 if ! eval $NUMCOND; then :; else
@@ -10114,13 +10083,14 @@ printf "test $F_n $TEST... " $N
 $CMD1 >"$tf" 2>"${te}1" &
 pid=$!	# background process id
 waitsctp6port $tsl 1
-# SCTP does not seem to support half close, so we let it 1s to finish
+# SCTP does not seem to support half close, so we give it 1s to finish
 (echo "$da"; sleep 1) |$CMD2 >>"$tf" 2>>"${te}2"
 if [ $? -ne 0 ]; then
    $PRINTF "$FAILED: $SOCAT:\n"
    echo "$CMD1 &"
+   cat "${te}1"
    echo "$CMD2"
-   cat "$te"
+   cat "${te}2"
    numFAIL=$((numFAIL+1))
 elif ! echo "$da" |diff - "$tf" >"$tdiff"; then
    $PRINTF "$FAILED: diff:\n"
@@ -10147,7 +10117,7 @@ pf="$(echo $PF |tr A-Z a-z)"
 proto="$(echo $KEYW |tr A-Z a-z)"
 NAME=OPENSSL_${KEYW}_FORK
 case "$TESTS" in
-*%functions%*|*%openssl%*|*%sctp%*|*%$pf%*|*%$NAME%*)
+*%functions%*|*%chain%*|*%openssl%*|*%sctp%*|*%$pf%*|*%$NAME%*)
 TEST="$NAME: openssl over SCTP with server fork"
 if ! eval $NUMCOND; then :;
 elif ! testaddrs openssl >/dev/null; then
@@ -10196,6 +10166,228 @@ done <<<"
 SCTP4 IP4 127.0.0.1
 SCTP6 IP6 [::1]
 "
+
+
+# tests with inter address exec (`exec2')
+while read c commname
+do
+if [ -z "$c" ] || [[ "$c" == \#* ]]; then continue; fi
+COMMNAME="$(echo $commname |tr 'a-z ' 'A-Z_')"
+#
+for exec in exec system; do
+EXEC="$(echo $exec |tr 'a-z' 'A-Z')"
+#
+
+NAME=${EXEC}2_$COMMNAME
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}2%*|*%$NAME%*)
+TEST="$NAME: bidirectional $exec in simple chain ($commname)"
+testecho "$N" "$TEST" "STDIO" "$EXEC:bin/cat2.sh|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+
+NAME=${EXEC}2UNI_$COMMNAME
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%{exec}2%*|*%$NAME%*)
+TEST="$NAME: unidirectional $exec in simple chain ($commname)"
+testecho "$N" "$TEST" "STDIO" "$EXEC:bin/cat2.sh|STDIO" "$opts -u -c$c" "$val_t"
+esac
+N=$((N+1))
+
+NAME=${EXEC}2CHAIN_$COMMNAME
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}2%*|*%$NAME%*)
+TEST="$NAME: $exec in chain with endpoint $exec ($commname)"
+testecho "$N" "$TEST" "STDIO" "$EXEC:bin/predialog.sh|$EXEC:./proxyecho.sh" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+
+NAME=${EXEC}1BI_FORWARD_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in birectional chain, forward ($commname)"
+testecho "$N" "$TEST" "STDIO" "${EXEC}1:cat%NOP|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+
+NAME=${EXEC}1UNI_FORWARD_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in unrectional chain, forward ($commname)"
+testecho "$N" "$TEST" "STDIN" "${EXEC}1:cat|STDOUT" "$opts -u -c$c" "$val_t"
+esac
+N=$((N+1))
+
+NAME=${EXEC}1UNI_BACKWARD_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in unrectional chain, backward ($commname)"
+testecho "$N" "$TEST" "STDOUT" "^${EXEC}1:cat|STDIN" "$opts -U -c$c" "$val_t"
+esac
+N=$((N+1))
+
+case "$commname" in
+    "ptys") ;;
+    *)
+NAME=${EXEC}1BI_FORWARD_HALFCLOSE_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in birectional chain, forward ($commname)"
+testod "$N" "$TEST" "STDIO" "${EXEC}1:$OD_C%NOP|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+    ;;
+esac
+
+case "$commname" in
+    "ptys") ;;
+    *)
+NAME=${EXEC}1UNI_FORWARD_HALFCLOSE_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in unrectional chain, forward ($commname)"
+testod "$N" "$TEST" "STDIN" "${EXEC}1:$OD_C|STDOUT" "$opts -u -c$c" "$val_t"
+esac
+N=$((N+1))
+    ;;
+esac
+
+case "$commname" in
+    "ptys") ;;
+    *)
+NAME=${EXEC}1UNI_BACKWARD_HALFCLOSE_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in unrectional chain, backward ($commname)"
+testod "$N" "$TEST" "STDOUT" "^${EXEC}1:$OD_C|STDIN" "$opts -U -c$c" "$val_t"
+esac
+N=$((N+1))
+    ;;
+esac
+
+if [ "$commname" != "pipes" ]; then
+NAME=${EXEC}2REV_$COMMNAME
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}2%*|*%$NAME%*)
+TEST="$NAME: bidirectional reverse $exec in simple chain ($commname)"
+testecho "$N" "$TEST" "STDIO" "^$EXEC:bin/cat2.sh|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+fi # ! pipes
+
+if [ "$commname" != "pipes" ]; then
+NAME=${EXEC}2UNIREV_$COMMNAME
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}2%*|*%$NAME%*)
+TEST="$NAME: unidirectional reverse $exec in simple chain ($commname)"
+testecho "$N" "$TEST" "STDIO" "^$EXEC:bin/cat2.sh|STDIO" "$opts -u -c$c" "$val_t"
+esac
+N=$((N+1))
+fi # ! pipes
+
+case "$commname" in
+    "pipes") ;;
+    "ptys") ;;
+    *)
+NAME=${EXEC}2DUAL_$COMMNAME
+case "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}2%*|*%$NAME%*)
+TEST="$NAME: dual $exec in simple chain ($commname)"
+testecho "$N" "$TEST" "STDIO" "$EXEC:bin/cat2.sh%$EXEC:bin/cat2.sh|PIPE" "$opts -c$c"
+esac
+N=$((N+1))
+    ;;
+esac
+
+
+case "$commname" in
+    "pipes") ;;
+    "ptys") ;;
+    *)
+NAME=${EXEC}1BI_BACKWARD_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in birectional chain, backward ($commname)"
+testecho "$N" "$TEST" "STDIO" "NOP%${EXEC}1:cat|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+    ;;
+esac
+
+done	# for EXEC in EXEC SYSTEM
+
+# we are still in the commname loop
+
+# here are tests that do not work with SYSTEM
+for exec in exec; do
+EXEC="$(echo $exec |tr 'a-z' 'A-Z')"
+#
+
+case "$commname" in
+    "ptys") ;;
+    *)
+NAME=${EXEC}1BI_BACKWARD_HALFCLOSE_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in birectional chain, backward ($commname)"
+testod "$N" "$TEST" "STDIO" "NOP%${EXEC}1:$OD_C|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+    ;;
+esac
+
+case "$commname" in
+    "ptys") ;;
+    *)
+# currently failes with socketpair, tcp when cat is used because dual mode with
+# single fd communication has an implicit half close problem
+NAME=${EXEC}1BI_CAT_OD_HALFCLOSE_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in birectional chain, both directions ($commname)"
+testod "$N" "$TEST" "STDIO" "${EXEC}1:$SOCAT -u - -%${EXEC}1:$OD_C|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+    ;;
+esac
+
+NAME=${EXEC}1BI_BOTH_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in birectional chain, both directions ($commname)"
+testecho "$N" "$TEST" "STDIO" "${EXEC}1:cat%${EXEC}1:cat|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+
+case "$commname" in
+    "ptys") ;;
+    *)
+NAME=${EXEC}1BI_OD_CAT_HALFCLOSE_$COMMNAME
+case  "$TESTS" in
+*%functions%*|*%chain%*|*%$exec%*|*%${exec}1%*|*%$NAME%*)
+TEST="$NAME: ${exec}1 in birectional chain, both directions ($commname)"
+testod "$N" "$TEST" "STDIO" "${EXEC}1:$OD_C%${EXEC}1:cat|PIPE" "$opts -c$c" "$val_t"
+esac
+N=$((N+1))
+    ;;
+esac
+
+done	# for EXEC in EXEC SYSTEM
+
+done <<<"
+S two socketpairs
+p pipes
+s socketpair
+Y ptys
+t TCP
+"
+#c=S
+#commname=socketpairs
+
+# -u exec1
+# -U exec1
+
+
 
 
 echo "summary: $((N-1)) tests; $numOK ok, $numFAIL failed, $numCANT could not be performed"

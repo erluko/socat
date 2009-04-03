@@ -1,5 +1,5 @@
 /* source: xio-creat.c */
-/* Copyright Gerhard Rieger 2001-2007 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of create type */
@@ -40,41 +40,42 @@ static int _xioopen_creat(const char *path, int rw, struct opt *opts) {
 }
 
 
-static int xioopen_creat(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3) {
+static int xioopen_creat(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups, int dummy1, int dummy2, int dummy3) {
    const char *filename = argv[1];
    int rw = (xioflags&XIO_ACCMODE);
+   int fd;
    bool exists;
    bool opt_unlink_close = false;
    int result;
 
    /* remove old file, or set user/permissions on old file; parse options */
-   if ((result = _xioopen_named_early(argc, argv, fd, groups, &exists, opts)) < 0) {
+   if ((result = _xioopen_named_early(argc, argv, xfd, groups, &exists, opts)) < 0) {
       return result;
    }
 
    retropt_bool(opts, OPT_UNLINK_CLOSE, &opt_unlink_close);
    if (opt_unlink_close) {
-      if ((fd->stream.unlink_close = strdup(filename)) == NULL) {
+      if ((xfd->stream.unlink_close = strdup(filename)) == NULL) {
 	 Error1("strdup(\"%s\"): out of memory", filename);
       }
-      fd->stream.opt_unlink_close = true;
+      xfd->stream.opt_unlink_close = true;
    }
 
    Notice2("creating regular file \"%s\" for %s", filename, ddirection[rw]);
-   if ((result = _xioopen_creat(filename, rw, opts)) < 0)
-      return result;
-   fd->stream.fd1 = fd->stream.fd2 = result;
-   fd->stream.fdtype = FDTYPE_SINGLE;
+   if ((fd = _xioopen_creat(filename, rw, opts)) < 0)
+      return fd;
+   if (XIOWITHRD(rw))  xfd->stream.rfd = fd;
+   if (XIOWITHWR(rw))  xfd->stream.wfd = fd;
 
    applyopts_named(filename, opts, PH_PASTOPEN);
-   if ((result = applyopts2(fd->stream.fd1, opts, PH_PASTOPEN, PH_LATE2)) < 0)
+   if ((result = applyopts2(fd, opts, PH_PASTOPEN, PH_LATE2)) < 0)
       return result;
 
-   applyopts_cloexec(fd->stream.fd1, opts);
+   applyopts_cloexec(fd, opts);
 
-   applyopts_fchown(fd->stream.fd1, opts);
+   applyopts_fchown(fd, opts);
 
-   if ((result = _xio_openlate(&fd->stream, opts)) < 0)
+   if ((result = _xio_openlate(&xfd->stream, opts)) < 0)
       return result;
 
    return 0;

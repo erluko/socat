@@ -42,11 +42,10 @@ static int xioopen_fifo0(int argc, const char *argv[], struct opt *opts, int xio
 
    sock->common.tag    = XIO_TAG_RDWR;
    sock->stream.dtype  = XIODATA_2PIPE;
-   sock->stream.fd1    = filedes[0];
-   sock->stream.fd2    = filedes[1];
-   sock->stream.fdtype = FDTYPE_DOUBLE;
-   applyopts_cloexec(sock->stream.fd1, opts);
-   applyopts_cloexec(sock->stream.fd2, opts);
+   sock->stream.rfd    = filedes[0];
+   sock->stream.wfd    = filedes[1];
+   applyopts_cloexec(sock->stream.rfd, opts);
+   applyopts_cloexec(sock->stream.wfd, opts);
 
    /* one-time and input-direction options, no second application */
    retropt_bool(opts, OPT_IGNOREEOF, &sock->stream.ignoreeof);
@@ -57,7 +56,7 @@ static int xioopen_fifo0(int argc, const char *argv[], struct opt *opts, int xio
    }
 
    /* apply options to first FD */
-   if ((result = applyopts(sock->stream.fd1, opts, PH_ALL)) < 0) {
+   if ((result = applyopts(sock->stream.rfd, opts, PH_ALL)) < 0) {
       return result;
    }
    if ((result = applyopts_single(&sock->stream, opts, PH_ALL)) < 0) {
@@ -65,7 +64,7 @@ static int xioopen_fifo0(int argc, const char *argv[], struct opt *opts, int xio
    }
 
    /* apply options to second FD */
-   if ((result = applyopts(sock->stream.fd2, opts2, PH_ALL)) < 0)
+   if ((result = applyopts(sock->stream.wfd, opts2, PH_ALL)) < 0)
    {
       return result;
    }
@@ -163,14 +162,14 @@ static int xioopen_fifo1(int argc, const char *argv[], struct opt *opts, int xio
    if ((result = _xioopen_open(pipename, rw, opts)) < 0) {
       return result;
    }
-   fd->stream.fd1 = result;
-   fd->stream.fdtype = FDTYPE_SINGLE;
+   fd->stream.rfd = result;
+   fd->stream.wfd = result;
    fd->stream.howtoshut  = XIOSHUTWR_NONE|XIOSHUTRD_CLOSE;
    fd->stream.howtoclose = XIOCLOSE_CLOSE;
 
    applyopts_named(pipename, opts, PH_FD);
-   applyopts(fd->stream.fd1, opts, PH_FD);
-   applyopts_cloexec(fd->stream.fd1, opts);
+   applyopts(fd->stream.rfd, opts, PH_FD);
+   applyopts_cloexec(fd->stream.rfd, opts);
    return _xio_openlate(&fd->stream, opts);
 }
 

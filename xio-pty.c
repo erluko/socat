@@ -49,6 +49,7 @@ static int xioopen_pty1(int argc, const char *argv[], struct opt *opts, int xiof
 
 static int xioopen_pty(const char *linkname, struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups) {
    /* we expect the form: filename */
+   int rw = (xioflags&XIO_ACCMODE);
    int ptyfd = -1, ttyfd = -1;
 #if defined(HAVE_DEV_PTMX) || defined(HAVE_DEV_PTC)
    bool useptmx = false;	/* use /dev/ptmx or equivalent */
@@ -179,11 +180,11 @@ static int xioopen_pty(const char *linkname, struct opt *opts, int xioflags, xio
 
    applyopts_cloexec(ptyfd, opts);/*!*/
    xfd->stream.dtype    = XIODATA_PTY;
-   xfd->stream.fdtype   = FDTYPE_SINGLE;
 
    applyopts(ptyfd, opts, PH_FD);
    
-   xfd->stream.fd1 = ptyfd;
+   if (XIOWITHRD(rw))  xfd->stream.rfd = ptyfd;
+   if (XIOWITHWR(rw))  xfd->stream.wfd = ptyfd;
    applyopts(ptyfd, opts, PH_LATE);
    if (applyopts_single(&xfd->stream, opts, PH_LATE) < 0)  return -1;
 

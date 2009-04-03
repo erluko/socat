@@ -38,8 +38,8 @@ int xioclose1(struct single *pipe) {
 	 sycSSL_free(pipe->para.openssl.ssl);
 	 pipe->para.openssl.ssl = NULL;
       }
-      Close(pipe->fd1);  pipe->fd1 = -1;
-      Close(pipe->fd2);  pipe->fd2 = -1;
+      Close(pipe->rfd);  pipe->rfd = -1;
+      Close(pipe->wfd);  pipe->wfd = -1;
       if (pipe->para.openssl.ctx) {
 	 sycSSL_CTX_free(pipe->para.openssl.ctx);
 	 pipe->para.openssl.ctx = NULL;
@@ -64,15 +64,20 @@ int xioclose1(struct single *pipe) {
       }
       /*PASSTHROUGH*/
    case XIOCLOSE_CLOSE:
-      if (pipe->fd1 >= 0) {
-	 if (Close(pipe->fd1) < 0) {
-	    Info2("close(%d): %s", pipe->fd1, strerror(errno));
+      if (XIOWITHRD(pipe->flags) && pipe->rfd >= 0) {
+	 if (Close(pipe->rfd) < 0) {
+	    Info2("close(%d): %s", pipe->rfd, strerror(errno));
+	 }
+      }
+      if (XIOWITHWR(pipe->flags) && pipe->wfd >= 0) {
+	 if (Close(pipe->wfd) < 0) {
+	    Info2("close(%d): %s", pipe->wfd, strerror(errno));
 	 }
       }
       break;
 
    case XIOCLOSE_SLEEP_SIGTERM:
-      Sleep(1);
+      Usleep(250000);
       if (pipe->child.pid > 0) {
 	    if (Kill(pipe->child.pid, SIGTERM) < 0) {
 	       Msg2(errno==ESRCH?E_INFO:E_WARN, "kill(%d, SIGTERM): %s",
@@ -84,6 +89,10 @@ int xioclose1(struct single *pipe) {
    case XIOCLOSE_NONE:
       break;
 
+   case XIOCLOSE_UNSPEC:
+      Warn1("xioclose(): no close action specified on 0x%x", pipe);
+      break;
+
    default:
       Error2("xioclose(): bad close action 0x%x on 0x%x", pipe->howtoclose, pipe);
       break;
@@ -91,9 +100,9 @@ int xioclose1(struct single *pipe) {
 
 #if WITH_TERMIOS
    if (pipe->ttyvalid) {
-      if (Tcsetattr(pipe->fd1, 0, &pipe->savetty) < 0) {
+      if (Tcsetattr(pipe->rfd, 0, &pipe->savetty) < 0) {
 	 Warn2("cannot restore terminal settings on fd %d: %s",
-	       pipe->fd1, strerror(errno));
+	       pipe->rfd, strerror(errno));
       }
    }
 #endif /* WITH_TERMIOS */

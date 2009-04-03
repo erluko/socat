@@ -1,5 +1,5 @@
 /* source: xioopts.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for address options handling */
@@ -296,6 +296,7 @@ const struct optname optionnames[] = {
 	IF_TERMIOS("clocal",	&opt_clocal)
 	IF_ANY    ("cloexec",	&opt_cloexec)
 	IF_ANY    ("close",	&opt_end_close)
+	IF_EXEC   ("commtype",	&opt_commtype)
 #if WITH_EXT2 && defined(EXT2_COMPR_FL)
 	IF_ANY    ("compr",	&opt_ext2_compr)
 #endif
@@ -497,8 +498,8 @@ const struct optname optionnames[] = {
 	IF_ANY 	  ("f-setlkw",	&opt_f_setlkw_wr)
 	IF_ANY 	  ("f-setlkw-rd",	&opt_f_setlkw_rd)
 	IF_ANY 	  ("f-setlkw-wr",	&opt_f_setlkw_wr)
-	IF_EXEC   ("fdin",	&opt_fdin)
-	IF_EXEC   ("fdout",	&opt_fdout)
+	IF_EXEC   ("fdin",	&opt_leftinfd)
+	IF_EXEC   ("fdout",	&opt_leftoutfd)
 #ifdef FFDLY
 #  ifdef FF0
 	IF_TERMIOS("ff0",	&opt_ff0)
@@ -805,6 +806,10 @@ const struct optname optionnames[] = {
 #ifdef O_LARGEFILE
 	IF_OPEN   ("largefile",	&opt_o_largefile)
 #endif
+	IF_EXEC   ("left",	&opt_leftfd)
+	IF_EXEC   ("leftfd",	&opt_leftfd)
+	IF_EXEC   ("leftinfd",	&opt_leftinfd)
+	IF_EXEC   ("leftoutfd",	&opt_leftoutfd)
 #if WITH_LIBWRAP
 	IF_IPAPP  ("libwrap",		&opt_tcpwrappers)
 #endif
@@ -1195,6 +1200,12 @@ const struct optname optionnames[] = {
 #ifdef TCP_RFC1323
 	IF_TCP    ("rfc1323",	&opt_tcp_rfc1323)
 #endif
+	IF_EXEC   ("right",	&opt_rightfd)
+	IF_EXEC   ("rightfd",	&opt_rightfd)
+	IF_EXEC   ("rightin",	&opt_rightinfd)
+	IF_EXEC   ("rightinfd",	&opt_rightinfd)
+	IF_EXEC   ("rightout",	&opt_rightoutfd)
+	IF_EXEC   ("rightoutfd",&opt_rightoutfd)
 #ifdef IP_ROUTER_ALERT
 	IF_IP     ("routeralert",	&opt_ip_router_alert)
 #endif
@@ -1272,6 +1283,8 @@ const struct optname optionnames[] = {
 	IF_SOCKET ("setsockopt-string",	&opt_setsockopt_string)
 	IF_ANY    ("setuid",	&opt_setuid)
 	IF_ANY    ("setuid-early",	&opt_setuid_early)
+	IF_ANY    ("shut-close",	&opt_shut_close)
+	IF_ANY    ("shut-down",	&opt_shut_down)
 	IF_ANY    ("shut-none",	&opt_shut_none)
 #if WITH_EXEC || WITH_SYSTEM
 	IF_ANY    ("sid",	&opt_setsid)
@@ -3964,10 +3977,10 @@ mc:addr
 #endif
 
 #if HAVE_STRUCT_IP_MREQN
-	       if (Setsockopt(xfd->fd1, opt->desc->major, opt->desc->minor,
+	       if (Setsockopt(xfd->rfd, opt->desc->major, opt->desc->minor,
 			      &ip4_mreqn.mreqn, sizeof(ip4_mreqn.mreqn)) < 0) {
 		  Error8("setsockopt(%d, %d, %d, {0x%08x,0x%08x,%d}, "F_Zu"): %s",
-			 xfd->fd1, opt->desc->major, opt->desc->minor,
+			 xfd->rfd, opt->desc->major, opt->desc->minor,
 			 ip4_mreqn.mreqn.imr_multiaddr.s_addr,
 			 ip4_mreqn.mreqn.imr_address.s_addr,
 			 ip4_mreqn.mreqn.imr_ifindex,
@@ -4017,10 +4030,10 @@ mc:addr
 		  ip6_mreq.ipv6mr_interface = htonl(0);
 	       }
 
-	       if (Setsockopt(xfd->fd1, opt->desc->major, opt->desc->minor,
+	       if (Setsockopt(xfd->rfd, opt->desc->major, opt->desc->minor,
 			      &ip6_mreq, sizeof(ip6_mreq)) < 0) {
 		  Error6("setsockopt(%d, %d, %d, {...,0x%08x}, "F_Zu"): %s",
-			 xfd->fd1, opt->desc->major, opt->desc->minor,
+			 xfd->rfd, opt->desc->major, opt->desc->minor,
 			 ip6_mreq.ipv6mr_interface,
 			 sizeof(ip6_mreq),
 			 strerror(errno));
@@ -4070,29 +4083,36 @@ int applyopts_signal(struct single *xfd, struct opt *opts) {
 
 /* apply remaining options to file descriptor, and tell us if something is
    still unused */
-int _xio_openlate(struct single *fd, struct opt *opts) {
+int _xio_openlate(struct single *xfd, struct opt *opts) {
+   int fd;
    int numleft;
    int result;
 
+   if (xfd->rfd >= 0) {
+      fd = xfd->rfd;
+   } else {
+      fd = xfd->wfd;
+   }
+
    _xioopen_setdelayeduser();
 
-   if ((result = applyopts(fd->fd1, opts, PH_LATE)) < 0) {
+   if ((result = applyopts(fd, opts, PH_LATE)) < 0) {
       return result;
    }
 #if 0	/*! need to copy opts before previous statement! */
-   if (fd->fdtype == FDTYPE_DOUBLE) {
-      if ((result = applyopts(fd->fd2, opts, PH_LATE)) < 0) {
+   if (xfd->fdtype == FDTYPE_DOUBLE) {
+      if ((result = applyopts(fd, opts, PH_LATE)) < 0) {
 	 return result;
       }
    }
 #endif
-   if ((result = applyopts_single(fd, opts, PH_LATE)) < 0) {
+   if ((result = applyopts_single(xfd, opts, PH_LATE)) < 0) {
       return result;
    }
-   if ((result = applyopts(fd->fd1, opts, PH_LATE2)) < 0) {
+   if ((result = applyopts(fd, opts, PH_LATE2)) < 0) {
       return result;
    }
-   /*! need to apply to fd2 too! */
+   /*! need to apply to wfd too! */
 
    if ((numleft = leftopts(opts)) > 0) {
       showleft(opts);

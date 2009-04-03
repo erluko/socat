@@ -1,5 +1,5 @@
 /* source: xio-stdio.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses stdio type */
@@ -20,10 +20,10 @@ static int xioopen_stdfd(int argc, const char *argv[], struct opt *opts, int xio
 /* we specify all option groups that we can imagine for a FD, becasue the
    changed parsing mechanism does not allow us to check the type of FD before
    applying the options */
-static const struct xioaddr_endpoint_desc xioaddr_stdio0  = { XIOADDR_SYS, "stdio",  0, XIOBIT_ALL,   GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_stdio, 0, 0, 0 HELP(NULL) };
-static const struct xioaddr_endpoint_desc xioaddr_stdin0  = { XIOADDR_SYS, "stdin",  0, XIOBIT_RDONLY, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_stdfd, 0, 0, 0 HELP(NULL) };
-static const struct xioaddr_endpoint_desc xioaddr_stdout0 = { XIOADDR_SYS, "stdout", 0, XIOBIT_WRONLY, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_stdfd, 1, 0, 0 HELP(NULL) };
-static const struct xioaddr_endpoint_desc xioaddr_stderr0 = { XIOADDR_SYS, "stderr", 0, XIOBIT_WRONLY, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_NONE, XIOCLOSE_NONE, xioopen_stdfd, 2, 0, 0 HELP(NULL) };
+static const struct xioaddr_endpoint_desc xioaddr_stdio0  = { XIOADDR_SYS, "stdio",  0, XIOBIT_ALL,   GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_UNSPEC, XIOCLOSE_NONE, xioopen_stdio, 0, 0, 0 HELP(NULL) };
+static const struct xioaddr_endpoint_desc xioaddr_stdin0  = { XIOADDR_SYS, "stdin",  0, XIOBIT_RDONLY, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_UNSPEC, XIOCLOSE_NONE, xioopen_stdfd, 0, 0, 0 HELP(NULL) };
+static const struct xioaddr_endpoint_desc xioaddr_stdout0 = { XIOADDR_SYS, "stdout", 0, XIOBIT_WRONLY, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_UNSPEC, XIOCLOSE_NONE, xioopen_stdfd, 1, 0, 0 HELP(NULL) };
+static const struct xioaddr_endpoint_desc xioaddr_stderr0 = { XIOADDR_SYS, "stderr", 0, XIOBIT_WRONLY, GROUP_FD|GROUP_FIFO|GROUP_CHR|GROUP_BLK|GROUP_FILE|GROUP_SOCKET|GROUP_TERMIOS|GROUP_SOCK_UNIX|GROUP_SOCK_IP|GROUP_IPAPP, XIOSHUT_UNSPEC, XIOCLOSE_NONE, xioopen_stdfd, 2, 0, 0 HELP(NULL) };
 
 const union xioaddr_desc *xioaddrs_stdio[] = {
    (union xioaddr_desc *)&xioaddr_stdio0, NULL };
@@ -40,28 +40,26 @@ int xioopen_stdio_bi(xiofile_t *sock) {
    unsigned int groups1 = xioaddr_stdio0.groups, groups2 = xioaddr_stdio0.groups;
    int result;
 
-   sock->stream.fd1 = 0 /*stdin*/;
-   sock->stream.fd2 = 1 /*stdout*/;
-   sock->stream.fdtype = FDTYPE_DOUBLE;
+   sock->stream.rfd = 0 /*stdin*/;
+   sock->stream.wfd = 1 /*stdout*/;
 
 #if WITH_TERMIOS
-   if (Isatty(sock->stream.fd1)) {
-      if (Tcgetattr(sock->stream.fd1,
+   if (Isatty(sock->stream.rfd)) {
+      if (Tcgetattr(sock->stream.rfd,
 		    &sock->stream.savetty)
 	  < 0) {
 	 Warn2("cannot query current terminal settings on fd %d: %s",
-	       sock->stream.fd1, strerror(errno));
+	       sock->stream.rfd, strerror(errno));
       } else {
 	 sock->stream.ttyvalid = true;
       }
    }
-   if (Isatty(sock->stream.fd2)) {
-      if (Tcgetattr(sock->stream.fd2,
+   if (Isatty(sock->stream.wfd) && (sock->stream.wfd != sock->stream.rfd)) {
+      if (Tcgetattr(sock->stream.wfd,
 		    &sock->stream.savetty)
 	  < 0) {
 	 Warn2("cannot query current terminal settings on fd %d: %s",
-
-	       sock->stream.fd2, strerror(errno));
+	       sock->stream.wfd, strerror(errno));
       } else {
 	 sock->stream.ttyvalid = true;
       }
@@ -70,6 +68,8 @@ int xioopen_stdio_bi(xiofile_t *sock) {
    if (applyopts_single(&sock->stream, sock->stream.opts, PH_INIT) < 0)
       return -1;
    applyopts(-1, sock->stream.opts, PH_INIT);
+   if (sock->stream.howtoshut == XIOSHUT_UNSPEC)
+      sock->stream.howtoshut = XIOSHUT_NONE;
 
    /* options here are one-time and one-direction, no second use */
    retropt_bool(sock->stream.opts, OPT_IGNOREEOF, &sock->stream.ignoreeof);
@@ -89,7 +89,7 @@ int xioopen_stdio_bi(xiofile_t *sock) {
    }
 
    /* apply options to first FD */
-   if ((result = applyopts(sock->stream.fd1, opts1, PH_ALL)) < 0) {
+   if ((result = applyopts(sock->stream.rfd, opts1, PH_ALL)) < 0) {
       return result;
    }
    if ((result = _xio_openlate(&sock->stream, opts1)) < 0) {
@@ -100,7 +100,7 @@ int xioopen_stdio_bi(xiofile_t *sock) {
       return -1;
    }
    /* apply options to second FD */
-   if ((result = applyopts(sock->stream.fd2, opts2, PH_ALL)) < 0) {
+   if ((result = applyopts(sock->stream.wfd, opts2, PH_ALL)) < 0) {
       return result;
    }
    if ((result = _xio_openlate(&sock->stream, opts2)) < 0) {
@@ -118,7 +118,7 @@ int xioopen_stdio_bi(xiofile_t *sock) {
 
 /* wrap around unidirectional xioopensingle and xioopen_fd to automatically determine stdin or stdout fd depending on rw.
    Do not set FD_CLOEXEC flag. */
-static int xioopen_stdio(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *fd, unsigned groups, int dummy1, int dummy2, int dummy3) {
+static int xioopen_stdio(int argc, const char *argv[], struct opt *opts, int xioflags, xiofile_t *xfd, unsigned groups, int dummy1, int dummy2, int dummy3) {
    int rw = (xioflags&XIO_ACCMODE);
 
    if (argc != 1) {
@@ -126,13 +126,16 @@ static int xioopen_stdio(int argc, const char *argv[], struct opt *opts, int xio
    }
 
    if (rw == XIO_RDWR) {
-      return xioopen_stdio_bi(fd);
+      return xioopen_stdio_bi(xfd);
    }
 
    Notice2("using %s for %s",
 	   &("stdin\0\0\0stdout"[rw<<3]),
 	   ddirection[rw]);
-   return xioopen_fd(opts, rw, fd, rw, -1, dummy2, dummy3);
+   return xioopen_fd(opts, rw, xfd,
+		     XIOWITHRD(rw)?0:-1,
+		     XIOWITHWR(rw)?1:-1,
+		     dummy2, dummy3);
 }
 
 /* wrap around unidirectional xioopensingle and xioopen_fd to automatically determine stdin or stdout fd depending on rw.
@@ -146,6 +149,9 @@ static int xioopen_stdfd(int argc, const char *argv[], struct opt *opts, int xio
    Notice2("using %s for %s",
 	   &("stdin\0\0\0stdout\0\0stderr"[fd<<3]),
 	   ddirection[rw]);
-   return xioopen_fd(opts, rw, xfd, fd, -1, dummy2, dummy3);
+   return xioopen_fd(opts, rw, xfd,
+		     XIOWITHRD(rw)?fd:-1,
+		     XIOWITHWR(rw)?fd:-1,
+		     dummy2, dummy3);
 }
 #endif /* WITH_STDIO */

@@ -1,5 +1,5 @@
 /* source: xio-udp.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for handling UDP addresses */
@@ -96,6 +96,7 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 			   int xioflags, xiofile_t *fd,
 			  unsigned groups, int pf, int ipproto,
 			  int protname) {
+   int rw = (xioflags&XIO_ACCMODE);
    const char *portname = argv[1];
    union sockaddr_union us;
    union sockaddr_union themunion;
@@ -129,8 +130,6 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 
    if (applyopts_single(&fd->stream, opts, PH_INIT) < 0)  return -1;
    applyopts(-1, opts, PH_INIT);
-
-   fd->stream.fdtype = FDTYPE_SINGLE;
 
    uslen = socket_init(pf, &us);
    retropt_bind(opts, pf, socktype, IPPROTO_UDP,
@@ -194,36 +193,36 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
       union sockaddr_union _sockname;
       union sockaddr_union *la = &_sockname;	/* local address */
 
-      if ((fd->stream.fd1 = xiosocket(opts, pf, socktype, ipproto, E_ERROR)) < 0) {
+      if ((fd->stream.rfd = xiosocket(opts, pf, socktype, ipproto, E_ERROR)) < 0) {
 	 return STAT_RETRYLATER;
       }
       /*0 Info4("socket(%d, %d, %d) -> %d", pf, socktype, ipproto, fd->stream.fd);*/
-      applyopts(fd->stream.fd1, opts, PH_PASTSOCKET);
-      if (Setsockopt(fd->stream.fd1, opt_so_reuseaddr.major,
+      applyopts(fd->stream.rfd, opts, PH_PASTSOCKET);
+      if (Setsockopt(fd->stream.rfd, opt_so_reuseaddr.major,
 		     opt_so_reuseaddr.minor, &one, sizeof(one)) < 0) {
 	 Warn6("setsockopt(%d, %d, %d, {%d}, "F_Zd"): %s",
-	       fd->stream.fd1, opt_so_reuseaddr.major,
+	       fd->stream.rfd, opt_so_reuseaddr.major,
 	       opt_so_reuseaddr.minor, one, sizeof(one), strerror(errno));
       }
-      applyopts_cloexec(fd->stream.fd1, opts);
-      applyopts(fd->stream.fd1, opts, PH_PREBIND);
-      applyopts(fd->stream.fd1, opts, PH_BIND);
-      if (Bind(fd->stream.fd1, &us.soa, uslen) < 0) {
-	 Error4("bind(%d, {%s}, "F_Zd"): %s", fd->stream.fd1,
+      applyopts_cloexec(fd->stream.rfd, opts);
+      applyopts(fd->stream.rfd, opts, PH_PREBIND);
+      applyopts(fd->stream.rfd, opts, PH_BIND);
+      if (Bind(fd->stream.rfd, &us.soa, uslen) < 0) {
+	 Error4("bind(%d, {%s}, "F_Zd"): %s", fd->stream.rfd,
 		sockaddr_info(&us.soa, uslen, infobuff, sizeof(infobuff)),
 		uslen, strerror(errno));
 	 return STAT_RETRYLATER;
       }
       /* under some circumstances bind() fills sockaddr with interesting info. */
-      if (Getsockname(fd->stream.fd1, &us.soa, &uslen) < 0) {
+      if (Getsockname(fd->stream.rfd, &us.soa, &uslen) < 0) {
 	 Error4("getsockname(%d, %p, {%d}): %s",
-		fd->stream.fd1, &us.soa, uslen, strerror(errno));
+		fd->stream.rfd, &us.soa, uslen, strerror(errno));
       }
-      applyopts(fd->stream.fd1, opts, PH_PASTBIND);
+      applyopts(fd->stream.rfd, opts, PH_PASTBIND);
 
       Notice1("listening on UDP %s",
 	      sockaddr_info(&us.soa, uslen, infobuff, sizeof(infobuff)));
-      readfd.fd = fd->stream.fd1;
+      readfd.fd = fd->stream.rfd;
       readfd.events = POLLIN|POLLERR;
       while (xiopoll(&readfd, 1, NULL) < 0) {
 	 if (errno != EINTR)  break;
@@ -231,12 +230,12 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 
       themlen = socket_init(pf, them);
       do {
-	 result = Recvfrom(fd->stream.fd1, buff1, 1, MSG_PEEK,
+	 result = Recvfrom(fd->stream.rfd, buff1, 1, MSG_PEEK,
 			     &them->soa, &themlen);
       } while (result < 0 && errno == EINTR);
       if (result < 0) {
 	 Error5("recvfrom(%d, %p, 1, MSG_PEEK, {%s}, {"F_Zu"}): %s",
-		fd->stream.fd1, buff1,
+		fd->stream.rfd, buff1,
 		sockaddr_info(&them->soa, themlen, infobuff, sizeof(infobuff)),
 		themlen, strerror(errno));
 	 return STAT_RETRYLATER;
@@ -247,8 +246,8 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
       if (xiocheckpeer(&fd->stream, them, la) < 0) {
 	 /* drop packet */
 	 char buff[512];
-	 Recv(fd->stream.fd1, buff, sizeof(buff), 0);	/* drop packet */
-	 Close(fd->stream.fd1);
+	 Recv(fd->stream.rfd, buff, sizeof(buff), 0);	/* drop packet */
+	 Close(fd->stream.rfd);
 	 continue;
       }
       Info1("permitting UDP connection from %s",
@@ -267,8 +266,8 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
 	 /* server: continue loop with socket()+recvfrom() */
 	 /* when we dont close this we get awkward behaviour on Linux 2.4:
 	    recvfrom gives 0 bytes with invalid socket address */
-	 if (Close(fd->stream.fd1) < 0) {
-	    Info2("close(%d): %s", fd->stream.fd1, strerror(errno));
+	 if (Close(fd->stream.rfd) < 0) {
+	    Info2("close(%d): %s", fd->stream.rfd, strerror(errno));
 	 }
 	 Sleep(1);	/*! give child a chance to consume the old packet */
 
@@ -277,28 +276,31 @@ int xioopen_ipdgram_listen(int argc, const char *argv[], struct opt *opts,
       break;
    }
 
-   applyopts(fd->stream.fd1, opts, PH_CONNECT);
-   if ((result = Connect(fd->stream.fd1, &them->soa, themlen)) < 0) {
+   applyopts(fd->stream.rfd, opts, PH_CONNECT);
+   if ((result = Connect(fd->stream.rfd, &them->soa, themlen)) < 0) {
       Error4("connect(%d, {%s}, "F_Zd"): %s",
-	     fd->stream.fd1,
+	     fd->stream.rfd,
 	     sockaddr_info(&them->soa, themlen, infobuff, sizeof(infobuff)),
 	     themlen, strerror(errno));
       return STAT_RETRYLATER;
    }
 
    /* set the env vars describing the local and remote sockets */
-   if (Getsockname(fd->stream.fd1, &us.soa, &uslen) < 0) {
+   if (Getsockname(fd->stream.rfd, &us.soa, &uslen) < 0) {
       Warn4("getsockname(%d, %p, {%d}): %s",
-	    fd->stream.fd1, &us.soa, uslen, strerror(errno));
+	    fd->stream.rfd, &us.soa, uslen, strerror(errno));
    }
    xiosetsockaddrenv("SOCK", &us,  uslen,   IPPROTO_UDP);
    xiosetsockaddrenv("PEER", them, themlen, IPPROTO_UDP);
 
-   applyopts_fchown(fd->stream.fd1, opts);
-   applyopts(fd->stream.fd1, opts, PH_LATE);
+   applyopts_fchown(fd->stream.rfd, opts);
+   applyopts(fd->stream.rfd, opts, PH_LATE);
 
    if ((result = _xio_openlate(&fd->stream, opts)) < 0)
       return result;
+
+   if (XIOWITHWR(rw))   fd->stream.wfd = fd->stream.rfd;
+   if (!XIOWITHRD(rw))  fd->stream.rfd = -1;
 
    return 0;
 }
@@ -338,6 +340,7 @@ int _xioopen_udp_sendto(const char *hostname, const char *servname,
 		     int xioflags, xiofile_t *xxfd, unsigned groups,
 		     int pf, int socktype, int ipproto) {
    xiosingle_t *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    union sockaddr_union us;
    socklen_t uslen;
    int feats = 3;	/* option bind supports address and port */
@@ -405,9 +408,15 @@ int _xioopen_udp_sendto(const char *hostname, const char *servname,
    }
 
    xfd->dtype = XIODATA_RECVFROM;
-   return _xioopen_dgram_sendto(needbind?&us:NULL, uslen,
+   if ((result =
+	_xioopen_dgram_sendto(needbind?&us:NULL, uslen,
 			      opts, xioflags, xfd, groups,
-			      pf, socktype, ipproto);
+			      pf, socktype, ipproto)) != STAT_OK) {
+      return result;
+   }
+   if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+   if (!XIOWITHRD(rw))  xfd->rfd = -1;
+   return STAT_OK;
 }
 
 

@@ -1,5 +1,5 @@
 /* source: xio.h */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 #ifndef __xio_h_included
@@ -58,6 +58,9 @@ struct opt;
 #define XIOBIT_ONE    (XIOBIT_RDONLY|XIOBIT_WRONLY)
 /* reverse the direction pattern */
 #define XIOBIT_REVERSE(x) (((x)&XIOBIT_RDWR)|(((x)&XIOBIT_RDONLY)?XIOBIT_WRONLY:0)|(((x)&XIOBIT_WRONLY)?XIOBIT_RDONLY:0))
+
+#define XIOWITHRD(rw) ((rw+1)&(XIO_RDONLY+1))
+#define XIOWITHWR(rw) ((rw+1)&(XIO_WRONLY+1))
 
 /* methods for reading and writing, and for related checks */
 #define XIODATA_READMASK	0xf000	/* mask for basic r/w method */
@@ -125,7 +128,8 @@ struct opt;
 #define XIOSHUT_CLOSE		(XIOSHUTRD_CLOSE|XIOSHUTWR_CLOSE)
 #define XIOSHUT_DOWN		(XIOSHUTRD_DOWN|XIOSHUTWR_DOWN)
 #define XIOSHUT_KILL		(XIOSHUTRD_KILL|XIOSHUTWR_KILL)
-#define XIOSHUT_OPENSSL		0x0100	/* specific action on openssl */
+#define XIOSHUT_PTYEOF		0x0100	/* change pty to icanon and write VEOF */
+#define XIOSHUT_OPENSSL		0x0101	/* specific action on openssl */
 /*!!!*/
 
 #define XIOCLOSE_UNSPEC		0x0000	/* after init, when no end-close... option */
@@ -136,8 +140,8 @@ struct opt;
 #define XIOCLOSE_CLOSE_SIGTERM	0x0005	/* close fd, then send SIGTERM */
 #define XIOCLOSE_CLOSE_SIGKILL	0x0006	/* close fd, then send SIGKILL */
 #define XIOCLOSE_SLEEP_SIGTERM	0x0007	/* short sleep, then SIGTERM */
-#define XIOCLOSE_OPENSSL	0x0100
-#define XIOCLOSE_READLINE	0x0101
+#define XIOCLOSE_OPENSSL	0x0101
+#define XIOCLOSE_READLINE	0x0102
 
 /* these are the values allowed for the "enum xiotag  tag" flag of the "struct
    single" and "union bipipe" (xiofile_t) structures. */
@@ -150,6 +154,17 @@ enum xiotag {
 			   streams */
 } ;
 
+/* inter address communication types */
+enum xiocomm {
+   XIOCOMM_SOCKETPAIRS,	/* two unix (local) socket pairs */
+   XIOCOMM_PIPES,	/* two unnamed pipes (fifos) */
+   XIOCOMM_SOCKETPAIR,	/* one unix (local) socket pairs */
+   XIOCOMM_PTYS,	/* two pseudo terminals, each from master to slave */
+   XIOCOMM_PTY,		/* one pseudo terminal, master on left side */
+   XIOCOMM_TCP,		/* one TCP socket pair */
+   XIOCOMM_TCP4,	/* one TCP/IPv4 socket pair */
+   XIOCOMM_TCP4_LISTEN,	/* right side listens for TCP/IPv4, left connects */
+} ;
 
 union bipipe;
 
@@ -158,6 +173,16 @@ union bipipe;
 #define XIOADDR_INTER 1	/* inter address */
 #define XIOADDR_SYS XIOADDR_ENDPOINT
 #define XIOADDR_PROT XIOADDR_INTER
+
+/* one side of an "extended socketpair" */
+typedef struct fddesc {
+   int rfd;		/* used for reading */	
+   int wfd;		/* used for writing */	
+   bool single;		/* rfd and wfd refer to the same "file" */
+   int dtype;		/* specifies methods for reading and writing */
+   int howtoshut;	/* specifies method for shutting down wfd */
+   int howtoclose;	/* specifies method for closing rfd and wfd */
+} xiofd_t;
 
 struct xioaddr_inter_desc {
    int tag;		/* 0: endpoint addr; 1: inter addr */
@@ -217,7 +242,8 @@ union xioaddr_desc {
 } ;
 
 union xioaddr_descp {
-   struct xioaddr_common_desc *common_desc;
+   struct xioaddr_common_desc *
+common_desc;
    int *tag;		/* 0: endpoint addr; 1: inter addr */
    struct xioaddr_inter_desc *inter_desc;
    struct xioaddr_endpoint_desc *endpoint_desc;
@@ -256,6 +282,8 @@ typedef struct {
    struct timeval closwait;	/* after close of x, die after seconds */
    bool lefttoright;	/* first addr ro, second addr wo */
    bool righttoleft;	/* first addr wo, second addr ro */
+   int pipetype;	/* communication (pipe) type; 0: 2 unidirectional
+			   socketpairs; 1: 2 pipes; 2: 1 socketpair */
 } xioopts_t;
 
 /* pack the description of a lock file */
@@ -305,12 +333,8 @@ typedef struct single {
    const char *argv[MAXARGV];	/* address keyword, required args */
    struct opt *opts;	/* the options of this address */
    int    lineterm;	/* 0..dont touch; 1..CR; 2..CRNL on extern data */
-   int    fd1;
-   int    fd2;
-   enum {
-      FDTYPE_SINGLE,	/* only fd1 is in use, for reading and/or writing */
-      FDTYPE_DOUBLE	/* fd2 is in use too - for writing */
-   } fdtype;
+   int    rfd;	/* was fd1 */
+   int    wfd;	/* was fd2 */
    pid_t  subaddrpid;	/* pid of subaddress (process handling next addr in
 			   chain) */
    int    subaddrstat;	/* state of subaddress process
@@ -485,8 +509,8 @@ typedef union bipipe {
 #define XIO_READABLE(s) (((s)->common.flags+1)&1)
 #define XIO_RDSTREAM(s) (((s)->tag==XIO_TAG_DUAL)?(s)->dual.stream[0]:&(s)->stream)
 #define XIO_WRSTREAM(s) (((s)->tag==XIO_TAG_DUAL)?(s)->dual.stream[1]:&(s)->stream)
-#define XIO_GETRDFD(s) (((s)->tag==XIO_TAG_DUAL)?(s)->dual.stream[0]->fd1:(s)->stream.fd1)
-#define _XIO_GETWRFD(s) (((s)->fdtype==FDTYPE_DOUBLE)?(s)->fd2:(s)->fd1)
+#define XIO_GETRDFD(s) (((s)->tag==XIO_TAG_DUAL)?(s)->dual.stream[0]->rfd:(s)->stream.rfd)
+#define _XIO_GETWRFD(s) ((s)->wfd)
 #define XIO_GETWRFD(s) (((s)->tag==XIO_TAG_DUAL)?_XIO_GETWRFD((s)->dual.stream[1]):_XIO_GETWRFD(&(s)->stream))
 #define XIO_EOF(s) (XIO_RDSTREAM(s)->eof && !XIO_RDSTREAM(s)->ignoreeof)
 
@@ -562,12 +586,13 @@ struct opt {
 
 /* with threading, the arguments indirectly passed to xioengine() */
 struct threadarg_struct {
+   int rw;	/* one of XIO_RDONLY, ... */
    xiofile_t *xfd1;
    xiofile_t *xfd2;
 } ;
 
 extern const char *PIPESEP;
-extern xiofile_t *sock[XIO_MAXSOCK];
+extern xiofile_t *sock[XIO_MAXSOCK];	/*!!!*/
 
 /* return values of xioopensingle */
 #define STAT_OK		0
@@ -589,7 +614,11 @@ extern int xiosetopt(char what, const char *arg);
 extern int xioinqopt(char what, char *arg, size_t n);
 extern xiofile_t *xioopen(const char *args, int xioflags);
 extern xiofile_t *xioopenx(const char *addr, int xioflags, int infd, int outfd);
-extern int xiosocketpair2(xiofile_t **xfd1p, xiofile_t **xfd2p, int how, ...);
+extern int xiosocketpair2(int pf, int socktype, int protocol, int sv[2]);
+extern int xiosocketpair3(xiofile_t **xfd1p, xiofile_t **xfd2p, int how, ...);
+extern int xiopty(int useptmx, int *ttyfdp, int *ptyfdp);
+extern int xiocommpair(int commtype, bool lefttoright, bool righttoleft,
+		       int dual, xiofd_t *left, xiofd_t *right, ...);
 
 extern int xioopensingle(char *addr, xiosingle_t *fd, int xioflags);
 extern int xioopenhelp(FILE *of, int level);

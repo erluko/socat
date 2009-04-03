@@ -26,6 +26,7 @@ int xioopen_ipapp_connect(int argc, const char *argv[], struct opt *opts,
 			   unsigned groups, int socktype, int ipproto,
 			   int pf) {
    struct single *xfd = &xxfd->stream;
+   int rw = (xioflags & XIO_ACCMODE);
    struct opt *opts0 = NULL;
    const char *hostname = argv[1], *portname = argv[2];
    bool dofork = false;
@@ -98,6 +99,8 @@ int xioopen_ipapp_connect(int argc, const char *argv[], struct opt *opts,
       default:
 	 return result;
       }
+      if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+      if (!XIOWITHRD(rw))  xfd->rfd = -1;
 
 #if WITH_RETRY
       if (dofork) {
@@ -121,7 +124,7 @@ int xioopen_ipapp_connect(int argc, const char *argv[], struct opt *opts,
 
 	 /* parent process */
 	 Notice1("forked off child process "F_pid, pid);
-	 Close(xfd->fd1);
+	 Close(xfd->rfd);
 
 	 /* with and without retry */
 	 Nanosleep(&xfd->intervall, NULL);

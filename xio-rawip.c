@@ -1,5 +1,5 @@
 /* source: xio-rawip.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* this file contains the source for opening addresses of raw IP type */
@@ -104,6 +104,7 @@ int _xioopen_rawip_sendto(const char *hostname, const char *protname,
 			  unsigned groups, int *pf) {
    char *garbage;
    xiosingle_t *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    union sockaddr_union us;
    socklen_t uslen;
    int feats = 1;	/* option bind supports only address, not port */
@@ -143,7 +144,6 @@ int _xioopen_rawip_sendto(const char *hostname, const char *protname,
 
    uslen = socket_init(*pf, &us);
 
-   xfd->fdtype = FDTYPE_SINGLE;
    xfd->dtype = XIODATA_RECVFROM_SKIPIP;
 
    if (retropt_bind(opts, *pf, socktype, ipproto, &us.soa, &uslen, feats,
@@ -151,9 +151,15 @@ int _xioopen_rawip_sendto(const char *hostname, const char *protname,
 		    xfd->para.socket.ip.res_opts[1]) != STAT_NOACTION) {
       needbind = true;
    }
-   return
-      _xioopen_dgram_sendto(needbind?&us:NULL, uslen,
-			  opts, xioflags, xfd, groups, *pf, socktype, ipproto);
+   if ((result =
+	_xioopen_dgram_sendto(needbind?&us:NULL, uslen,
+			      opts, xioflags, xfd, groups, *pf, socktype,
+			      ipproto)) != STAT_OK) {
+      return result;
+   }
+   if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+   if (!XIOWITHRD(rw))  xfd->rfd = -1;
+   return STAT_OK;
 }
 
 
@@ -251,7 +257,6 @@ int xioopen_rawip_recvfrom(int argc, const char *argv[], struct opt *opts,
       needbind = true;
    }
 
-   xfd->stream.fdtype = FDTYPE_SINGLE;
    xfd->stream.dtype = XIODATA_RECVFROM_SKIPIP_ONE;
    if ((result =
 	_xioopen_dgram_recvfrom(&xfd->stream, xioflags, needbind?&us.soa:NULL,
@@ -314,7 +319,6 @@ int xioopen_rawip_recv(int argc, const char *argv[], struct opt *opts,
       xfd->stream.para.socket.la.soa.sa_family = pf;
    }
 
-   xfd->stream.fdtype = FDTYPE_SINGLE;
    xfd->stream.dtype = XIODATA_RECV_SKIPIP;
    result =
       _xioopen_dgram_recv(&xfd->stream, xioflags,

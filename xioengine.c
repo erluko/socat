@@ -442,7 +442,7 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	 if (XIO_RDSTREAM(sock1)->ignoreeof &&
 	     !XIO_RDSTREAM(sock1)->actescape && !sock1->stream.closing) {
 	    Debug1("socket 1 (fd %d) is at EOF, ignoring",
-		   XIO_RDSTREAM(sock1)->fd1);	/*! */
+		   XIO_RDSTREAM(sock1)->rfd);	/*! */
             mayrd1 = true;
 	    polling = 1;       /* do not hook this eof fd to poll for pollintv*/
 	 } else {
@@ -465,7 +465,7 @@ int _socat(xiofile_t *xfd1, xiofile_t *xfd2) {
 	 if (XIO_RDSTREAM(sock2)->ignoreeof &&
 	     !XIO_RDSTREAM(sock2)->actescape && !sock2->stream.closing) {
 	    Debug1("socket 2 (fd %d) is at EOF, ignoring",
-		   XIO_RDSTREAM(sock2)->fd1);
+		   XIO_RDSTREAM(sock2)->rfd);
 	    mayrd2 = true;
 	    polling = 1;       /* do not hook this eof fd to poll for pollintv*/
 	 } else {

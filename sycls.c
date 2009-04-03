@@ -1,5 +1,5 @@
 /* source: sycls.c */
-/* Copyright Gerhard Rieger 2001-2008 */
+/* Copyright Gerhard Rieger 2001-2009 */
 /* Published under the GNU General Public License V.2, see file COPYING */
 
 /* explicit system call and C library trace function, for those who miss strace
@@ -742,6 +742,7 @@ int Select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
    return result;
 }
 
+#if 0
 /* we only show the first word of the fd_set's; hope this is enough for most
    cases. */
 int Pselect(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
@@ -776,6 +777,7 @@ int Pselect(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
    errno = _errno;
    return result;
 }
+#endif /* 0 */
 
 pid_t Fork(void) {
    pid_t pid;

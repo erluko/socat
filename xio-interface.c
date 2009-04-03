@@ -30,6 +30,7 @@ int _xioopen_interface(const char *ifname,
 		       struct opt *opts, int xioflags, xiofile_t *xxfd,
 		       unsigned groups) {
    xiosingle_t *xfd = &xxfd->stream;
+   int rw = (xioflags&XIO_ACCMODE);
    int pf = PF_PACKET;
    union sockaddr_union us = {{0}};
    socklen_t uslen;
@@ -38,6 +39,7 @@ int _xioopen_interface(const char *ifname,
    bool needbind = false;
    char *bindstring = NULL;
    struct sockaddr_ll sall = { 0 };
+   int result;
 
    if (ifindex(ifname, &ifidx, -1) < 0) {
       Error1("unknown interface \"%s\"", ifname);
@@ -70,9 +72,15 @@ int _xioopen_interface(const char *ifname,
    needbind = true;
    xfd->peersa = (union sockaddr_union)us;
 
-   return
-      _xioopen_dgram_sendto(needbind?&us:NULL, uslen,
-			  opts, xioflags, xfd, groups, pf, socktype, 0);
+   if ((result =
+	_xioopen_dgram_sendto(needbind?&us:NULL, uslen,
+			      opts, xioflags, xfd, groups, pf, socktype, 0))
+       != STAT_OK) {
+      return result;
+   }
+   if (XIOWITHWR(rw))   xfd->wfd = xfd->rfd;
+   if (!XIOWITHRD(rw))  xfd->rfd = -1;
+   return result;
 }
 
 static
