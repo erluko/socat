@@ -44,7 +44,7 @@ int _xioopen_udp_sendto(const char *hostname, const char *servname,
 static const struct xioaddr_endpoint_desc xioaddr_udp_connect2  = { XIOADDR_SYS, "udp-connect",  2, XIOBIT_ALL,                GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipapp_connect, SOCK_DGRAM, IPPROTO_UDP, PF_UNSPEC HELP(":<host>:<port>") };
 const union xioaddr_desc *xioaddrs_udp_connect[]   = { (union xioaddr_desc *)&xioaddr_udp_connect2, NULL };
 #if WITH_LISTEN
-static const struct xioaddr_endpoint_desc xioaddr_udp_listen1   = { XIOADDR_SYS, "udp-listen",   1, XIOBIT_RDONLY|XIO_RDWR,    GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipdgram_listen, PF_UNSPEC, IPPROTO_UDP, PF_UNSPEC HELP(":<port>") };
+static const struct xioaddr_endpoint_desc xioaddr_udp_listen1   = { XIOADDR_SYS, "udp-listen",   1, XIOBIT_RDONLY|XIOBIT_RDWR,    GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP|GROUP_LISTEN|GROUP_CHILD|GROUP_RANGE, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_ipdgram_listen, PF_UNSPEC, IPPROTO_UDP, PF_UNSPEC HELP(":<port>") };
 const union xioaddr_desc *xioaddrs_udp_listen[]    = { (union xioaddr_desc *)&xioaddr_udp_listen1, NULL };
 #endif /* WITH_LISTEN */
 static const struct xioaddr_endpoint_desc xioaddr_udp_sendto2   = { XIOADDR_SYS, "udp-sendto",   2, XIOBIT_WRONLY|XIOBIT_RDWR, GROUP_FD|GROUP_SOCKET|GROUP_SOCK_IP4|GROUP_SOCK_IP6|GROUP_IP_UDP, XIOSHUT_DOWN, XIOCLOSE_CLOSE, xioopen_udp_sendto, PF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP HELP(":<host>:<port>") };

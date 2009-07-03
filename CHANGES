@@ -1,4 +1,7 @@
 
+corrections:
+	address UDP-LISTEN failed as "not available"
+
 ####################### V 2.0.0-b3:
 
 new features:
