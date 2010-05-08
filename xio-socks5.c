@@ -146,7 +146,7 @@ static int xioopen_socks5_client(int argc, const char *argv[],
 #endif
 
 #if 0
-     if (xfd->fd1 < 0) {
+     if (xfd->rfd < 0) {
       /* this cannot fork because we retrieved fork option above */
       result =
 	 _xioopen_connect (xfd,
@@ -166,7 +166,7 @@ static int xioopen_socks5_client(int argc, const char *argv[],
       default:
 	 return result;
       }
-      xfd->fd1 = xfd->wfd = xfd->fd;
+      xfd->rfd = xfd->wfd = xfd->fd;
      } else
 #endif
 	xfd->dtype = XIODATA_STREAM;

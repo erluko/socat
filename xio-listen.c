@@ -233,7 +233,7 @@ int _xioopen_listen(struct single *xfd, int xioflags, struct sockaddr *us, sockl
 	 Notice1("listening on %s", sockaddr_info(us, uslen, lisname, sizeof(lisname)));
 	 ps = Accept(xfd->rfd, (struct sockaddr *)&sa, &salen);
 	 if (ps >= 0) {
-	    /*0 Info4("accept(%d, %p, {"F_Zu"}) -> %d", xfd->fd1, &sa, salen, ps);*/
+	    /*0 Info4("accept(%d, %p, {"F_Zu"}) -> %d", xfd->rfd, &sa, salen, ps);*/
 	    break;	/* success, break out of loop */
 	 }
 	 if (errno == EINTR) {

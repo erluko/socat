@@ -166,7 +166,7 @@ int xioshutdown(xiofile_t *sock, int how) {
 		  fd, strerror(errno));
 	 }
 	 sock->stream.eof = 2;
-	 sock->stream.fd1 = -1;
+	 sock->stream>rfd = -1;
       }
       break;
 #endif /* _WITH_SOCKET */

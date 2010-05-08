@@ -3995,10 +3995,10 @@ mc:addr
 		  opt->desc = ODESC_ERROR; continue;
 	       }
 #else
-	       if (Setsockopt(xfd->fd1, opt->desc->major, opt->desc->minor,
+	       if (Setsockopt(xfd->rfd, opt->desc->major, opt->desc->minor,
 			      &ip4_mreqn.mreq, sizeof(ip4_mreqn.mreq)) < 0) {
 		  Error7("setsockopt(%d, %d, %d, {0x%08x,0x%08x}, "F_Zu"): %s",
-			 xfd->fd1, opt->desc->major, opt->desc->minor,
+			 xfd->rfd, opt->desc->major, opt->desc->minor,
 			 ip4_mreqn.mreq.imr_multiaddr,
 			 ip4_mreqn.mreq.imr_interface,
 			 sizeof(ip4_mreqn.mreq),
